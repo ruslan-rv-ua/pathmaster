@@ -21,3 +21,15 @@ What exactly is a snapshot, and what does Restore do?
 - **Foreign files.** Anything else in `data/backups/` — ignored, listed, or an error?
 - **Snapshot contents.** Does it record anything beyond the three fields (app version, machine name)? Each
   extra field must be justified against the portability and no-telemetry promises.
+
+## Carried in from ticket 05
+
+**The PRD's snapshot shape may be too lossy to restore from.** `{ timestamp, scope, entries: [...] }` stores a
+decoded, split list of strings — which discards the value **type** (`REG_EXPAND_SZ` vs `REG_SZ`) and any
+byte-level detail of the original value. Ticket 05 lists this as hazard H15: a backup that cannot reproduce
+what was actually in the registry makes every other corruption mode unrecoverable, which defeats the entire
+point of backing up before Apply.
+
+Decide what a snapshot must carry to be a **faithful** restore source — at minimum the value type alongside the
+entries, and possibly the raw value itself — and weigh that against the file staying human-readable, which is
+part of why JSON was chosen. This is the ticket where those two goals are traded off explicitly.

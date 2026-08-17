@@ -28,3 +28,18 @@ Open:
 
 Use `/domain-modeling`. Output: the ubiquitous language in `CONTEXT.md` at the repo root — Entry, Scope,
 Working Copy, Snapshot, Issue, Session — plus the state model in the ticket answer.
+
+## Carried in from ticket 05
+
+The "what is an Entry" question now has a hard constraint under it, and it reaches the domain model:
+
+- A Scope's registry value carries **both raw bytes and a value type** (`REG_EXPAND_SZ` or `REG_SZ`), and the
+  type must be **preserved, never normalised** — normalising either turns a literal `%` in a real directory
+  name into an expansion, or silently denies the user new `%VAR%` entries. So the Working Copy owns a value
+  type, not just a list of strings, and the model must say what happens when a user types `%VAR%` into a
+  `REG_SZ` scope.
+- A Scope also has a **third state beyond present-and-empty**: the `Path` value can be *absent*
+  (`ERROR_FILE_NOT_FOUND`) on a fresh profile. Name it; several downstream behaviours differ.
+- Normalisation is a **comparison-time concept only** — the raw substring is what gets written back. Ticket 05
+  catalogues 15 ways a naive implementation produces a *successful* registry write with wrong content, and
+  most of them start with normalising or decoding at the wrong moment.

@@ -26,3 +26,26 @@ from an aspiration into testable criteria.
 
 Output: the accessibility section of the locked spec, and rewritten US-accessibility acceptance criteria that
 name what is spoken rather than asserting that something is accessible.
+
+## Carried in from ticket 03
+
+Three requirement rewrites land here, all forced by what the binding cannot do:
+
+- **US-high-contrast inverts into a prohibition.** `wxSystemSettings::GetColour` is unbound and there is no
+  High Contrast detection, so the app must simply **never set a colour** — native controls then inherit the
+  system theme, High Contrast included. Decide what this means for NFR-accessibility-wcag's 4.5:1 criterion,
+  which becomes untestable-by-us rather than satisfied-by-us. Note the hand-built banner (ticket 08) must not
+  set a background colour either, or it punches a hard-coded rectangle through High Contrast.
+- **Status becomes text-only.** A ListCtrl sub-item cannot carry an icon, so the Status column has no icon to
+  pair with its text. NFR-no-color-only wanted text anyway, and NVDA reads the column for free.
+- **The status bar cannot highlight a field**, so the over-limit state must be carried in the field's text.
+
+## Carried in from ticket 01
+
+**Adding accessibility labels is a change of plumbing, not a pure addition.** By default no wx control
+overrides `CreateAccessible()`, so `WM_GETOBJECT` goes unhandled and comctl32's own IAccessible serves the
+ListCtrl — that is where the free row reading comes from. The **first** `set_accessibility_*` call on a widget
+moves it onto the wx-mediated path. Whether that degrades the native row reading is UNKNOWN: the
+`NOT_IMPLEMENTED` → `CreateStdAccessibleObject` fallback suggests not, but that is a code reading, not a test.
+So the contract must say **where labels are set and where they are deliberately not**, and any widget that
+gains one has to be re-tested against the ticket-02 baseline rather than assumed improved.

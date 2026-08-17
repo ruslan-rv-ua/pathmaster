@@ -29,3 +29,30 @@ over-length, relative, empty.
   where does that happen, and what if the variable does not exist?
 
 Output: the rewritten FR-diag-* family with rules precise enough to write tests from.
+
+## Carried in from ticket 03
+
+FR-auto-diagnose's "asynchronous, does not block the UI" must name a mechanism, because the obvious one does
+not exist and the near-miss fails silently:
+
+- There is no `CallAfter` and no `QueueEvent`/custom event with a payload; `EventType` is a closed set.
+  `call_after` is a Rust-side queue drained only from the idle handler, at most 10 per tick, and it does **not**
+  call `wake_up_idle()` — so a callback queued while the app is truly idle may wait for the next UI activity.
+- Widget handles are auto-`Send` but resolve through a **thread-local** registry: calling a widget from the
+  worker thread compiles, silently no-ops, and updates nothing. The rule to write into the spec is *widgets may
+  be captured across threads but only called on the UI thread.*
+- The upstream-recommended shape is worker thread → `mpsc` → drained inside `on_idle` with
+  `request_more(has_more)`, or a `Timer`. Decide which, and state it in the acceptance criteria.
+
+## Carried in from ticket 05
+
+- **The over-length check runs on the expanded, merged string**, not the raw sum of the two scopes — measured
+  2207 raw versus 2198 expanded on the research machine. The 32767 is the documented limit for **one
+  environment variable**; the old environment-*block* limit was lifted after Server 2003, and `setx`'s 1024
+  crop is `setx`'s own. What actually breaks on overflow is UNKNOWN, so the requirement must **warn at a
+  threshold** rather than assert a failure mode.
+- **Diagnose the working copy, never the process environment.** This process's own `PATH` was 1796 chars while
+  a fresh merge computes 2198 — an app that reads `std::env::var("PATH")` diagnoses a stale snapshot of
+  whatever launched it.
+- **Expansion for diagnostics must not leak into what gets written.** Comparison and existence checks work on
+  expanded values; the raw substring is what goes back to the registry, byte for byte.

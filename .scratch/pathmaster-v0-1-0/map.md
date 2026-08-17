@@ -58,7 +58,30 @@ transient, non-focus messages — which is why that has its own ticket.
 
 <!-- one line per resolved ticket: gist + link. Charting-time constraints live in Notes, not here. -->
 
-_(nothing resolved yet)_
+- [wxdragon accessibility surface](issues/01-wxdragon-accessibility-surface.md) — **wxdragon already binds
+  `wxAccessible` in full** (`AccessibleImpl`, `Accessible::notify_event`, five `set_accessibility_*` setters,
+  Windows-only cfg), so forking is off the table. `wxUSE_ACCESSIBILITY` is derived ON but **never observed** —
+  and the C layer's `#else` branches are silent no-ops, so a 0 there would fail invisibly. `get_handle()`
+  exposes the `HWND` on every widget, so the direct `NotifyWinEvent` route is open too. There are no prebuilt
+  binaries: wxWidgets 3.3.3 is compiled from pinned source, statically, and `crt-static` propagates into that
+  C++ build. Pin wxdragon **≥ 0.9.17** (earlier `AccRole` discriminants are mis-ordered; the MSAA fixes came
+  from a core NVDA developer). Details: [research/01](research/01-wxdragon-accessibility-surface.md).
+- [PATH registry I/O semantics](issues/05-registry-io-semantics.md) — read and write raw through
+  `winreg::get_raw_value` / `set_raw_value`, which preserve bytes **and** value type; never
+  `set_value::<String>` (it writes `REG_SZ` unconditionally — the .NET bug that put `REG_SZ` `Path` on real
+  machines in the first place). Preserve the existing type, never normalise. Missing value is a distinct state
+  (`ERROR_FILE_NOT_FOUND`). 32767 is the per-variable limit, and the combined check must run on the
+  **expanded merged** string. The `WM_SETTINGCHANGE` timeout is **per top-level window and multiplies**, so the
+  spec's 5000 ms is a theoretical 18.8-minute freeze — use 1000–2000 ms off the UI thread. Detect external
+  edits by re-reading `(vtype, bytes)`, never by the key's timestamp. 15 hazards catalogued, all of which
+  produce a *successful* write with wrong content: [research/05](research/05-registry-io.md).
+- [wxdragon widget inventory vs PathMaster UI](issues/03-widget-inventory.md) — wxdragon 0.9.18 over
+  wxWidgets 3.3.3 can express the UI, and carries an ungated accessibility API (`set_accessibility_*`,
+  `AccessibleImpl`, `Accessible::notify_event`) plus embedded-memory `.mo` translations. Seven requirements
+  need rewriting: no veto on label-edit, no `wxInfoBar`, no system-colour access, no `wxAcceleratorTable`,
+  no sub-item icons, no status-field styling, no `CallAfter`/`QueueEvent`. Widgets are auto-`Send` but
+  resolve through a thread-local registry, so calling one off the UI thread silently no-ops.
+  Full inventory: [research/03](research/03-widget-inventory.md).
 
 ## Not yet specified
 

@@ -27,3 +27,16 @@ nowhere to put a Browse button.
   workflow.)
 
 Output: rewritten FR-edit-f2, FR-add-delete and FR-browse-folder.
+
+## Carried in from ticket 03
+
+In-place label editing **is** bound (`ListCtrlStyle::EditLabels`, BEGIN/END events, `get_label()`,
+`is_edit_cancelled()`), so the first branch of the question is settled — but with a sting:
+
+- **The end-of-edit event cannot be vetoed.** `ListCtrlEventData` exposes no `veto()`/`skip()` and its inner
+  `Event` is private (`list_ctrl.rs:157`), so an invalid edit cannot be refused. The spec's "the field is
+  highlighted and stays in edit mode" is not expressible. Choose between accept-then-revert, and driving
+  editing yourself via `edit_label()` — which returns the live `TextCtrl` and so allows validation as the user
+  types. `wxListCtrl::GetEditControl` is unbound, so the editor is unreachable during a *native* F2 edit.
+- **Open spike (from ticket 03):** whether `edit_label()` can co-exist with the control's own F2 handling or
+  the two race. Cheap to settle with a running prototype, and it decides FR-edit-f2's final wording.

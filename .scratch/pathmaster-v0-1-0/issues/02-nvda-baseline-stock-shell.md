@@ -34,3 +34,14 @@ No accessibility work of any kind. Then the user runs NVDA and reports, **verbat
 Record what is spoken **and what is silent**. Silence is the finding that matters.
 
 Findings → `../research/02-nvda-baseline.md`, with the prototype's location noted.
+
+## Carried in from ticket 01
+
+- **Pin wxdragon ≥ 0.9.17.** Before PR #155 the `AccRole` discriminants were mis-ordered, so an older version
+  reports wrong MSAA roles. That PR and #158 were authored by a core NVDA developer, so recent versions are the
+  ones with real screen-reader attention.
+- **Measure the baseline before touching any accessibility call, and keep it that way.** Confirmed at source:
+  `wxWindow::CreateAccessible()` returns `nullptr` by default and no wx control overrides it, so `WM_GETOBJECT`
+  goes unhandled and comctl32's *own* IAccessible serves the list rows — that is what "free" means here. But
+  the first `set_accessibility_*` call on a widget flips it onto the wx-mediated path. So this ticket measures
+  the stock behaviour, and any later ticket that adds labels must re-measure rather than assume it only added.
