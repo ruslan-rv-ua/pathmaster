@@ -1,7 +1,7 @@
 # NVDA baseline for a stock wxdragon shell
 
 Type: prototype
-Status: open
+Status: resolved
 Blocked by: —
 
 ## Question
@@ -156,3 +156,51 @@ direction.
 
 The cost of changing their mind later is low: everything in the previous comment still stands, and the
 missing step is one setting (`NVDA+Ctrl+G` → General → Logging level → Input/Output) plus one pass.
+
+### 2026-08-18 — partial pass captured; question 3 still unmeasured
+
+A run was started and abandoned part-way ("я не закінчив, але впевнений що все працюватиме чудово").
+Because logging was already at Input/Output, everything pressed before it stopped was recorded, so the
+partial pass was harvested rather than discarded. Findings: `../research/02-nvda-baseline.md`.
+
+**Answered from real data:** launch and title (1), Ctrl+Tab between tabs (2), the empty list (4), menus
+(5), Tab/Shift+Tab traversal (6), and half of (7) — the status bar is not in the Tab order. Notably free:
+`'недоступно'` on a disabled menu item, `'позначено'` on a check-item, access keys on every button, and
+accelerator text spoken because `\t` puts it inside the label. Also confirmed from NVDA's own injected
+helper (`sysListView32.cpp`) that the list is served by comctl32's SysListView32 support, not by wx.
+
+**Still unmeasured — and it is the one the ticket exists for:** question 3, arrowing a **populated**
+list. Whether the Status column is spoken with the Path, whether headers are announced, what the
+Duplicate / does-not-exist / empty-entry rows sound like. The empty list said only `['список']` — no
+count, no "порожньо" — which points away from the control volunteering context, so the answer should
+not be assumed. Tickets 08 and 09 are sized by this and stay blocked on it.
+
+Ticket remains **open**. Remaining cost: run-sheet sections C (11–22) and G (39–40) plus `F6` — about
+three minutes, prototype already built, capture method already proven.
+
+### 2026-08-18 — measured; the list is silent
+
+Section C was run by script rather than by hand: keys injected with `keybd_event`, NVDA logging them as
+ordinary gestures, and the control's own `LVM_GETNEXTITEM(LVNI_FOCUSED)` read back afterwards to prove
+they landed. Full findings: `../research/02-nvda-baseline.md`.
+
+**The answer to question 3 is silence.** Ten arrows moved the focused row 0 -> 3 in an 11-row list and
+NVDA spoke nothing at all. `NVDA+Tab` at that moment reports `['список', 'у фокусі', 'з 11 рядків і 2
+стовпців']` — the list, never the row. There is no NVDA error involved.
+
+The rows are not missing. MSAA on the focused list returns 11 `ROLE_SYSTEM_LISTITEM` children with
+correct names, and `accFocus` names the very row the arrows moved to, with `selected + focused` set. So
+the content is present and correct; **the event announcing the change is what does not arrive**. That
+reshapes ticket 08: not "add a live region" but "make row focus reach the screen reader at all".
+
+Also measured: the status bar is unreachable — not in the Tab order, and `NVDA+End` answers `['Рядок
+стану невиявлено']` though the frame does own an `msctls_statusbar32`. `F6` is silent. And the empty
+list says only `['список']`, no count.
+
+Everything else in the shell is genuinely free and good — title, tabs, buttons with access keys, menus
+with `'недоступно'` and `'позначено'`, no focus traps. The earlier impression that the app "works well"
+was accurate for all of that; it just did not cover the one surface the application is built around.
+
+Ticket **resolved**. Two questions remain open but are downstream of the silence and unmeasurable until
+it is fixed: whether the Status column is read with the Path, and whether column headers are announced.
+Both belong to ticket 08's re-measurement.
