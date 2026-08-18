@@ -2,9 +2,16 @@
 
 Status: **measured**. All seven questions answered.
 
-**Headline: arrowing through a populated list is completely silent.** Everything else in the shell
-speaks well without a line of accessibility code. The one surface the whole application is built
-around is the one that says nothing.
+**Headline: a stock wxdragon shell is announced well, including the list.** Rows speak both columns —
+`'C:\scoop\shims; Status: Warning: Duplicate'` — with no accessibility code of any kind. The status bar
+is readable. What is genuinely silent is narrow and listed at the end.
+
+> **Correction, 2026-08-18.** An earlier version of this file reported the opposite — that arrowing the
+> list announced nothing. That measurement was taken during a ~7-minute window in which NVDA treated
+> this control as a leaf, and it does not reproduce. The window itself is real and is recorded below
+> under "The anomaly", because a screen reader going deaf on the main control is worth its own
+> investigation — but it is **not** the baseline. Everything above and below it is re-measured in the
+> healthy state.
 
 ## Provenance
 
@@ -12,20 +19,15 @@ around is the one that says nothing.
 |---|---|
 | Prototype | `../prototypes/02-nvda-baseline/`, release build, no accessibility code |
 | Pass 1 | 2026-08-18 15:25–15:27, driven by hand — launch, tabs, empty list, menus, Tab traversal |
-| Pass 2 | 2026-08-18 16:24–16:31, driven by script — the populated list, status bar, `F6` |
+| Pass 2 | 2026-08-18 16:24–16:31, script-driven — **discarded, see "The anomaly"** |
+| Pass 3 | 2026-08-18 ~17:30, script-driven — the populated list, status bar, empty list, re-verification |
+| Harness | `../tools/nvda-drive.ps1` |
 | Source | `%TEMP%\nvda.log` at logging level Input/Output |
 | Env | NVDA 2025.3.3 x86, RHVoice `Natalia`; NVDA UI language follows OS, so **roles are spoken in Ukrainian** |
 
 Utterances are copied verbatim from `Speaking [...]` lines. `CancellableSpeech` markers are dropped;
 `CharacterModeCommand(True), 'a', CharacterModeCommand(False)` is written `‹a›` — NVDA spelling out an
 access key.
-
-**On pass 2 being script-driven.** Keys were injected with `keybd_event` and NVDA logged each one as an
-ordinary gesture (`Input: kb(desktop):downArrow`), so from NVDA's side they were indistinguishable from
-typing. NVDA's speech follows accessibility events, not keystrokes, so the injection path cannot by
-itself explain silence. It was also cross-checked at the control: `LVM_GETNEXTITEM(LVNI_FOCUSED)` was
-read directly out of the list after the arrows and had moved (see below), proving the keys landed and
-the list responded.
 
 ## 1. Launch and window title — spoken
 
@@ -35,8 +37,7 @@ the list responded.
 ['User PATH', 'вкладка', 'виділено']
 ```
 
-`NVDA+Tab` on the settled window: `['User PATH', 'вкладка', 'у фокусі', 'виділено']`. Focus starts on
-the notebook page, not the frame.
+Focus starts on the notebook page, not the frame.
 
 ## 2. Ctrl+Tab between tabs — spoken
 
@@ -48,90 +49,62 @@ the notebook page, not the frame.
 Label, role and selection state, free. No position ("2 of 3") — expected, this machine has
 `reportObjectPositionInformation = False`, so its absence measures the config, not the control.
 
-## 3. Arrowing a populated list — **SILENT**
+## 3. Arrowing a populated list — **fully announced, both columns**
 
-The User PATH list, 11 rows, focused. Ten `downArrow` presses, then `Ctrl+Home`, then three more:
-
-```
-Input: kb(desktop):downArrow      (×10)
-Input: kb(desktop):control+home
-Input: kb(desktop):downArrow      (×3)
-```
-
-**Not one `Speaking` line.** Nothing at all — not the path, not the status, not a row number, not even
-a sound.
-
-The keys landed. Read straight out of the control immediately after the three arrows:
+All eleven rows of the User PATH list, `Ctrl+Home` then ten `downArrow`:
 
 ```
-focusedIndex now = 3   selectedCount = 1
+['C:\Users\Ruslan\AppData\Local\Microsoft\WindowsApps; Status: OK']
+['C:\Program Files\Git\cmd; Status: OK']
+['C:\scoop\shims; Status: OK']
+['%USERPROFILE%\.cargo\bin; Status: OK']
+['C:\Program Files\nodejs; Status: OK']
+['C:\scoop\shims; Status: Warning: Duplicate']
+['C:\Tools\NoSuchFolder; Status: Error: Path does not exist']
+['.\relative\bin; Status: Warning: Relative path']
+['Status: Error: Empty entry']
+['C:\Program Files\PowerShell\7; Status: OK']
+['C:\Program Files\dotnet; Status: OK']
 ```
 
-So the focused row moved 0 → 3 while NVDA said nothing. Asking NVDA what it thinks is focused, at that
-moment and again after another arrow, gives the same answer both times:
+This answers the ticket's three sub-questions at once:
+
+- **Is the Status column read with the Path?** Yes, every time, in one utterance.
+- **Are column headers announced?** Yes, and in the useful form: NVDA speaks the first column bare and
+  prefixes every later column with its header name — hence `; Status: `. The header is what makes the
+  second value intelligible, and it arrives free.
+- **Is the row position announced?** No. Config, not control — `reportObjectPositionInformation` is
+  off on this machine, so this stays unanswerable here.
+
+`NVDA+Tab` on a row reports it as an item, with state:
 
 ```
-NVDA+tab → ['список', 'у фокусі', 'з 11 рядків і 2 стовпців']
+['C:\scoop\shims; Status: OK', 'елемент списку', 'у фокусі', 'виділено']
 ```
 
-NVDA reports **the list**, and knows its shape — 11 rows, 2 columns — but never the row. Its notion of
-the focused object never descends into the list.
+Two details worth carrying forward:
 
-There is no NVDA error behind this. The only in-process complaint during the run is benign and fires on
-entry, not on movement:
-
-```
-RPC process 9240 (nvda-baseline.exe) — sysListView32.cpp,
-nvdaInProcUtils_sysListView32_getGroupInfo, 43: LVM_GETGROUPINFOBYINDEX failed
-```
-
-(The list has no groups, so the group query fails. It also confirms NVDA is injecting and running its
-dedicated **SysListView32** support against this control, exactly as ticket 01 predicted from source.)
-
-### The rows are not missing — only the announcement is
-
-MSAA was queried directly on the focused list window (`AccessibleObjectFromWindow`, `OBJID_CLIENT`),
-with the focus sitting on row 4:
-
-```
-hr=0  childCount=12  role=33 (ROLE_SYSTEM_LIST)
-accFocus -> 4
-child 1 : name='C:\Users\Ruslan\AppData\Local\Microsoft\WindowsApps' role=34 state=0x300000
-child 2 : name='C:\Program Files\Git\cmd'                            role=34 state=0x300000
-child 3 : name='C:\scoop\shims'                                      role=34 state=0x300000
-child 4 : name='%USERPROFILE%\.cargo\bin'                            role=34 state=0x300006
-child 5 : name='C:\Program Files\nodejs'                             role=34 state=0x300000
-child 6 : name='C:\scoop\shims'                                      role=34 state=0x300000
-```
-
-Role 34 is `ROLE_SYSTEM_LISTITEM`; `0x300000` is selectable + focusable; `0x300006` adds **selected +
-focused**. So every row exists as a proper accessible object with a name, and the control answers
-`accFocus` correctly, naming the very row the arrows moved to.
-
-**The data is there and correct. What is missing is the event that tells NVDA it changed.** That is a
-more precise and much cheaper problem than "the list is inaccessible" — but it is not free, and it is
-not something this baseline gives us.
-
-Two things this does *not* settle, both downstream of the silence:
-
-- **Whether the Status column would be read.** `accName` carries the **Path column only** — no Status
-  text. That is expected for MSAA and is not evidence either way: NVDA reads further columns itself via
-  `LVM_GETITEMTEXT` in its in-process helper, not from `accName`. Since no row is ever announced, this
-  stays unmeasured.
-- **Whether column headers would be announced.** Same reason.
+- **An Entry with an empty Path announces only `['Status: Error: Empty entry']`.** NVDA omits an empty
+  column rather than saying "blank", so the row is identified purely by its Issue. Whether that is
+  good enough is ticket 09's call, not a defect of the control.
+- `%VAR%` and `\` are spoken as part of the path without symbol names, consistent with `symbolLevel = 0`.
 
 ## 4. The empty list — near-silent
 
-Entering the empty Backups list announces the role and nothing else:
+Entering the empty Backups list announces the role and nothing else; arrowing in it is silent (there is
+nothing to move to); `NVDA+Tab` gives the shape without a row count:
 
 ```
-['список']
+tab into it  → ['список']
+downArrow    → (nothing)
+NVDA+Tab     → ['список', 'у фокусі', 'з 2 стовпців']
 ```
 
-No count, no "порожньо" — while NVDA *does* say `'порожньо'` for an empty edit field elsewhere in the
-same log. Consistent with question 3: this control volunteers nothing at item level.
+No count, no "порожньо" — while NVDA does say `'порожньо'` for an empty edit field elsewhere in the
+same log. **This is the one place the free ride is genuinely thin**: a user landing here learns they
+are in a list, not that it is empty.
 
-## 5. Menus — the richest free surface
+## 5. Menus — rich
 
 ```
 ['File',               'підменю', 'Alt+', ‹f›]
@@ -151,8 +124,6 @@ same log. Consistent with question 3: this control volunteers nothing at item le
   reads the string. Not a separate shortcut property — so the `\t` convention in menu labels is
   load-bearing and must survive any refactor. Separately `reportKeyboardShortcuts = True` yields the
   access key.
-- `%` in `Expand %VAR%` is spoken as `'відсоток'` despite `symbolLevel = 0`. Noted, unexplained; it
-  matters because Entry text is full of `%VAR%` and `\`.
 
 ## 6. Tab / Shift+Tab traversal — clean, no trap
 
@@ -163,45 +134,84 @@ tab bar → список → Add… → Delete → Move Up → Move Down → (wr
 Confirmed in both directions. Buttons announce name, role and access key:
 
 ```
-['Add…',      'кнопка', 'Alt+', ‹a›]
-['Delete',    'кнопка', 'Alt+', ‹d›]
-['Move Up',   'кнопка', 'Alt+', ‹u›]
-['Move Down', 'кнопка', 'Alt+', ‹o›]
+['Add…', 'кнопка', 'Alt+', ‹a›]   ['Delete',    'кнопка', 'Alt+', ‹d›]
+['Move Up','кнопка', 'Alt+', ‹u›] ['Move Down', 'кнопка', 'Alt+', ‹o›]
 ```
 
-Nothing traps focus. The list announces only `['список']` on entry.
+Nothing traps focus.
 
-## 7. Status bar — **not reachable, not readable**
+## 7. Status bar — readable by command, not by traversal
 
-Two independent results:
+```
+NVDA+End → ['User PATH: 11 entries (4 issues) Total length: 486 chars']
+```
 
-- It is **not in the Tab order** — Tab from `Move Down` wraps straight back to the tab bar.
-- `NVDA+End` answers **`['Рядок стану невиявлено']`** — "status bar not found" — even though the frame
-  really does own an `msctls_statusbar32` child window (confirmed by enumerating the frame's children).
+Both fields arrive in one utterance, and `NVDA+End` is the standard desktop-layout gesture for it, so a
+screen-reader user has a normal way to reach it.
 
-`F6` produces silence: no utterance at all.
+But it is **not in the Tab order** — Tab from `Move Down` wraps straight back to the tab bar — and
+**`F6` is silent**, producing no utterance at all. So it is reachable only by someone who thinks to ask
+for it.
 
-So the status bar is, for a screen-reader user, absent. Anything the design puts there is invisible
-unless something is done about it.
+Caveat about the prototype, not about NVDA: its status bar text did not change when the tab changed
+(still "User PATH: 11 entries" while on Backups). The prototype sets it once; nothing is implied about
+how the real app would behave.
+
+## The anomaly — NVDA went deaf on this control for ~7 minutes
+
+Recorded because it is a genuine risk, not because it is the baseline.
+
+Between 16:24 and 16:31 the same binary, the same NVDA process (the log is continuous — no restart, no
+rotation to `nvda-old.log`) and the same config produced:
+
+- **Total silence** on fourteen arrow presses across the populated list.
+- `NVDA+Tab` → `['список', 'у фокусі', 'з 11 рядків і 2 стовпців']` — NVDA reporting the **list** as the
+  focused object, never descending to a row. Compare the healthy state, where the same gesture returns
+  the row and `'елемент списку'`.
+- `NVDA+End` → `['Рядок стану невиявлено']` — "status bar not found", on the very frame that answers
+  the same gesture correctly now.
+
+It was cross-checked at the time, so the silence was real and not a harness failure:
+
+- `LVM_GETNEXTITEM(LVNI_FOCUSED)` read straight out of the control showed the focused row moving 0 → 3.
+- MSAA on that list returned 11 `ROLE_SYSTEM_LISTITEM` children with correct names, and `accFocus`
+  named the exact row the arrows had reached, with `selected + focused` set.
+
+So the content was present and correct while NVDA announced none of it.
+
+**It does not reproduce.** Replaying the identical key sequence on a fresh instance — including the
+accidental triple-`Tab` and the `Shift+Tab` re-entry that preceded the silence — announces every row.
+
+Hypotheses, cheapest first, none tested:
+
+1. **A race at window creation.** In the silent run the first keys arrived ~2.6 s after launch, sent
+   in an unpaced burst (~65 ms apart) by a harness bug, while NVDA's in-process helper was still
+   attaching. NVDA may have cached a degraded object for the list and never re-built it. Test: launch
+   and hammer keys immediately, unpaced, several times.
+2. **A stale NVDA session.** NVDA had been running ~12 h. Test: reproduce after a long uptime.
+3. Something specific to that process instance's injection.
+
+Until it is understood, the honest statement is: *this shell announces its list correctly, and has been
+observed once not to, for reasons unknown.* Anyone re-measuring should check `NVDA+Tab` on a row first
+— if it answers `'список'` instead of `'елемент списку'`, NVDA is in the bad state and the pass is void.
 
 ## What this means
 
-**Free, and genuinely good:** window title, tab labels and selection, button names + roles + access
-keys, menu names, accelerator text, disabled and checked states, a focus order with no traps. The
-impression that the app "works well" is accurate for all of this.
+**Free, and enough to build on:** window title, tab labels and selection, **list rows with both columns
+and their header names**, button names + roles + access keys, menu names, accelerator text, disabled and
+checked states, a focus order with no traps, and a status bar that answers `NVDA+End`.
 
-**Not free, and load-bearing:**
+**Not free — the short list:**
 
-1. **List row announcement (the big one).** Rows are fully formed accessible objects with correct names
-   and states, but moving between them produces no speech. Every core task in PathMaster — reviewing
-   entries, finding a duplicate, landing on a broken path — happens by arrowing this list. Ticket **08**
-   is now sized by this: it is not "add a live region", it is "make row focus reach the screen reader at
-   all".
-2. **Status column and headers.** Still unmeasured, and unmeasurable until (1) is fixed. Ticket **13**
-   must not assume Issues are heard just because they sit in a column.
-3. **Status bar.** Unreachable and unreadable as it stands. Ticket **17** cannot treat it as an
-   information channel; ticket **09** must decide whether it becomes one or its content moves.
-4. **Empty states.** An empty list says only "список". Ticket **09** should require the count.
+1. **Empty states.** An empty list says only "список", with no count and no "empty". Ticket **09**
+   should require it.
+2. **The status bar is command-only.** Not in the Tab order and `F6` is silent. Tickets **09** and
+   **17** decide whether that is acceptable or whether its content needs a second home.
+3. **Row position.** Never spoken on this machine, because the user's config has it off. Anything the
+   design wants heard must not rely on it.
+4. **Everything not tied to a focus change** — the banner, "PATH refreshed", "Copied to clipboard".
+   Untouched by this measurement and still ticket **08**'s question.
 
-The measurement is now the baseline it was meant to be, and any later ticket that adds an accessibility
-call must re-measure against it rather than assume it only added.
+Any later ticket that adds an accessibility call must re-measure against this file rather than assume
+it only added — the first `set_accessibility_*` call moves the control off the comctl32 path that
+produced everything above.

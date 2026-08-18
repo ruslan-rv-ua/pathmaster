@@ -204,3 +204,39 @@ was accurate for all of that; it just did not cover the one surface the applicat
 Ticket **resolved**. Two questions remain open but are downstream of the silence and unmeasurable until
 it is fixed: whether the Status column is read with the Path, and whether column headers are announced.
 Both belong to ticket 08's re-measurement.
+
+### 2026-08-18 — correction: the list is not silent
+
+**The previous comment is wrong and is left in place only as the record of how it happened.**
+
+Re-measured on a fresh instance with the harness now at `../tools/nvda-drive.ps1`. Every row of the
+User PATH list is announced, with both columns, and NVDA prefixes the second column with its header
+name:
+
+```
+['C:\scoop\shims; Status: Warning: Duplicate']
+['C:\Tools\NoSuchFolder; Status: Error: Path does not exist']
+['.\relative\bin; Status: Warning: Relative path']
+['Status: Error: Empty entry']
+```
+
+`NVDA+Tab` on a row returns `['C:\scoop\shims; Status: OK', 'елемент списку', 'у фокусі', 'виділено']`.
+The status bar also answers `NVDA+End` with both fields: `['User PATH: 11 entries (4 issues) Total
+length: 486 chars']`. So the two headline failures reported earlier were both artefacts of the state
+NVDA was in, not properties of the shell.
+
+**What survives from the previous comment:** the empty list still announces only `['список']` with no
+count; the status bar is still absent from the Tab order and `F6` is still silent; row position is
+still never spoken (config).
+
+**What was real but is not the baseline:** for about seven minutes (16:24–16:31) NVDA treated this list
+as a leaf — silence on fourteen arrows, `NVDA+Tab` answering `['список', ..., 'з 11 рядків і 2
+стовпців']`, `NVDA+End` answering `['Рядок стану невиявлено']` — while the control itself reported the
+focused row moving 0 -> 3 and MSAA held all eleven rows with a correct `accFocus`. Same binary, same
+NVDA process, same config; does not reproduce. That is now **ticket 18**, and the full evidence is in
+`../research/02-nvda-baseline.md` under "The anomaly".
+
+Ticket stays **resolved** — the question is answered, and answered favourably.
+
+**Method note for anyone re-measuring:** check `NVDA+Tab` on a row before trusting a pass. If it
+answers `'список'` rather than `'елемент списку'`, NVDA is in the bad state and the results are void.
