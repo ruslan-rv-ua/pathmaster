@@ -60,8 +60,8 @@ transient, non-focus messages — which is why that has its own ticket.
 
 - [wxdragon accessibility surface](issues/01-wxdragon-accessibility-surface.md) — **wxdragon already binds
   `wxAccessible` in full** (`AccessibleImpl`, `Accessible::notify_event`, five `set_accessibility_*` setters,
-  Windows-only cfg), so forking is off the table. `wxUSE_ACCESSIBILITY` is derived ON but **never observed** —
-  and the C layer's `#else` branches are silent no-ops, so a 0 there would fail invisibly. `get_handle()`
+  Windows-only cfg), so forking is off the table. `wxUSE_ACCESSIBILITY` is derived ON and, once ticket 04
+  produced a build, **observed as 1** — so the C layer's silent no-op `#else` branches are dead code. `get_handle()`
   exposes the `HWND` on every widget, so the direct `NotifyWinEvent` route is open too. There are no prebuilt
   binaries: wxWidgets 3.3.3 is compiled from pinned source, statically, and `crt-static` propagates into that
   C++ build. Pin wxdragon **≥ 0.9.17** (earlier `AccRole` discriminants are mis-ordered; the MSAA fixes came
@@ -82,6 +82,17 @@ transient, non-focus messages — which is why that has its own ticket.
   no sub-item icons, no status-field styling, no `CallAfter`/`QueueEvent`. Widgets are auto-`Send` but
   resolve through a thread-local registry, so calling one off the UI thread silently no-ops.
   Full inventory: [research/03](research/03-widget-inventory.md).
+- [Single-exe build profile](issues/04-single-exe-build-profile.md) — **every 🔴 must is reachable, none
+  close to its limit.** `RUSTFLAGS=-C target-feature=+crt-static` satisfies NFR-portable: verified on the
+  linked binary, the import table drops 32 → 19 DLLs, losing `VCRUNTIME140*`, `MSVCP140` and all eleven
+  `api-ms-win-crt-*`. **7.22 MB against a 40 MB budget** with `lto=true, codegen-units=1, panic=abort`
+  (`strip` moves *zero* bytes on MSVC — debug info is in a 52 MB PDB beside the exe, so "single exe" means
+  not shipping it; `opt-level=3` and `"z"` both make it *bigger*). **Cold start 79.6 ms** vs a 2 s budget.
+  Icon and `VERSIONINFO` demonstrated via `llvm-rc` — no new crate — but the **running window still has no
+  icon** without an explicit `Frame::set_icon()`. **LLVM/libclang and Ninja are newly load-bearing CI pins.**
+  Two traps: a deep checkout path breaks the build via MAX_PATH while blaming the C++ compiler, and
+  `RUSTFLAGS` silently overrides `.cargo/config.toml` — so release CI must gate on the artifact's imports,
+  never on the build config. Details: [research/04](research/04-build-profile.md).
 
 ## Not yet specified
 
@@ -91,8 +102,6 @@ In scope, but not yet sharp enough to ticket. Graduates as the frontier advances
   write, a backup write, or a settings load fails. Waits on the registry, elevation and backup tickets.
 - **Test and verification strategy** — how the accessibility contract is regression-tested by one person before
   each release, and what is worth automating at all. Waits on the accessibility contract.
-- **Visual design and layout** — window layout, minimum size behaviour, DPI scaling, icons, and what "status
-  icon" means once colour cannot carry meaning. Waits on the widget inventory.
 - **Log format and rotation details** — waits on the failure taxonomy.
 - **README and user-facing docs** — including the honest description of what winget/scoop themselves write to
   the machine. Waits on the packaging ticket.

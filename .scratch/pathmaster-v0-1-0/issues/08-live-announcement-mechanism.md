@@ -49,6 +49,28 @@ Findings → `../research/08-announcements.md`.
   zero-cost.
 - **Rung 3 is off the table**: wxdragon already binds `wxAccessible` in full, so no fork is needed.
 - **But prefer rung 2 to the wx route on reliability grounds.** Every accessibility entry point in wxdragon's C
-  layer is wrapped in `#if wxUSE_ACCESSIBILITY` with **silent no-op `#else` branches**. The flag is derived ON
-  but has never been observed in a built `setup.h` (ticket 04 checks). Calling `NotifyWinEvent` directly never
+  layer is wrapped in `#if wxUSE_ACCESSIBILITY` with **silent no-op `#else` branches**. ~~The flag is derived ON
+  but has never been observed in a built `setup.h`.~~ **Superseded by ticket 04 — it is 1; see below.** Calling `NotifyWinEvent` directly never
   enters wx code at all, so it survives even a wxWidgets built without accessibility.
+
+## Carried in from ticket 04
+
+**The reliability argument for preferring the raw-`HWND` route over the wx route has lost its
+foundation.** Ticket 01 flagged that every accessibility entry point in wxdragon's C layer sits behind
+`#if wxUSE_ACCESSIBILITY` with silent no-op `#else` branches, and that the flag had never been
+observed in a real build — so a 0 there would fail invisibly. **It is 1.** Confirmed in the generated
+`setup.h` the build actually compiled against
+(`target/release/wxdragon_sys_cmake_build/lib/vc_x64_lib/mswu/wx/setup.h:518-520`, `1` in **both**
+branches of the `#ifdef __WXMSW__`), and re-confirmed in a separately produced `crt-static` build.
+Those `#else` branches are dead code. Rung 4 (`Accessible::notify_event`) is therefore live, and
+should be tested on its merits rather than distrusted on this ground.
+
+**Independent corroboration from the linked binary, not from a header.** `OLEACC.dll` is in the exe's
+import table in **both** CRT modes, and the running process also loads `uiautomationcore.dll` — so the
+MSAA/UIA layer is genuinely compiled in and reached, not merely configured. While ticket 04 was
+measuring, NVDA 2025.3.3 was also seen injecting `nvdaHelperRemote.dll`, `IAccessible2Proxy.dll` and
+`ISimpleDOM.dll` into the prototype process: NVDA actively hooks this build.
+
+**The banner must not set a background colour** — already noted from ticket 03, repeated here because
+ticket 17 (window layout and iconography) now owns the banner's visual design and is the place a
+hardcoded colour would slip in.
