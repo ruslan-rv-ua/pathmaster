@@ -62,3 +62,27 @@ Five things came out of the build-profile measurements that land squarely here.
   [research/04 §5](../research/04-build-profile.md).
 - **Keep the CI working directory short.** A deep checkout path breaks the wxWidgets CMake build via
   MAX_PATH, with an error that blames the C++ compiler rather than the path.
+
+## Carried in from ticket 07
+
+Several of this ticket's open facts were measured on a real machine while resolving the data directory contract.
+
+- **winget portable layout, observed.** A real installed portable package lives at
+  `%LOCALAPPDATA%\Microsoft\WinGet\Packages\<PackageIdentifier>_<SourceIdentifier>\` — the directory name
+  carries **no version**, and it also holds winget's own `.db` file plus the previous `*.exe.old` after an
+  upgrade. So **`data\` survives `winget upgrade`** (strong evidence: the upgrade happened in place, in the
+  same directory), and `winget uninstall` **deletes the directory and every Snapshot in it**. Both belong in
+  the README. Confirming the upgrade path against a real PathMaster install is still owed here.
+- **The Links directory is on the user's PATH**, which is the irony this ticket already flagged — and it is
+  also why the Data Directory is located by **resolving** the executable path rather than trusting the launch
+  path. Whether `current_exe()` resolves a **file symlink** was *not* measurable (creating one needs admin
+  rights); ticket 07's rule is built so the answer does not matter, but a real winget install is the place to
+  observe it, and this ticket is that place.
+- **`longPathAware` joins `app.manifest`** under `<windowsSettings>`, alongside ticket 04's comctl32 v6 and
+  `PerMonitorV2`. It does not disturb that ticket's deliberate omission of `trustInfo`.
+- **The release check for NFR-no-registry-writes is a Process Monitor run filtered to the `PathMaster.exe`
+  process**, not a machine-wide one — the promise is now about the process, because Windows writes Amcache,
+  Prefetch and MuiCache entries merely because the binary ran.
+- **A derived constraint the packaging story should not quietly break:** v0.1.0 opens **no native file
+  dialogs**, since ComDlg32 MRU writes would land under our process. `COMDLG32` is in the import list anyway
+  (wxWidgets links it unconditionally), so no artifact check can verify this — it is code discipline.

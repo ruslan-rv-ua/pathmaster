@@ -79,3 +79,19 @@ _Avoid_: Error, Warning, Problem (those name severity, not the finding), Diagnos
 One saved copy of a single Scope's value, written to a file before that Scope is applied and restorable
 later. Exactly what a Snapshot must record to be a faithful restore source is settled separately.
 _Avoid_: Backup (reserve that for the act of taking one and for the directory they live in)
+
+### The application's own storage
+
+**Data Directory**:
+The single place the application writes: a directory beside the executable, holding the settings, the
+Snapshots and the log. It is located from the executable itself rather than from the path the process was
+launched through, so it follows the binary wherever a launcher, shim or package manager points at it. Nothing
+the application writes lives anywhere else, and there is no setting that moves it.
+_Avoid_: Data folder, App data, Working directory, Install directory
+
+**Read-only Data**:
+The state of a run whose Data Directory cannot be written. The application still reads, diagnoses and lists,
+but every write path is closed and the reason is named. It is decided once at startup and is a property of
+the run, not of a Scope — a Scope the user could otherwise edit is uneditable in this state, because nothing
+can be backed up before it is applied.
+_Avoid_: Read-only mode, Safe mode, Degraded mode, Locked

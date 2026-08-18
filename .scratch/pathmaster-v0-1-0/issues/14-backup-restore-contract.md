@@ -49,3 +49,20 @@ part of why JSON was chosen. This is the ticket where those two goals are traded
   operation, which strengthens the option this ticket was already weighing against a direct registry write.
 - **Terminology.** **Snapshot** is the backup file — the term is reserved here, and the editing model's undo step
   is called a **Checkpoint** instead. See [CONTEXT.md](../../../CONTEXT.md).
+
+## Carried in from ticket 07
+
+- **Snapshots are written temp+rename, in the same directory.** Even though a Snapshot never overwrites an
+  existing file, an interrupted write must not leave a **half-written Snapshot that still looks restorable** —
+  which makes this ticket's "validity" bullet about *corrupt* files, not *truncated* ones.
+- **Rotation runs in a world with two instances.** It must tolerate a file another instance has already
+  deleted (treat not-found as success), and the `maxBackups` decision has to hold when two processes rotate
+  concurrently.
+- **Foreign files now include our own.** The atomic-write temporaries live in `data\backups\` for the duration
+  of a write. This ticket's "foreign files — ignored, listed, or an error?" bullet must give them a
+  recognisable name and skip them in the listing, rather than showing a transient half-file to the user.
+- **Read-only Data**: the Backups tab still **lists** existing Snapshots — reading is unaffected — but Restore
+  is disabled, because restoring leads to an Apply that cannot take a backup first. This ticket owns what the
+  disabled state says.
+- **`winget uninstall` deletes the Data Directory, Snapshots included.** Relevant if this ticket wants to say
+  anything about the durability of a backup; the README honesty paragraph is ticket 15's.

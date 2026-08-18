@@ -49,3 +49,23 @@ freeze, while a healthy broadcast measured 37 ms. Rewrite to 1000–2000 ms with
   Apply alone, because a Working Copy that can never be applied is a trap.
 - Ticket 06 deliberately did **not** decide how elevation is initiated, how the relaunch is performed, or whether
   the elevated instance re-opens on the System tab. Those stay here.
+
+## Carried in from ticket 07
+
+- **The ACL bullet above is answered, not open.** Access to files in the Data Directory is governed by the
+  **inherited DACL, not by ownership**: a directory created under a user-writable parent inherits `FullControl`
+  for the user, `Administrators` and `SYSTEM`, so a file written by the elevated instance stays fully
+  modifiable by a later unelevated one, and backup rotation keeps working. Measured, not assumed. This ticket
+  inherits the consequence rather than deciding it.
+- **Two instances are explicitly allowed.** Ticket 07 rejected a single-instance lock precisely because
+  elevation-by-relaunch makes a second instance a designed state; a cross-elevation mutex would also need an
+  explicit DACL and mandatory label to be visible from medium integrity. So the relaunch design is free of
+  locking concerns — but this ticket still owns whether the original instance **exits** after spawning the
+  elevated one, or both stay up.
+- **Elevation is also a remedy for Read-only Data, and that is a new question for this ticket.** An executable
+  in `C:\Program Files\` is Read-only Data unelevated and fully writable elevated. Decide whether the app
+  *offers* elevation as the way out of Read-only Data, or merely states the reason and leaves it to the user —
+  bearing in mind that a relaunch destroys unsaved changes and must go through the close-confirm flow.
+- **Startup predicts, Apply verifies.** The startup writability verdict governs the UI only; Apply always
+  begins by writing a Snapshot and treats its failure as an Apply failure. The write-failure taxonomy this
+  ticket owns therefore has to cover a *data directory* failure at Apply time, not only a registry one.

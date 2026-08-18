@@ -108,6 +108,22 @@ transient, non-focus messages — which is why that has its own ticket.
   **zero Entries, not one empty one**. Ubiquitous language: [CONTEXT.md](../../CONTEXT.md) — note **Snapshot**
   stays the backup file, so the undo step is a **Checkpoint**.
 
+- [Portable data directory contract](issues/07-portable-data-directory.md) — the **Data Directory** is `data\`
+  beside the exe, located by **resolving** `current_exe()`'s reparse points and stripping the resulting `\\?\`
+  — not by trusting the launch path. Measured: `current_exe()` reports the **junction**, not its target, so the
+  naive rule would put `data\` in `WinGet\Links\`, **shared with every other portable package**. When that
+  directory cannot be written the app starts in **Read-only Data** — reads, diagnoses and lists, every Editing
+  Session non-writable — and **never relocates**, because remembering a location outside its own directory
+  requires writing outside its own directory ([ADR-0002](../../docs/adr/0002-resolved-data-directory-never-relocated.md)).
+  **No single-instance lock**: elevation-by-relaunch makes two instances a designed state, so instead every
+  replacement write is temp+rename, rotation tolerates missing files, and the log appends one line per record
+  with **rotation only at open**. The **ACL fear was measured away** — inherited DACLs, not ownership, govern
+  access, so an unelevated run still rotates what an elevated one wrote. NFR-no-registry-writes is rewritten as
+  a claim about **the process** (Windows itself writes Amcache/Prefetch regardless), with a derived constraint:
+  **no native file dialogs** in v0.1.0, since ComDlg32 MRU writes land under our process — and that is code
+  discipline, invisible to the import table. `winget upgrade` keeps `data\`; `winget uninstall` deletes it,
+  backups included. Rule for the whole startup path: **startup predicts, Apply verifies.**
+
 ## Not yet specified
 
 In scope, but not yet sharp enough to ticket. Graduates as the frontier advances.
@@ -116,7 +132,8 @@ In scope, but not yet sharp enough to ticket. Graduates as the frontier advances
   write, a backup write, or a settings load fails. Waits on the registry, elevation and backup tickets.
 - **Test and verification strategy** — how the accessibility contract is regression-tested by one person before
   each release, and what is worth automating at all. Waits on the accessibility contract.
-- **Log format and rotation details** — waits on the failure taxonomy.
+- **Log format** — what a record contains and how it reads. **Rotation is settled** by ticket 07
+  (one generation, at open only); the format waits on the failure taxonomy.
 - **README and user-facing docs** — including the honest description of what winget/scoop themselves write to
   the machine. Waits on the packaging ticket.
 - **Repository and crate layout for the implementation effort** — module seams, what is a library vs the GUI
@@ -132,6 +149,9 @@ Ruled beyond this destination. Does not graduate.
 - **Similar-path / typo diagnostics** — cut at charting; a false-positive generator (`C:\Python312` vs
   `C:\Python313` are both legitimate) and trust in the diagnostics matters more than their breadth.
 - **The `theme` setting** — cut at charting; system colours always.
+- **A `--data-dir` switch** — considered and left out of v0.1.0 by
+  [Portable data directory contract](issues/07-portable-data-directory.md); it survives the no-relocation
+  principle (it carries the location per launch rather than remembering it), so it is a v0.2.0 candidate.
 - **Code signing** — deferred until there are real users; v0.1.0 ships unsigned by decision, not by oversight.
 - **Everything in PRD §10**: other environment variables, cross-machine sync, plugins, web/CLI front ends,
   auto-update.
