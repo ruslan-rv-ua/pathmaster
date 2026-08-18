@@ -124,6 +124,21 @@ transient, non-focus messages — which is why that has its own ticket.
   discipline, invisible to the import table. `winget upgrade` keeps `data\`; `winget uninstall` deletes it,
   backups included. Rule for the whole startup path: **startup predicts, Apply verifies.**
 
+- [NVDA baseline for a stock wxdragon shell](issues/02-nvda-baseline-stock-shell.md) — **the free ride is
+  wide.** With no accessibility code at all, comctl32 announces list rows with **both columns and the second
+  column's header name** (`'C:\scoop\shims; Status: Warning: Duplicate'`), plus window title, tab labels and
+  selection, button names + roles + access keys, menu names, `'недоступно'` on a disabled item, `'позначено'`
+  on a check-item, a focus order with no traps, and a status bar that answers `NVDA+End` with both fields.
+  **Four gaps only**: an empty list says just `'список'` with no count; the status bar is **command-only**
+  (absent from the Tab order, `F6` silent), so routing a message there hides it; row position is never spoken
+  on this user's config; and anything not tied to a focus change is still ticket 08's problem. Two things must
+  survive any refactor: `\t` in menu labels is *why* accelerators are spoken, and the first
+  `set_accessibility_*` call moves a widget off this comctl32 path — so re-measure, never assume it only added.
+  A measurement was lost to a state where NVDA treated the list as a leaf and announced nothing (now
+  **[ticket 18](issues/18-nvda-deaf-on-listctrl.md)**); every pass now checks `NVDA+Tab` on a row answers
+  `'елемент списку'` first. Harness: [tools/nvda-drive.ps1](tools/nvda-drive.ps1).
+  Details: [research/02](research/02-nvda-baseline.md).
+
 ## Not yet specified
 
 In scope, but not yet sharp enough to ticket. Graduates as the frontier advances.
