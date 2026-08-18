@@ -128,3 +128,31 @@ with position info off and the app must therefore not *depend* on it.
 the entire accessibility spine of the spec is blocked. Proceeding without the measurement means
 accepting an assumption where the Destination currently promises proof — which is a redraw of the
 Destination, not a resolution of this ticket.
+
+### 2026-08-18 — measurement declined; ticket stays open by decision, not by oversight
+
+The user ran the prototype informally **twice** with NVDA and reported both times that it works well,
+then stated plainly they do not plan to run the instrumented pass. Recorded as their decision, and
+not raised again.
+
+**What that is worth, stated honestly.** Two independent informal runs by a person who uses NVDA
+daily are real evidence that the shell is *usable* — not nothing. What they do not provide is the
+thing tickets 08 and 09 are sized by: the **verbatim strings**, and specifically the silences. Both
+runs also happened on a config with `reportObjectPositionInformation` and `reportObjectDescriptions`
+off, so they could not have answered the position question either way.
+
+Verified from `%TEMP%\nvda.log` after the second run: `loggingLevel` was still `INFO`, zero speech
+lines, zero references to the prototype window. So there is no recorded data from either run, only
+the two verdicts above.
+
+**Consequence, so nobody has to rediscover it.** This ticket blocks 08, 08 blocks 09, and 09 blocks
+16 — so as long as it stays open, the accessibility spine of the spec cannot advance and the map
+cannot reach its Destination. The Destination currently promises that every mechanism the product's
+accessibility depends on is "proven against real NVDA rather than assumed", and map decision 5 says
+NVDA verification ends in a real verdict rather than a guess. **Either this ticket eventually gets
+its pass, or the Destination and decision 5 have to be redrawn to accept an assumption.** That is a
+scoping call for the user, deliberately left open here rather than resolved silently in either
+direction.
+
+The cost of changing their mind later is low: everything in the previous comment still stands, and the
+missing step is one setting (`NVDA+Ctrl+G` → General → Logging level → Input/Output) plus one pass.
