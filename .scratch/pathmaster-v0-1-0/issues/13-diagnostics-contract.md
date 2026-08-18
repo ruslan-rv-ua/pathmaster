@@ -56,3 +56,18 @@ not exist and the near-miss fails silently:
   whatever launched it.
 - **Expansion for diagnostics must not leak into what gets written.** Comparison and existence checks work on
   expanded values; the raw substring is what goes back to the registry, byte for byte.
+
+## Carried in from ticket 06
+
+- **Issues are a derived view of the Working Copy and are never part of it** — excluded from Checkpoints and
+  recomputed after any undo or restore, so Undo can never reinstate a diagnosis of a state no longer displayed.
+  Any change to a Working Copy invalidates that Scope's Issues.
+- **The merged over-length check takes both Scopes' Working Copies** (expanded), not the registry values — the
+  warning is about what the user is *about to create*. For a read-only System Session the two coincide.
+- **Two edge cases the Entry model hands straight to this ticket.** An empty value decodes to **zero Entries**,
+  so a fresh empty `PATH` must not report `Empty entry` — but a **trailing `;` does** produce a genuine empty
+  Entry, and that one is a real finding. Decide whether they read differently to the user. Separately, a
+  whitespace-only Entry (`"   "`) is a legal Entry preserved verbatim — decide whether it counts as empty.
+- **Diagnostics is the only consumer of Normalisation**, which is a comparison-time function whose result is
+  never stored and never written. This ticket therefore owns its exact definition (case, trailing `\`, slash
+  direction, `%VAR%` expansion) — ticket 06 fixed only that it exists and where it may not leak.

@@ -1,0 +1,81 @@
+# PathMaster
+
+A portable Windows desktop application that reads, edits and diagnoses the `PATH` environment variable,
+built for a screen-reader user first. This glossary is the ubiquitous language of that domain — what the
+concepts *are*, not how they are implemented.
+
+## Language
+
+### The values being edited
+
+**Scope**:
+One of the two places Windows stores a `PATH` — the current user's, or the machine's. Each has its own
+registry value, its own Value Type, its own permissions, and its own Editing Session.
+_Avoid_: Tab, Level, Target, Environment
+
+**Value Type**:
+Whether a Scope's stored value expands `%VAR%` references or holds them as literal text. It is part of the
+data, carried through editing and written back with it, never changed as a side effect of an unrelated edit.
+_Avoid_: Format, Kind, Encoding
+
+**Absent**:
+The state of a Scope whose value does not exist at all — distinct both from a Scope holding an empty value
+and from a failure to read it. Restoring the two requires different writes, so they are never conflated.
+_Avoid_: Missing, Null, Empty, Unset
+
+**Entry**:
+One `PATH` element: the raw substring between `;` separators, exactly as read or as typed. It has no parsed
+structure — whitespace, letter case and a trailing `\` are all part of it and all survive a round trip.
+_Avoid_: Path, Item, Row, Segment, Directory
+
+**Normalisation**:
+The comparison-time reading of an Entry — letter case folded, trailing `\` and slash direction reconciled,
+`%VAR%` expanded. It exists only to answer questions like "are these two the same?"; its result is never
+stored and never written.
+_Avoid_: Canonicalisation, Cleaning, Sanitising
+
+### Editing
+
+**Editing Session**:
+The unit of editing: one Scope's Working Copy, its Baseline, and its Undo/Redo history, held for as long as
+the application runs. There is one per Scope and they are independent — one may be dirty while the other is
+clean, and neither is writable unless its Scope permits it. A Session never survives a process boundary.
+_Avoid_: Session, Context, Document, Buffer
+
+**Working Copy**:
+The list of Entries and the Value Type an Editing Session is currently working on — what the user sees and
+what every edit changes. Nothing reaches the registry until it is applied.
+_Avoid_: Draft, Model, Buffer, Current state
+
+**Baseline**:
+The Scope's value as the Editing Session last saw it in the registry — set when the value is read, and moved
+forward each time a write succeeds. It is what the Working Copy is compared against and what Cancel returns to.
+_Avoid_: Original, Saved state, Last known, Snapshot
+
+**Dirty**:
+The property of an Editing Session whose Working Copy differs from its Baseline. It is a comparison of
+content, not a record that something happened — an edit and its exact reversal leave the Session clean.
+_Avoid_: Modified, Changed, Unsaved (as a flag), Touched
+
+**Checkpoint**:
+One entry in an Editing Session's undo history: a complete captured state of its Working Copy, together with
+the Entry the change concerned so focus can return there. One user-visible operation produces exactly one
+Checkpoint, however many Entries it touched.
+_Avoid_: Snapshot (that is a backup file), Undo step, Command, Transaction, Revision
+
+**Apply**:
+Writing an Editing Session's Working Copy to its Scope's registry value and moving the Baseline to match.
+_Avoid_: Save, Commit, Write, Persist
+
+### Diagnosis and recovery
+
+**Issue**:
+A single diagnostic finding about one Entry or about a Scope as a whole — a duplicate, a path that does not
+exist, and so on. Issues are derived from a Working Copy and recomputed whenever it changes; they are never
+part of it.
+_Avoid_: Error, Warning, Problem (those name severity, not the finding), Diagnostic
+
+**Snapshot**:
+One saved copy of a single Scope's value, written to a file before that Scope is applied and restorable
+later. Exactly what a Snapshot must record to be a faithful restore source is settled separately.
+_Avoid_: Backup (reserve that for the act of taking one and for the directory they live in)

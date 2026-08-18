@@ -37,3 +37,15 @@ freeze, while a healthy broadcast measured 37 ms. Rewrite to 1000–2000 ms with
 - A `0` return from the broadcast is **not** an Apply failure and must not be reported as one. Also be honest
   about what it delivers: Explorer refreshes its block so newly launched processes inherit the new PATH;
   already-open shells do not, and no message can change that.
+
+## Carried in from ticket 06
+
+- **An Editing Session never survives a process boundary.** Elevation is a relaunch, so it starts fresh Sessions
+  — which means relaunching elevated **destroys the User Session's unsaved changes**. The elevation path must
+  therefore run *through* the close-confirm flow (§12 of ticket 06), never around it. This ticket owns what that
+  looks like: whether elevation is offered at all while anything is dirty, and what the dialog says.
+- **`writable` is a per-Session property**, decided at load: User always, System only when the process is
+  elevated. A non-writable Session disables **every** editing action — Add, Delete, Move, Edit *and* Apply — not
+  Apply alone, because a Working Copy that can never be applied is a trap.
+- Ticket 06 deliberately did **not** decide how elevation is initiated, how the relaunch is performed, or whether
+  the elevated instance re-opens on the System tab. Those stay here.

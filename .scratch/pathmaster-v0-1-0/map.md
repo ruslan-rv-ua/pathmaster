@@ -93,6 +93,20 @@ transient, non-focus messages — which is why that has its own ticket.
   Two traps: a deep checkout path breaks the build via MAX_PATH while blaming the C++ compiler, and
   `RUSTFLAGS` silently overrides `.cargo/config.toml` — so release CI must gate on the artifact's imports,
   never on the build config. Details: [research/04](research/04-build-profile.md).
+- [Editing session model](issues/06-editing-session-model.md) — **two independent Editing Sessions, one per
+  Scope**, each a Working Copy over a Baseline; the Backups tab is not a Scope, and a Session never survives a
+  process boundary. **`dirty` is a comparison** (content vs Baseline), never a flag — so an edit and its exact
+  reversal leave the session clean, and one predicate drives Apply, Cancel and close-confirm. Undo is a stack of
+  whole-copy **Checkpoints**, not invertible commands ([ADR-0001](../../docs/adr/0001-checkpoint-based-undo.md)):
+  one per user-visible operation, each carrying a focus hint, batches free, and **Cancel itself undoable**.
+  **Apply is a barrier, not a stack flush** — Ctrl+Z after Apply moves the working copy only, never the registry.
+  Apply's order is fixed: re-read → compare `(vtype, bytes)` → dialog → **back up what was just re-read, not the
+  Baseline** → write → move Baseline. Refresh and "discard my changes" **clear the stack**; Apply and Cancel are
+  **disabled while clean** (rewrites FR-cancel). An Entry is the **raw substring** plus an opaque id; the Working
+  Copy owns the **Value Type**, and `%VAR%` typed into a `REG_SZ` scope raises an explicit convert-or-keep dialog
+  — the single exception to never changing the type. Absent scopes are created `REG_EXPAND_SZ`; an empty value is
+  **zero Entries, not one empty one**. Ubiquitous language: [CONTEXT.md](../../CONTEXT.md) — note **Snapshot**
+  stays the backup file, so the undo step is a **Checkpoint**.
 
 ## Not yet specified
 

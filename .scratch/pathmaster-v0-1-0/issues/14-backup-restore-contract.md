@@ -33,3 +33,19 @@ point of backing up before Apply.
 Decide what a snapshot must carry to be a **faithful** restore source — at minimum the value type alongside the
 entries, and possibly the raw value itself — and weigh that against the file staying human-readable, which is
 part of why JSON was chosen. This is the ticket where those two goals are traded off explicitly.
+
+## Carried in from ticket 06
+
+- **Apply's order is now fixed, and it decides what a Snapshot contains**: re-read → compare → (external-change
+  dialog) → **back up the value just re-read from the registry, not the Baseline** → write → move Baseline.
+  Backing up the stale Baseline before overwriting somebody else's change would preserve something other than
+  what the write destroys — worthless in exactly the scenario the backup exists for.
+- **No backup is taken on "Refresh and discard my changes"** — nothing is written, so there is nothing to
+  protect.
+- **A Snapshot must be able to represent states the PRD's three fields cannot.** Beyond H15's value type, it
+  needs to distinguish an **Absent** Scope from a present-but-empty one, and **zero Entries** from one empty
+  Entry — otherwise restore cannot reproduce what it saved.
+- **Restore-into-the-Working-Copy just got cheaper.** Under the Checkpoint model it is one ordinary undoable
+  operation, which strengthens the option this ticket was already weighing against a direct registry write.
+- **Terminology.** **Snapshot** is the backup file — the term is reserved here, and the editing model's undo step
+  is called a **Checkpoint** instead. See [CONTEXT.md](../../../CONTEXT.md).

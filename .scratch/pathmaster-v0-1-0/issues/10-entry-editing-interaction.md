@@ -40,3 +40,21 @@ In-place label editing **is** bound (`ListCtrlStyle::EditLabels`, BEGIN/END even
   types. `wxListCtrl::GetEditControl` is unbound, so the editor is unreachable during a *native* F2 edit.
 - **Open spike (from ticket 03):** whether `edit_label()` can co-exist with the control's own F2 handling or
   the two race. Cheap to settle with a running prototype, and it decides FR-edit-f2's final wording.
+
+## Carried in from ticket 06
+
+- **Add is one Checkpoint; an Edit abandoned with Escape is none.** So Add-then-Escape leaves an empty Entry
+  *and* one Checkpoint behind — which is exactly this ticket's "does the empty row stay?" question, now with a
+  mechanism to answer it. Decide whether Add rolls itself back when its opening edit is abandoned, or whether the
+  empty Entry stays and is simply undoable.
+- **Invalid edits and the missing veto.** With no `veto()` available (ticket 03), accept-then-revert is the only
+  route — so decide whether the rejected edit leaves a Checkpoint. It must not be possible to Ctrl+Z *into* an
+  invalid state.
+- **The editor must never trim or normalise what the user typed.** An Entry is the raw substring; leading and
+  trailing whitespace, letter case and a trailing `\` all survive verbatim. Normalisation is comparison-time only.
+- **The `%VAR%`-into-`REG_SZ` dialog fires on commit**, so it belongs to this interaction: committing an Entry
+  containing a `%…%` pair into a `REG_SZ` Scope raises "[Change type to REG_EXPAND_SZ] [Keep as literal text]".
+  Both outcomes are legal and each is one Checkpoint. Specify where it sits in the commit sequence relative to
+  the forbidden-character validation.
+- Entries carry an **opaque id** that survives Move and Edit; after any undo, focus returns to the Entry the
+  Checkpoint names.

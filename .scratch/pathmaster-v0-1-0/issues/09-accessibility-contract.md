@@ -49,3 +49,15 @@ moves it onto the wx-mediated path. Whether that degrades the native row reading
 `NOT_IMPLEMENTED` → `CreateStdAccessibleObject` fallback suggests not, but that is a code reading, not a test.
 So the contract must say **where labels are set and where they are deliberately not**, and any widget that
 gains one has to be re-tested against the ticket-02 baseline rather than assumed improved.
+
+## Carried in from ticket 06
+
+- **Every Checkpoint carries a focus hint** — the id of the Entry the change concerned. Ctrl+Z and Ctrl+Y must
+  move focus there and announce what changed; for a screen-reader user that is the only way to learn what was
+  undone. This ticket owns the wording.
+- **Ctrl+Z immediately after Apply is legal** and silently re-dirties the Session. That state change needs an
+  announcement, or the user cannot tell that a previously saved session now has unsaved work.
+- **Apply and Cancel are disabled while a Session is clean** (rather than being no-ops), so the disabled state
+  itself is carrying information and must read as disabled.
+- **The close-confirm dialog names the dirty Scopes explicitly** — "unsaved changes in: User PATH, System PATH" —
+  so the user is not left hunting across tabs.
