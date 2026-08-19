@@ -340,6 +340,18 @@ transient, non-focus messages — which is why that has its own ticket.
   screenshot with full alt text at release time. **License: MIT** — closing ticket 15's open field.
   Drift guard: one new non-NVDA Checklist step — `README.uk.md` in sync or README untouched.
 
+- [Deaf-state detection: does v0.1.0 act on the signature?](issues/24-deaf-state-detection-decision.md) —
+  **zero deaf-state code ships.** The spec records the signature and the support ladder (Alt+Tab → restart
+  app → restart NVDA) as a documented risk note; the `WM_GETOBJECT` watcher (research/18 §8.3) joins the
+  measurement harness as diagnostic **backing** for the Sanity Check — backing, never replacing, the manual
+  `NVDA+Tab` gate, which stays canonical because the signature misses post-creation rejections. Threshold
+  recorded as "about one second, tune in the harness", no pre-spec measurement. The Banner-hint variant was
+  rejected on its own terms: in the deaf state the target user cannot hear the app (research/18 §7), so a
+  visual-only hint fires exactly when it cannot be read. In-app detection is parked as a v0.2.0 candidate
+  (Out of scope). No precedent exists for an app detecting a broken AT pipeline in-product; desktop
+  AT-presence detection itself is legitimate (Chromium's `WM_GETOBJECT` probe). New term **Sanity Check**:
+  [CONTEXT.md](../../CONTEXT.md).
+
 ## Not yet specified
 
 In scope, but not yet sharp enough to ticket. Graduates as the frontier advances.
@@ -361,6 +373,10 @@ Ruled beyond this destination. Does not graduate.
 - **A `--data-dir` switch** — considered and left out of v0.1.0 by
   [Portable data directory contract](issues/07-portable-data-directory.md); it survives the no-relocation
   principle (it carries the location per launch rather than remembering it), so it is a v0.2.0 candidate.
+- **In-app deaf-state detection** — parked by
+  [Deaf-state detection: does v0.1.0 act on the signature?](issues/24-deaf-state-detection-decision.md) as a
+  v0.2.0 candidate: the signature is measured and the false-positive analysis done, but a rare,
+  once-observed, unreported state does not earn shipped code. Revisit only if it recurs in the field.
 - **Code signing** — deferred until there are real users; v0.1.0 ships unsigned by decision, not by oversight.
 - **UI automation** (FlaUI, WinAppDriver or successors) — ruled out by
   [Test and verification strategy](issues/19-test-and-verification-strategy.md): WinAppDriver is dead, FlaUI

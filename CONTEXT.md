@@ -125,6 +125,12 @@ passes first. A release produces a filled copy — results and the NVDA used —
 artifact, so a pass is a record, not a ritual.
 _Avoid_: Test plan, QA pass, Smoke test, Manual testing (the Checklist is one specific, recorded script)
 
+**Sanity Check**:
+The precondition gate on every NVDA measurement: `NVDA+Tab` on a focused list row must answer with the row,
+not the list. A step run in a failed-sanity state is void — not failed, void — because a deaf screen reader
+is indistinguishable from a regression.
+_Avoid_: Smoke test, Health check, Precondition (too generic — this is one specific gesture with one specific expected answer)
+
 ### The application's own storage
 
 **Data Directory**:
