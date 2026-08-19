@@ -269,6 +269,18 @@ transient, non-focus messages — which is why that has its own ticket.
   temp files get a `.tmp` extension so both listing and rotation skip them by extension alone. New term
   **Corrupted**: [CONTEXT.md](../../CONTEXT.md).
 
+- [Window layout, sizing and iconography](issues/17-window-layout-and-iconography.md) — **one vertical
+  sizer: always-visible fixed-height Banner above the notebook** (empty at rest — the layout never reflows
+  under the user), notebook `proportion=1`, native status bar outside the sizer with **length field right,
+  messages left**. First run 900×650 DIP, minimum 800×600; **Path column takes all remaining width, Status
+  is the app's single deliberate pixel constant** — and the single explicit `FromDIP()` call. Geometry
+  persists in `settings.json` on clean shutdown, restored **clamped to the connected monitors' work area**,
+  falling back to default-centred-on-primary when fully off-screen. The implicit FFI `FromDIP` is accepted
+  as structural; the cross-monitor DPI-change hazard is a documented risk with a checklist line in ticket 19.
+  Icon: **a stylised path**, one embedded SVG through `BitmapBundle::from_svg_data` for the frame, the
+  ticket-04 `.ico` route (16/24/32/48/256) for Explorer/taskbar — two assets, one source design. **No other
+  in-app iconography**: the Banner stays purely textual, and nothing anywhere sets a colour.
+
 ## Not yet specified
 
 In scope, but not yet sharp enough to ticket. Graduates as the frontier advances.

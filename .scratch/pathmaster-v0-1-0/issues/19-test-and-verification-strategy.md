@@ -29,6 +29,12 @@ a manual, user-run script with expected spoken text per step, gated on the ticke
 
 ## Comments
 
+**2026-08-19, from ticket 17 (window layout):** the checklist gains one layout step — **drag the
+window between monitors with different DPI scale factors and confirm the layout survives**. wx
+documents this transition as layout-destructive in some versions; ticket 17 accepted it as a
+documented risk rather than verifying against hardware, so the release checklist is where it gets
+covered (skippable with a note when only one monitor is available).
+
 **2026-08-19, from ticket 12 (elevation model):** the elevated instance is a *separate accessibility
 surface*. NVDA interacts with elevated windows only when installed (uiAccess) or itself running
 elevated — a portable NVDA copy goes deaf on the elevated instance entirely. The verification
