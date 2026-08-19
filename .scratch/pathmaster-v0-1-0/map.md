@@ -281,21 +281,30 @@ transient, non-focus messages — which is why that has its own ticket.
   ticket-04 `.ico` route (16/24/32/48/256) for Explorer/taskbar — two assets, one source design. **No other
   in-app iconography**: the Banner stays purely textual, and nothing anywhere sets a colour.
 
+- [Test and verification strategy](issues/19-test-and-verification-strategy.md) — **functional core,
+  imperative shell**: every pure rule (splitting, Normalisation, diagnostics, the Session model, Snapshot
+  schema, rotation, thresholds) is unit-tested in Rust; the GUI shell is covered by the **Release Checklist**
+  only. The registry adapter takes its **key path as a constructor parameter** and its integration tests run
+  against a temporary key on the *live* `HKCU` — mocks rejected because ticket 05's hazards are precisely
+  about real API behaviour. `nvda-drive.ps1` **stays a measurement tool, never a CI gate** (ticket 18: a deaf
+  NVDA is indistinguishable from a regression, and a flaky gate gets ignored); UI automation is out of scope.
+  Release CI gates on the artifact: version gate, `cargo test`, dumpbin imports, **exe ≤ 40 MB**; push CI runs
+  `cargo test` + clippy on every push to `develop`. The Checklist is canonical in `docs/release-checklist.md`
+  (D8's 17 steps + elevated-instance + DPI-drag, all NVDA steps gated on the ticket-18 sanity check) and each
+  release attaches a **filled copy** naming the NVDA used; a failed step blocks the release. Cadence: size
+  every release, thresholds unit-tested + once against the real registry, cold start only when the startup
+  path changes, clean-VM once per packaging change. A **`proptest` layer of exactly three properties**:
+  split→join byte-identity, Snapshot round-trip, Normalisation idempotence. Ticket 16 deliberately **not**
+  blocked on ticket 18 — the spec records the anomaly as a documented open risk instead. New term
+  **Release Checklist**: [CONTEXT.md](../../CONTEXT.md).
+
 ## Not yet specified
 
 In scope, but not yet sharp enough to ticket. Graduates as the frontier advances.
 
-- **Error and failure taxonomy** — what the user is shown, what is logged, and what is announced when a registry
-  write or a settings load fails. **Apply-time failures are settled** by ticket 12 (four-row taxonomy, two
-  invariants), and **Snapshot/restore-read failures are settled** by ticket 14 (Corrupted, schema-validity,
-  passive list text); what remains is settings load and log write.
-- **Log format** — what a record contains and how it reads. **Rotation is settled** by ticket 07
-  (one generation, at open only) and its **language** by ticket 11 (always English, outside the Catalogue);
-  the format itself waits on the failure taxonomy.
-- **README and user-facing docs** — including the honest description of what winget/scoop themselves write to
-  the machine. Waits on the packaging ticket.
-- **Repository and crate layout for the implementation effort** — module seams, what is a library vs the GUI
-  shell. Deliberately last: it is shaped by every decision above.
+- Nothing at present — every remaining question is a live ticket. (Error/failure taxonomy remainder,
+  log format, README, and repo/crate layout graduated to tickets 20–23 on 2026-08-19, once ticket 19
+  fixed the seams that shape them.)
 
 ## Out of scope
 
@@ -311,6 +320,10 @@ Ruled beyond this destination. Does not graduate.
   [Portable data directory contract](issues/07-portable-data-directory.md); it survives the no-relocation
   principle (it carries the location per launch rather than remembering it), so it is a v0.2.0 candidate.
 - **Code signing** — deferred until there are real users; v0.1.0 ships unsigned by decision, not by oversight.
+- **UI automation** (FlaUI, WinAppDriver or successors) — ruled out by
+  [Test and verification strategy](issues/19-test-and-verification-strategy.md): WinAppDriver is dead, FlaUI
+  drags .NET into a Rust repo, and the Release Checklist already walks every critical flow. Revisit only if
+  the app outgrows a one-person manual pass.
 - **Everything in PRD §10**: other environment variables, cross-machine sync, plugins, web/CLI front ends,
   auto-update.
 - **Non-Windows platforms, 32-bit Windows, and screen readers other than NVDA** (JAWS/Narrator must not be

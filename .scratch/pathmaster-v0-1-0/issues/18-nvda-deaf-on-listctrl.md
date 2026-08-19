@@ -78,3 +78,12 @@ row must answer `'елемент списку'`, not `'список'`.** If it a
 and the pass is void. This is already noted in tickets 02 and 08 and in `../tools/README.md`.
 
 Findings → `../research/18-nvda-deaf-on-listctrl.md`.
+
+## Comments
+
+**2026-08-19, from ticket 19 (test and verification strategy):** two consumers now wait on this
+ticket's conclusion. (1) The no-NVDA-automation decision (19 D3) is explicitly conditioned on the
+deaf state having **no detectable signature** — if this investigation produces one, the automation
+question reopens cheaply. (2) The spec (ticket 16) will record this anomaly as a documented open
+risk with restart-NVDA as the user-facing workaround — it does **not** block the spec, so a
+conclusion here amends the spec's risk note rather than gating it.

@@ -116,6 +116,15 @@ or from the system when they have made none. Like Read-only Data it is a propert
 Scope, and it never changes while the application is running.
 _Avoid_: Locale (that is the system's, not ours), Language setting, Culture
 
+### Verification
+
+**Release Checklist**:
+The manual, personally-run verification script that gates every release: each step names the action
+and the exact text NVDA is expected to speak, and every NVDA step is void unless the sanity check
+passes first. A release produces a filled copy — results and the NVDA used — kept as a release
+artifact, so a pass is a record, not a ritual.
+_Avoid_: Test plan, QA pass, Smoke test, Manual testing (the Checklist is one specific, recorded script)
+
 ### The application's own storage
 
 **Data Directory**:

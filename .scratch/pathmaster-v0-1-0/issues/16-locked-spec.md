@@ -2,7 +2,7 @@
 
 Type: task
 Status: open
-Blocked by: 09, 10, 11, 12, 13, 14, 15, 17, 19
+Blocked by: 09, 10, 11, 12, 13, 14, 15, 17, 19, 20, 21, 22, 23
 
 ## Question
 
@@ -21,3 +21,14 @@ Rewrite the source PRD in English with all decisions folded in:
 - Traceability: each requirement points at the ticket that settled it.
 
 When this ticket closes, the map is complete and the effort leaves wayfinding for an implementation effort.
+
+## Comments
+
+**2026-08-19, from ticket 19 (test and verification strategy):** two additions to the assembly.
+(1) Create `docs/release-checklist.md` as part of this ticket — the canonical Release Checklist:
+ticket 09's 17 D8 steps, the elevated-instance section (ticket 12), the cross-DPI window-drag step
+(ticket 17), every NVDA step gated on the ticket-18 sanity check. (2) This ticket is deliberately
+**not** blocked on ticket 18: the anomaly does not reproduce, and the spec must not stall on it.
+Instead the spec records it as a **documented open risk** — the sanity-check precondition on every
+NVDA pass as interim detection, restart-NVDA as the user-facing workaround — and links the open
+ticket. Blocked-by extended with the four tickets graduated from the fog on the same day (20–23).
