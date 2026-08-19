@@ -47,6 +47,14 @@ that a ListCtrl sub-item cannot carry an icon, so Status is text-only; that deci
 verbosity policy around it are the accessibility contract's, not this ticket's. Keep the boundary:
 this ticket decides what is *seen*, ticket 09 decides what is *said*.
 
+## Carried in from ticket 13
+
+The StatusBar gains a **passive merged-PATH-length field** (ticket 13, D6/FR-diag-overlength): the
+current length of `expand(System) + ";" + expand(User)` in characters, always visible, queried via
+`NVDA+End`, never announced. This ticket owns where that field sits among the StatusBar's fields
+and how it reads. Diagnostics claims no Banner use and no colours — the Status column is text-only
+and the over-length warning is an Apply-time dialog, not a layout element.
+
 ## Carried in from ticket 08
 
 The banner's announcement mechanism is settled and imposes exactly one structural requirement: the

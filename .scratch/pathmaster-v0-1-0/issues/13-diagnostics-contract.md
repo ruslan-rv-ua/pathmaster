@@ -1,7 +1,7 @@
 # Diagnostics contract
 
 Type: grilling
-Status: open
+Status: resolved
 Blocked by: 05, 06
 
 ## Question
@@ -79,7 +79,138 @@ Issues comma-joined in a fixed severity order; empty column for a healthy Entry 
 owns the **exact word for each of the five types** and the **severity order** used for joining. Keep each
 word short — it is spoken on every arrow key over an affected row.
 
+## Answer
+
+Resolved 2026-08-19 through a twelve-question grilling round, each question grounded first in web
+research against primary sources — facts in
+[research/13-diagnostics-facts.md](../research/13-diagnostics-facts.md). The charting-time "five
+types" constant is consciously amended: **six Issue types**, `Quoted` added on measured evidence
+(D7). Decisions D1–D10 are recorded in the Comments below as they were made; D11–D12 complete them:
+
+- **D11 Async mechanism** — one worker thread computes a diagnostic pass and sends results over an
+  `mpsc` channel; a wx Timer (~100 ms, running **only while a pass is outstanding**) drains the
+  channel on the UI thread and stops. The idle-handler route was rejected on ticket 03's measured
+  trap (idle may not fire while the app is truly idle; `request_more` busy-spins). Widgets are
+  never called off the UI thread.
+- **D12 Status column words, order, coexistence** — msgids `Missing`, `Relative`, `Quoted`,
+  `Duplicate`, `Empty` (uk: Відсутній, Відносний, У лапках, Дублікат, Порожній), comma-joined
+  most-severe-first in exactly that order. Coexistence rules: **Empty is exclusive** (an Empty
+  Entry carries nothing else — two empties are not also duplicates); **Relative skips the
+  existence check** (its resolution depends on process state, so Relative and Missing never
+  co-occur); **Quoted co-occurs freely** (all checks run on the quote-stripped text). Over-length
+  never appears in the column (D6). One-word labels because the text is spoken on every arrow-key
+  over an affected row; RapidEE's colour-only flagging (no words at all) is exactly the pattern a
+  screen-reader user cannot use.
+
+### The rewritten FR-diag family
+
+- **FR-diag-split.** The raw value splits into Entries on **every** `;`; quotes never protect a
+  separator. (Matches `CreateProcessW`/`SearchPathW`, PowerShell, Python, PowerToys.)
+- **FR-diag-normalise.** Normalisation is comparison-only — never stored, never written: strip one
+  pair of surrounding `"` → expand `%VAR%` (`ExpandEnvironmentStrings`, process environment,
+  unknown names stay literal) → `/`→`\` → trim trailing `\` unless that leaves a bare drive root
+  (`C:\` stays `C:\`, never `C:`) → compare ordinal case-insensitively. Never touches the
+  filesystem: no 8.3, no symlinks, no canonical casing.
+- **FR-diag-duplicate.** Entries with equal Normalisations are duplicates. Evaluation order is the
+  runtime order: System Working Copy first, then User, each left to right. The first occurrence is
+  canonical and clean; **every later occurrence flags `Duplicate`** — cross-scope included, where
+  the User copy carries the flag. Editing either Working Copy recomputes both Scopes' duplicates.
+- **FR-diag-missing.** Local-rooted Entries only (root classified via `GetDriveTypeW` / UNC prefix
+  — no network round trip): flag `Missing` when the quote-stripped expanded path does not name an
+  existing **directory** — not-found and exists-but-is-a-file both flag (a file entry is inert:
+  path search appends `\name.exe` to the entry-as-directory); `ERROR_ACCESS_DENIED` does **not**
+  flag (the object exists). Network-rooted Entries are never probed in v0.1.0 and never flag —
+  documented in the README. An undefined `%VAR%` flags Missing naturally (the literal text fails).
+- **FR-diag-relative.** Flag `Relative` on any Entry that is not fully qualified. Qualified:
+  `X:\…`, `\\server\share…`, `\\?\…`. Flagged: `.`, `..`, bare names, rooted `\foo`,
+  drive-relative `C:foo`. Relative Entries skip the existence check.
+- **FR-diag-empty.** Flag `Empty` on a zero-length or whitespace-only Entry. An Absent or empty
+  Scope decodes to zero Entries and reports nothing; a trailing `;` produces a genuine empty Entry
+  and does flag.
+- **FR-diag-quoted.** Flag `Quoted` on any Entry containing `"`. Rationale: measured consumer
+  lottery — the quoted spelling is dead for `CreateProcessW`/`SearchPathW`, PowerShell, `where`,
+  Python, alive for cmd/CRT/Rust/Node; the fix is trivial and the breakage otherwise silent.
+- **FR-diag-overlength.** Scope-level, not per-entry: the merged length is
+  `len(expand(System WC) + ";" + expand(User WC))` in UTF-16 code units, shown in a **passive
+  StatusBar field** (queried via NVDA+End). At Apply, if the post-write merged length exceeds
+  **8,191** → warning dialog, title carries the message ("cmd.exe will ignore this PATH" —
+  KB 830473), proceed allowed; **≥ 32,767** → same dialog, no proceed button (hard cap,
+  `SetEnvironmentVariableW`). No per-entry finding, no Announcement (catalogue stays at seven),
+  no 2,047 warning (Vista-era folklore).
+- **FR-diag-async.** A pass runs on one worker thread; results reach the UI thread via the D11
+  Timer-drained channel. Issues are a derived view of the Working Copies: recomputed after any
+  edit, undo/redo, Refresh or restore; excluded from Checkpoints (ticket 06).
+- **FR-diag-status.** The Status column carries the flagged types' words, comma-joined in the D12
+  order; an empty column is the only healthy state (never "OK") — per ticket 09.
+
+### Hand-offs
+
+- **Ticket 17**: the StatusBar gains a merged-length field; the layout must place it (comment added
+  there). Diagnostics claims no Banner use.
+- **Ticket 19**: every rule above is pure logic over `(raw string, per-path filesystem verdict)`
+  and unit-testable; only the Timer drain and the spoken column need the manual NVDA script.
+- **Map Notes**: charting constraint 7 amended — six diagnostic types, not five.
+
 ## Comments
+
+**2026-08-19, pre-grilling research (at the user's request):** four web investigations against
+primary sources — quoted-entry consumer behavior (measured empirically), duplicate-normalisation
+practice in five tools (source code read), existence-check blocking and mitigation, and real
+over-length thresholds. Facts: [research/13-diagnostics-facts.md](../research/13-diagnostics-facts.md).
+Headlines: quotes are a consumer lottery (cmd/CRT/Rust/Node strip them, the OS itself/PowerShell/
+Python do not) and even *splitting* on `;` is quote-aware for half the ecosystem; no surveyed tool
+touches the filesystem for duplicate comparison; a dead UNC path blocks 20–60 s and cannot be
+cancelled, so "timed out" must be a distinct state; the honest over-length numbers are 8,191
+(cmd drops the variable entirely) and 32,767 (hard cap) — 2,047 is folklore.
+
+**2026-08-19, grilling round in progress — decisions so far (D-numbers for the resolution):**
+
+- **D1 Splitting is naive** — every `;` separates, quotes never protect it. Matches the OS's own
+  `CreateProcessW`/`SearchPathW`, PowerShell, Python, and PowerToys; ticket 06's Entry definition
+  ("raw substring between `;` separators") stands unchanged. The rare quoted-semicolon entry shows
+  as two odd Entries — the same two the OS itself sees.
+- **D2 Normalisation for duplicate comparison** — case folded, trailing `\` trimmed (except a bare
+  root `C:\`, which must not become drive-relative `C:`), `/`→`\`, one pair of surrounding double
+  quotes stripped, `%VAR%` expanded. Never touches the filesystem: no 8.3 resolution, no symlinks,
+  no canonical casing (no surveyed tool does either). `%SystemRoot%\system32` **is** a duplicate of
+  `C:\Windows\system32`.
+- **D3 Duplicate carrier** — the first copy in execution order (System scope first, then position)
+  is canonical and stays clean; **every later copy is flagged**, including cross-scope, where the
+  User copy carries the flag. Accepted consequence: the User tab's Issues depend on the System
+  Working Copy, so a System edit recomputes the User scope's diagnostics too.
+- **D4 Network paths are never probed in v0.1.0** — `GetDriveTypeW`/UNC-prefix classification (no
+  network round trip) splits entries into local (fully checked, ~10 ms for 200) and network (never
+  checked, no prober threads, no zombie hangs). A deadline prober is a v0.2.0 candidate.
+- **D5 Existence verdicts** — the check means "the Entry names an existing *directory*": a path that
+  exists but is a file → **Non-existent** (a file entry is inert — search appends `\name.exe` to the
+  entry-as-directory); access denied → **no Issue** (the object exists; not repeating the .NET
+  `File.Exists` mistake); network → no Issue and no Status text (documented in the README). The
+  Status column stays "empty = healthy" per ticket 09.
+- **D6 Over-length leaves the per-entry Issue set entirely** — it is a property of the merged
+  expanded PATH (System + `;` + User, both Working Copies), carried by two scope-level surfaces:
+  a passive StatusBar field with the current merged length (visible always, queried via NVDA+End),
+  and an Apply-time dialog when the result would exceed **8,191** (cmd.exe drops the variable —
+  KB 830473; title carries the message, user may proceed) or **≥ 32,767** (hard cap — same dialog,
+  no proceed button). 2,047 is Vista-era folklore and is not warned about. The Announcement
+  catalogue stays closed at seven.
+- **D7 Quoted is a sixth Issue type.** An Entry containing `"` is flagged: measured, the quoted
+  spelling is the same directory for cmd/CRT/Rust/Node but **dead for `CreateProcessW`/`SearchPathW`,
+  PowerShell, `where.exe` and Python** — a silent breakage with a trivial fix (F2, remove quotes).
+  The charting-time "five types" constant is consciously amended; no MS documentation legitimises
+  quotes in PATH, and Rust's `join_paths` refuses to write them.
+- **D8 Relative = not fully qualified** ([.NET path taxonomy](https://learn.microsoft.com/en-us/dotnet/standard/io/file-path-formats)):
+  flags `.`, `..`, bare names, rooted `\foo` **and** drive-relative `C:foo` — everything that
+  resolves against the process's current state. Clean forms: `X:\…`, `\\server\share…`, `\\?\…`.
+  (`PathIsRelativeW` semantics rejected — it passes both hazardous forms.)
+- **D9 Empty covers whitespace-only.** Empty means "no usable path text": zero-length Entries (from
+  `;;` or a trailing `;`) and whitespace-only alike. A fresh empty value is zero Entries and reports
+  nothing (ticket 06). Unlike Unix, an empty Windows PATH element has no current-directory
+  semantics — it is dead weight, not a hazard.
+- **D10 Undefined `%VAR%` → Non-existent naturally.** Expansion runs against the process
+  environment via `ExpandEnvironmentStrings` (documented: unknown names stay literal, lookup is
+  case-insensitive); the literal `%FOO%\bin` then fails the existence check. No seventh type; the
+  stale-inherited-environment limitation is documented in the spec. Building a fresh merged
+  environment from the registry is out of v0.1.0.
 
 **2026-08-19, from ticket 10 (resolved):** two hand-offs.
 

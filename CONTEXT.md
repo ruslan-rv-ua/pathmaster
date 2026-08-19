@@ -29,9 +29,10 @@ structure — whitespace, letter case and a trailing `\` are all part of it and 
 _Avoid_: Path, Item, Row, Segment, Directory
 
 **Normalisation**:
-The comparison-time reading of an Entry — letter case folded, trailing `\` and slash direction reconciled,
-`%VAR%` expanded. It exists only to answer questions like "are these two the same?"; its result is never
-stored and never written.
+The comparison-time reading of an Entry — one pair of surrounding quotes stripped, letter case
+folded, trailing `\` and slash direction reconciled, `%VAR%` expanded. It exists only to answer
+questions like "are these two the same?"; its result is never stored and never written, and it never
+consults the filesystem.
 _Avoid_: Canonicalisation, Cleaning, Sanitising
 
 ### Editing

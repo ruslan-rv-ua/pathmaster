@@ -33,7 +33,8 @@ NVDA working inside wxdragon, never *whether* to switch toolkits.
 5. NVDA verification is done **by the user personally** — prototype tickets are HITL and end in a real verdict,
    never in an inspector-tool guess.
 6. i18n: language change takes effect **after restart**; `maxBackups` applies immediately.
-7. Similar-path / typo detection is **cut** from v0.1.0; five diagnostic types remain.
+7. Similar-path / typo detection is **cut** from v0.1.0; five diagnostic types remained at charting —
+   later amended to **six** by ticket 13 (`Quoted` added on measured evidence).
 8. The `theme` setting is **removed** — system colours always, High Contrast is a Windows mode, not an app choice.
 9. Logging stays in v0.1.0, minimal.
 10. Distribution: GitHub Releases + GitHub Actions, **unsigned** in v0.1.0 (SmartScreen accepted, documented in
@@ -235,6 +236,25 @@ transient, non-focus messages — which is why that has its own ticket.
   invariants — no failure mutates the Working Copy, none moves the Baseline. Elevated title:
   "Administrator: PathMaster". **Exported risk**: portable NVDA is deaf to elevated windows — the ticket-19
   checklist must test the elevated instance explicitly.
+
+- [Diagnostics contract](issues/13-diagnostics-contract.md) — **six Issue types, one-word labels,
+  and every rule testable.** Splitting is naive (every `;` separates — matching the OS itself, not
+  cmd's quote-aware rule); Normalisation strips one pair of quotes, expands `%VAR%` (process
+  environment; unknown names stay literal → `Missing`), `/`→`\`, trims trailing `\` (root-safe),
+  folds case — and **never touches the filesystem** (no 8.3, no symlinks; no surveyed tool does).
+  Duplicates: first copy in runtime order (System → User, left to right) is canonical, **every
+  later copy flags**, cross-scope included (User copy carries it) — so a System edit recomputes
+  User's Issues. Existence: local roots only (`GetDriveTypeW`, no network round trip), **network
+  entries are never probed in v0.1.0** (a dead UNC blocks 20–60 s and cannot be cancelled);
+  exists-but-a-file flags `Missing`, access-denied does not. **`Quoted` is the sixth type** — the
+  quoted spelling is measured-dead for `CreateProcessW`/PowerShell/`where`/Python, alive for
+  cmd/CRT/Rust/Node: a silent breakage with a trivial fix. **Over-length left the column
+  entirely**: scope-level, a passive StatusBar length field plus an Apply-time dialog at the honest
+  thresholds — 8,191 (cmd drops the variable, KB 830473; may proceed) and 32,767 (hard cap; no
+  proceed) — 2,047 is folklore. Async: worker → `mpsc` → **Timer drain** (idle-handler trap
+  avoided). Words, spoken on every arrow: `Missing > Relative > Quoted > Duplicate > Empty`;
+  Empty is exclusive, Relative skips existence. All research:
+  [research/13](research/13-diagnostics-facts.md).
 
 ## Not yet specified
 
