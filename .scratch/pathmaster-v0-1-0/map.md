@@ -221,12 +221,29 @@ transient, non-focus messages — which is why that has its own ticket.
   is dropping `xx.po` into `i18n/` plus one mapping arm. New terms **Catalogue** and **Interface Language**:
   [CONTEXT.md](../../CONTEXT.md).
 
+- [Elevation and System PATH writes](issues/12-elevation-model.md) — **elevation is a whole-app relaunch,
+  never a write helper** ([ADR-0005](../../docs/adr/0005-elevation-by-whole-app-relaunch.md)): the single-exe
+  helper is an EoP surface, prompts per write, and no neighbouring tool does it. Detection is
+  `GetTokenInformation(TokenElevation)` — never `TokenElevationType`, which misreads built-in-admin/UAC-off.
+  **One entry point**: a "Restart as Administrator" menu command, disabled when elevated; Read-only Data and
+  the System tab name reasons but never grow a second offer, and a System-Snapshot Restore unelevated is a
+  disabled control. The command runs *through* the close-confirm flow (title names what is lost: "Discard
+  unsaved User changes and restart as administrator?"), spawns with **one argument — the active tab**, and the
+  original instance **exits** on success; a declined UAC prompt is `ERROR_CANCELLED` and answers with a
+  **dialog** (title-only message), keeping the Announcement catalogue closed at seven. Apply failures: a
+  four-row taxonomy (snapshot-write, registry-write, external-edit, broadcast-is-not-a-failure) with two
+  invariants — no failure mutates the Working Copy, none moves the Baseline. Elevated title:
+  "Administrator: PathMaster". **Exported risk**: portable NVDA is deaf to elevated windows — the ticket-19
+  checklist must test the elevated instance explicitly.
+
 ## Not yet specified
 
 In scope, but not yet sharp enough to ticket. Graduates as the frontier advances.
 
 - **Error and failure taxonomy** — what the user is shown, what is logged, and what is announced when a registry
-  write, a backup write, or a settings load fails. Waits on the registry, elevation and backup tickets.
+  write, a backup write, or a settings load fails. **Apply-time failures are now settled** by ticket 12 (four-row
+  taxonomy, two invariants); what remains is the non-Apply surface — settings load, log write, Snapshot rotation,
+  restore-read failures — and waits on the backup ticket.
 - **Log format** — what a record contains and how it reads. **Rotation is settled** by ticket 07
   (one generation, at open only) and its **language** by ticket 11 (always English, outside the Catalogue);
   the format itself waits on the failure taxonomy.

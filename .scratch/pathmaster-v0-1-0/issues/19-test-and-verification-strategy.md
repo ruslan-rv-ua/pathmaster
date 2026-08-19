@@ -26,3 +26,13 @@ a manual, user-run script with expected spoken text per step, gated on the ticke
   config. What else gates a release: `cargo test`? The checklist as a signed-off item?
 - **When the spec's numbers are verified** — cold start, exe size, the 32767 limit behaviour — once per
   release or once ever?
+
+## Comments
+
+**2026-08-19, from ticket 12 (elevation model):** the elevated instance is a *separate accessibility
+surface*. NVDA interacts with elevated windows only when installed (uiAccess) or itself running
+elevated — a portable NVDA copy goes deaf on the elevated instance entirely. The verification
+checklist must therefore run its steps against the **elevated** instance explicitly (at minimum: the
+ticket-18 sanity check, one list-row reading, one Announcement, the "Administrator: PathMaster"
+title on Alt+Tab), and record which NVDA (installed vs portable) the pass used. The README owes the
+user the installed-NVDA requirement for elevated use.

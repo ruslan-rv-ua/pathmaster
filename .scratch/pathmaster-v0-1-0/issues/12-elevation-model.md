@@ -1,7 +1,7 @@
 # Elevation and System PATH writes
 
 Type: grilling
-Status: open
+Status: resolved
 Blocked by: 05, 07
 
 ## Question
@@ -75,3 +75,80 @@ freeze, while a healthy broadcast measured 37 ms. Rewrite to 1000–2000 ms with
 Every Apply failure is Announced (ticket 09, D3 — closed catalogue, item 3). This ticket owns the exact
 failure texts for registry-write and elevation errors. Dialog discipline applies: all critical
 information in a dialog's **title and buttons** — NVDA never speaks a `MessageDialog` body.
+
+## Answer
+
+Resolved 2026-08-19 by grilling, preceded (at the user's standing instruction) by an internet
+best-practices pass: Microsoft's UAC UX guide, `TOKEN_ELEVATION_TYPE` semantics, the COM elevation
+moniker's own warnings, the NVDA user guide, and precedent (PowerToys Environment Variables, Rapid
+Environment Editor). Decision-by-decision:
+
+**D1 — Whole-app relaunch; no write helper.**
+[ADR-0005](../../../docs/adr/0005-elevation-by-whole-app-relaunch.md). The single-exe helper
+(`--elevated-write` flag) was rejected: it is an EoP surface (a confused deputy accepting arguments
+under an elevated token), it prompts on the secure desktop per write against the UX guide's
+"stay elevated" rule, and every neighbouring tool relaunches whole. Precedent is unanimous.
+
+**D2 — Detection.** `GetTokenInformation(TokenElevation)` → `TokenIsElevated`, checked once at startup.
+Never `TokenElevationType` (returns `Default` for built-in Administrator / UAC-off — exactly the
+configurations a writability verdict must not misread). An admin account running unelevated reads as
+not elevated, which is correct: the System Session loads non-writable.
+
+**D3 — Entry point.** One menu command, "Restart as Administrator", the *only* way into elevation:
+disabled when already elevated (NVDA reads the disabled state for free). No button on the System tab,
+no auto-offer dialog on tab switch (a modal surprise during Tab navigation is the worst option for a
+screen-reader user), no second offer from Read-only Data (see D7). A menu item cannot carry the UAC
+shield icon; the label's words carry the meaning instead.
+
+**D4 — Relaunch semantics.** The command does what it says: close-confirm flow (if any Session is
+dirty) → `ShellExecuteEx("runas", <current exe>, "--tab <active>")` → on success the original
+instance **exits**; on `ERROR_CANCELLED` it stays, fully functional. Two designed-live instances
+(ticket 07) remain *possible*, but the elevation command never *produces* them — two independent
+Baselines over one PATH value invite self-inflicted external-edit conflicts.
+
+**D5 — What crosses the boundary: the active tab, nothing else.** One argument. Sessions are dead at
+the boundary (ticket 06) and stay dead; carrying selection or working-copy state would be session
+state smuggled across. Focus discipline (ticket 09) extends to the relaunch: the user lands on the
+tab they left.
+
+**D6 — Declined UAC prompt is never silent.** `ShellExecuteEx` fails with `ERROR_CANCELLED` (1223) —
+the app always knows. Response: a `MessageDialog`, all information in the title
+("Elevation was cancelled — still running without administrator rights"), OK only, focus returns to
+where it was. A dialog, not an Announcement: this answers an explicit user action, and the ticket-09
+catalogue stays closed at seven.
+
+**D7 — Read-only Data names its reason and stops.** No inline elevation offer — that would be a
+second entry point, contradicting D3. The standing menu command is the remedy; the README says
+plainly that a portable app does not belong in `C:\Program Files`.
+
+**D8 — Restoring a System Snapshot unelevated: disabled control, with the standard disabled-state
+reading.** Restore-to-System is a System write, and ticket 06 already rules that a non-writable
+Session disables every write action. Path out: D3's command → relaunch → Restore.
+
+**D9 — Unsaved changes (charting decision re-confirmed).** Lost, behind a confirm that runs *through*
+ticket 06's close-confirm flow and **names what is lost in the title**:
+"Discard unsaved User changes and restart as administrator?" — buttons "Discard and Restart" /
+"Cancel". All information in title and buttons, per the dialog discipline.
+
+**D10 — Apply failure taxonomy** (user-visible texts are Catalogue entries; exact English fixed at
+spec assembly, ticket 16):
+
+| Failure | User sees | Working Copy / Baseline |
+|---|---|---|
+| Snapshot write fails (Data Directory, at Apply time) | Announcement 3: Apply failed — backup could not be written | unchanged / unchanged; registry untouched (backup-first order, ticket 06) |
+| Registry write fails (access denied, key unopenable, value locked) | Announcement 3: Apply failed — access denied (or named cause) | unchanged / unchanged; Session stays dirty |
+| External edit detected at re-read | ticket 06's conflict dialog (already decided) | per user's dialog choice |
+| `WM_SETTINGCHANGE` broadcast returns 0 / times out | **nothing** — not a failure (ticket 05) | Apply succeeded; Baseline moved |
+
+Invariants: no failure mutates the Working Copy; no failure moves the Baseline; every failure lands
+one log record with the raw error code. The broadcast runs off the UI thread, 1000–2000 ms,
+`SMTO_ABORTIFHUNG`, UTF-16LE NUL-terminated `lParam` outliving the call — TC-wm-settingchange's
+5000 ms is rewritten (spec bug, carried from ticket 05).
+
+**D11 — Elevated window title.** "Administrator: PathMaster" (the cmd.exe convention), a Catalogue
+string. Alt+Tab speaks the title first — the cheapest always-available answer to "which instance am
+I in".
+
+**Consequence exported to ticket 19:** NVDA interacts with elevated windows only when installed
+(uiAccess) or itself elevated — a portable NVDA goes deaf on the elevated instance. The verification
+checklist must run against the elevated instance explicitly (comment left on ticket 19).
