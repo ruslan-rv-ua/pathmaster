@@ -27,3 +27,12 @@ user — this ticket decides structure, tone and completeness, and closes the li
 To decide: single README or split docs; language (English only, or a Ukrainian section given the
 Interface Language work); whether the Release Checklist's existence is user-visible documentation
 or internal; and what, if anything, of the spec's cut/deferred list is worth telling users.
+
+## Comments
+
+**2026-08-19, from ticket 20 (failure taxonomy):** one more item the README owes the user —
+`settings.json` is hand-editable, and when it cannot be parsed the app sets it aside as
+`settings.json.bad` (single copy) and starts on defaults, telling the user via a startup dialog.
+Document the `.bad` file: what it is, that the previous content is recoverable from it, and that
+bad *values* of individual fields are tolerated per-field (raw value kept in the file) rather than
+resetting the whole file.

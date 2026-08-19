@@ -32,3 +32,10 @@ ticket 09's 17 D8 steps, the elevated-instance section (ticket 12), the cross-DP
 Instead the spec records it as a **documented open risk** — the sanity-check precondition on every
 NVDA pass as interim detection, restart-NVDA as the user-facing workaround — and links the open
 ticket. Blocked-by extended with the four tickets graduated from the fog on the same day (20–23).
+
+**2026-08-19, from ticket 20 (failure taxonomy):** FR-settings-file is **rewritten, not kept** —
+the PRD's "overwrite the corrupted file with a valid version + StatusBar warning" is overridden
+(set-aside as `settings.json.bad`, startup dialog with the message in the title, per-field
+tolerance with raw values preserved). List it in the PRD-deviation notes with ticket 20 as the
+settling ticket. `maxBackups` acceptance gains a testable bound: valid domain ≥ 1, default 50,
+invalid → default in memory with the raw value preserved in the file.

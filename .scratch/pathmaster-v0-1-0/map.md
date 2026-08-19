@@ -298,6 +298,21 @@ transient, non-focus messages — which is why that has its own ticket.
   blocked on ticket 18 — the spec records the anomaly as a documented open risk instead. New term
   **Release Checklist**: [CONTEXT.md](../../CONTEXT.md).
 
+- [Failure taxonomy: settings load and log write](issues/20-failure-taxonomy-remainder.md) — **the
+  taxonomy closes without an eighth Announcement.** Settings validation mirrors ticket 14's two
+  layers: unparsable JSON or a non-object root → full defaults, the bad file **set aside as
+  `settings.json.bad`** (never overwritten in place — overriding FR-settings-file's silent reset,
+  StatusBar warning included), and **one startup dialog** with the message in its title, the
+  ticket-12 catalogue-preserving move. Bad values of known fields fall back **per-field in memory
+  while the file keeps the raw value** until the user changes that setting in the UI — ticket 11's
+  "choice, not outcome" extended so a v0.2 value survives a v0.1 run; unknown fields are ignored
+  and preserved the same way. `maxBackups` is valid at **≥ 1** (default 50) — clamping rejected,
+  `0` outlawed because rotation at zero silently deletes the pre-Apply safety net. Per-field
+  fallbacks are log-only. **No logging failure touches the app**: every record an independent
+  attempt, failures silently dropped but counted, one `N log records were lost` line on recovery;
+  an unopenable log at startup means a run without a log, never Read-only Data. Absent
+  `settings.json` is a first run, not a failure.
+
 ## Not yet specified
 
 In scope, but not yet sharp enough to ticket. Graduates as the frontier advances.
