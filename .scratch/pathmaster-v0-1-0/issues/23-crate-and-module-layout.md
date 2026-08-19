@@ -31,3 +31,13 @@ To decide:
 - What of `.scratch/` tooling (nvda-drive.ps1) is promoted into `tools/` permanently.
 
 When this closes, ticket 16 has everything it needs.
+
+## Comments
+
+**2026-08-19, from ticket 21 (log format):** now unblocked — both blockers are resolved. What 21
+hands this ticket: the log **format** (line shape, truncation, rotation thresholds) is pure and
+belongs in the core's testable surface, while the log **writer** (append, rotate-at-open, the
+silent-drop-and-count behaviour) is imperative shell; the **panic hook** writes past the logger
+straight to the file, so its placement must not create a core→shell dependency. The `area` tokens
+(`startup`, `apply`, `settings`, `log`, `panic`) will tend to mirror module seams — worth a glance
+when naming modules, not a constraint.

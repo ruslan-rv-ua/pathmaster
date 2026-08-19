@@ -352,6 +352,21 @@ transient, non-focus messages — which is why that has its own ticket.
   AT-presence detection itself is legitimate (Chromium's `WM_GETOBJECT` probe). New term **Sanity Check**:
   [CONTEXT.md](../../CONTEXT.md).
 
+- [Log format](issues/21-log-format.md) — **human-first plain text, one line per record**:
+  `<RFC 3339 local+offset> <LEVEL> <area>: <message>`, stable prefix, free English tail — the
+  industry's JSON-first advice rests on aggregation pipelines this app will never have. Exactly
+  three levels (`INFO`/`WARN`/`ERROR`, five-char padded). A healthy run writes a **3–5 line
+  skeleton** (startup with version/elevation/data-state/language, an audit line per Apply, clean
+  shutdown) — never an empty file, which is indistinguishable from a log that failed to open. Two
+  absolute prohibitions, both PII-driven: **no Entry/PATH text and no absolute filesystem paths in
+  any record** — only derived facts (counts, lengths, Value Type, Scope; `data: writable`, never
+  the location). Rejected settings values are logged (ticket 20's only-witness) but truncated to
+  ~100 chars. **Panics reach the log** even under `panic=abort`: a `set_hook` hook appends one
+  `ERROR panic:` line (message + `file:line`, no backtrace — the PDB isn't shipped), writing
+  directly past the logger so it cannot recurse. `pathmaster.log`, rotated at open over 1 MB to a
+  single overwritten `.old`. Ticket 20's logger-generated `N records were lost` line needs no
+  special syntax — the logger is just another area.
+
 ## Not yet specified
 
 In scope, but not yet sharp enough to ticket. Graduates as the frontier advances.
