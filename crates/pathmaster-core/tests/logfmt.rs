@@ -1,0 +1,165 @@
+//! The log line format at the crate boundary (spec §14, ticket impl-05).
+//!
+//! One record per line: `<RFC 3339 local+offset> <LEVEL> <area>: <message>`.
+//! Expected strings come from the spec's own examples, not recomputed.
+
+use pathmaster_core::logfmt::{line, DataState, Record, Timestamp};
+use pathmaster_core::session::{Scope, ValueType};
+
+fn spec_timestamp() -> Timestamp {
+    Timestamp {
+        year: 2026,
+        month: 8,
+        day: 19,
+        hour: 15,
+        minute: 36,
+        second: 31,
+        offset_minutes: 180,
+    }
+}
+
+#[test]
+fn startup_line_matches_the_spec_example_byte_for_byte() {
+    let record = Record::startup("0.1.0", false, DataState::Writable, "uk");
+    assert_eq!(
+        line(&spec_timestamp(), &record),
+        "2026-08-19T15:36:31+03:00 INFO  startup: \
+         PathMaster 0.1.0, elevated: no, data: writable, language: uk\n",
+    );
+}
+
+#[test]
+fn apply_audit_line_matches_the_spec_example() {
+    let record = Record::apply_written(Scope::User, 14, 512, ValueType::RegExpandSz);
+    assert_eq!(
+        line(&spec_timestamp(), &record),
+        "2026-08-19T15:36:31+03:00 INFO  apply: \
+         User scope written, 14 entries, 512 chars, REG_EXPAND_SZ\n",
+    );
+}
+
+#[test]
+fn clean_shutdown_line_matches_the_spec() {
+    assert_eq!(
+        line(&spec_timestamp(), &Record::shutdown_clean()),
+        "2026-08-19T15:36:31+03:00 INFO  shutdown: clean\n",
+    );
+}
+
+#[test]
+fn lost_records_line_is_a_warn_from_the_log_area() {
+    assert_eq!(
+        line(&spec_timestamp(), &Record::records_lost(3)),
+        "2026-08-19T15:36:31+03:00 WARN  log: 3 records were lost\n",
+    );
+}
+
+#[test]
+fn panic_line_carries_message_and_file_line_only() {
+    let record = Record::panic("boom", r"crates\pathmaster\src\main.rs", 42);
+    assert_eq!(
+        line(&spec_timestamp(), &record),
+        "2026-08-19T15:36:31+03:00 ERROR panic: \
+         boom (crates\\pathmaster\\src\\main.rs:42)\n",
+    );
+}
+
+#[test]
+fn all_three_levels_pad_to_five_chars_so_columns_align() {
+    let ts = spec_timestamp();
+    // The area starts at the same byte column on every level: the level
+    // field is exactly five characters wide, one space either side.
+    assert_eq!(
+        line(&ts, &Record::shutdown_clean()).find("shutdown:"),
+        Some(32)
+    );
+    assert_eq!(line(&ts, &Record::records_lost(1)).find("log:"), Some(32));
+    assert_eq!(
+        line(&ts, &Record::panic("x", "y.rs", 1)).find("panic:"),
+        Some(32)
+    );
+}
+
+#[test]
+fn rejected_settings_value_is_logged_verbatim_when_short() {
+    let record = Record::settings_field_invalid("maxBackups", "0", "50");
+    assert_eq!(
+        line(&spec_timestamp(), &record),
+        "2026-08-19T15:36:31+03:00 WARN  settings: \
+         field \"maxBackups\" invalid (raw: \"0\"), using default 50\n",
+    );
+}
+
+#[test]
+fn rejected_settings_value_over_100_chars_is_truncated_with_a_marker() {
+    let raw = "x".repeat(300);
+    let record = Record::settings_field_invalid("language", &raw, "auto");
+    let text = line(&spec_timestamp(), &record);
+    assert!(
+        text.contains(&format!("(raw: \"{}…\" [truncated])", "x".repeat(100))),
+        "{text:?}",
+    );
+    assert!(!text.contains(&"x".repeat(101)), "{text:?}");
+}
+
+#[test]
+fn truncation_cuts_at_a_character_boundary_not_mid_codepoint() {
+    let raw = "й".repeat(300);
+    let record = Record::settings_field_invalid("language", &raw, "auto");
+    let text = line(&spec_timestamp(), &record);
+    assert!(
+        text.contains(&format!("\"{}…\"", "й".repeat(100))),
+        "{text:?}"
+    );
+}
+
+#[test]
+fn a_raw_value_with_newlines_still_yields_one_record_per_line() {
+    let record = Record::settings_field_invalid("language", "a\r\nb\nc", "auto");
+    let text = line(&spec_timestamp(), &record);
+    assert_eq!(text.matches('\n').count(), 1, "{text:?}");
+    assert!(text.ends_with('\n'), "{text:?}");
+}
+
+#[test]
+fn a_panic_message_with_newlines_still_yields_one_record_per_line() {
+    let record = Record::panic("assertion failed:\nleft != right", "y.rs", 7);
+    let text = line(&spec_timestamp(), &record);
+    assert_eq!(text.matches('\n').count(), 1, "{text:?}");
+}
+
+#[test]
+fn offsets_format_negative_zero_and_half_hour() {
+    let mut ts = spec_timestamp();
+    ts.offset_minutes = -300;
+    assert!(ts.rfc3339().ends_with("-05:00"));
+    ts.offset_minutes = 0;
+    assert!(ts.rfc3339().ends_with("+00:00"));
+    ts.offset_minutes = 330;
+    assert!(ts.rfc3339().ends_with("+05:30"));
+}
+
+#[test]
+fn read_only_startup_lines_name_the_reason_never_a_location() {
+    for (state, expected) in [
+        (
+            DataState::ReadOnlyOwnLocationUnknown,
+            "data: read-only (own location unknown)",
+        ),
+        (
+            DataState::ReadOnlyCannotCreate,
+            "data: read-only (cannot create data directory)",
+        ),
+        (
+            DataState::ReadOnlyNotWritable,
+            "data: read-only (data directory not writable)",
+        ),
+    ] {
+        let text = line(
+            &spec_timestamp(),
+            &Record::startup("0.1.0", true, state, "en"),
+        );
+        assert!(text.contains(expected), "{text:?}");
+        assert!(text.contains("elevated: yes"), "{text:?}");
+    }
+}

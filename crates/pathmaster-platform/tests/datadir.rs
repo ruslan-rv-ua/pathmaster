@@ -251,3 +251,26 @@ fn a_path_without_a_verbatim_prefix_is_untouched() {
         Path::new(r"\\server\share\PathMaster.exe"),
     );
 }
+
+#[test]
+fn the_startup_log_state_names_the_reason_and_drops_the_location() {
+    use pathmaster_core::logfmt::DataState as LogState;
+    let dir = std::path::PathBuf::from(r"C:\somewhere\data");
+    for (state, expected) in [
+        (DataDirState::Writable(dir.clone()), LogState::Writable),
+        (
+            DataDirState::ReadOnly(ReadOnlyReason::OwnLocationUnknown),
+            LogState::ReadOnlyOwnLocationUnknown,
+        ),
+        (
+            DataDirState::ReadOnly(ReadOnlyReason::CannotCreate(dir.clone())),
+            LogState::ReadOnlyCannotCreate,
+        ),
+        (
+            DataDirState::ReadOnly(ReadOnlyReason::NotWritable(dir.clone())),
+            LogState::ReadOnlyNotWritable,
+        ),
+    ] {
+        assert_eq!(state.log_state(), expected, "{state:?}");
+    }
+}

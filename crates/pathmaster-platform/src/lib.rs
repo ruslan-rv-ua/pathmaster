@@ -8,4 +8,8 @@ pub mod datadir;
 #[cfg(windows)]
 pub mod elevation;
 #[cfg(windows)]
+pub mod logwriter;
+#[cfg(windows)]
+pub mod panic_hook;
+#[cfg(windows)]
 pub mod registry;

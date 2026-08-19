@@ -7,6 +7,7 @@ use std::io;
 use std::os::windows::ffi::OsStrExt;
 use std::path::{Component, Path, PathBuf, Prefix, PrefixComponent};
 
+use pathmaster_core::logfmt;
 use windows_sys::Win32::Storage::FileSystem::{MoveFileExW, MOVEFILE_REPLACE_EXISTING};
 
 /// Why a run is in Read-only Data — exactly these three (spec §3). Each maps
@@ -34,6 +35,26 @@ pub enum ReadOnlyReason {
 pub enum DataDirState {
     Writable(PathBuf),
     ReadOnly(ReadOnlyReason),
+}
+
+impl DataDirState {
+    /// The path-free fact the startup log line carries: the state, and when
+    /// read-only the named reason — never the location (spec §14's PII
+    /// prohibition on absolute paths in any record).
+    pub fn log_state(&self) -> logfmt::DataState {
+        match self {
+            DataDirState::Writable(_) => logfmt::DataState::Writable,
+            DataDirState::ReadOnly(ReadOnlyReason::OwnLocationUnknown) => {
+                logfmt::DataState::ReadOnlyOwnLocationUnknown
+            }
+            DataDirState::ReadOnly(ReadOnlyReason::CannotCreate(_)) => {
+                logfmt::DataState::ReadOnlyCannotCreate
+            }
+            DataDirState::ReadOnly(ReadOnlyReason::NotWritable(_)) => {
+                logfmt::DataState::ReadOnlyNotWritable
+            }
+        }
+    }
 }
 
 /// The locate rule (spec §3): reported executable path → resolve reparse

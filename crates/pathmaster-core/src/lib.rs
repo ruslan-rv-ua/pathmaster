@@ -5,5 +5,6 @@
 
 #![forbid(unsafe_code)]
 
+pub mod logfmt;
 pub mod path;
 pub mod session;
