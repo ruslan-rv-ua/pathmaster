@@ -193,6 +193,34 @@ transient, non-focus messages — which is why that has its own ticket.
   not-yet-existing paths commit legally; diagnostics flags them asynchronously. A **quoted-entry** question
   surfaced for Normalisation (→ ticket 13 comment).
 
+- [i18n mechanism](issues/11-i18n-mechanism.md) — **`wxTranslations` with `.mo` embedded through a custom
+  `TranslationsLoader`**; no Rust i18n crate, so visible labels and Announcements share one `translate()`
+  and "one Catalogue" becomes structural rather than disciplinary. `add_std_catalog()` is **never called** —
+  every dialog whose button text carries meaning already uses our own buttons, since `MessageDialog`
+  cannot relabel its own.
+  msgids are **English source text**, and because **`msgctxt` is not bound at any level**, that
+  English becomes an API surface: where two strings mean different things their English must differ
+  (Cancel-the-command vs Cancel-the-button, a collision that already exists). Symbolic keys were rejected —
+  a miss returns the msgid, so a key would be **spoken aloud**. Placeholders are named braces `{n}`, not
+  `%d`, which in this domain would be indistinguishable from `%VAR%`. **`.po` is committed and `.mo`
+  generated at build time by `polib`** (pure Rust — no `msgfmt` CI pin), which keeps ticket 04's *gate the
+  artifact, not the build config* and makes `.po`/`.mo` drift structurally impossible. The gate is a plain
+  `#[test]` over a **registry of msgid constants** — presence via `get_string(…).is_some()` (never
+  `translate(s) != s`), placeholder integrity, mnemonic uniqueness, and a self-sensitivity check; gettext
+  excludes fuzzy entries from `.mo`, so they read as missing for free. **Accelerators belong to the code,
+  never the Catalogue** — `wxAcceleratorTable` is absent, so the label string *is* the binding and a
+  translated `"\tCtrl+Я"` would delete the shortcut outright; Ukrainian mnemonics stay **Latin in
+  parentheses** (`Файл(&F)`) because this application edits Latin paths and its user sits in a Latin layout
+  ([ADR-0004](../../docs/adr/0004-catalogue-text-is-load-bearing.md)). Interface Language resolves by a
+  two-way branch (`Ukrainian → uk`, everything else → `en`); `settings.json` takes `auto|en|uk` and records
+  the **choice, not its outcome**; in Read-only Data the selector is disabled and reads as disabled. The
+  restart notice rides the selector's own label, so ticket 09's Announcement catalogue **stays closed at
+  seven**. Composed strings constrain the English: operation names translate as verbal nouns and must
+  differ from the buttons that perform them. The ticket's "add a third language without touching the code"
+  premise is **rewritten, not satisfied** — an embedded catalogue always needs a rebuild; the real workflow
+  is dropping `xx.po` into `i18n/` plus one mapping arm. New terms **Catalogue** and **Interface Language**:
+  [CONTEXT.md](../../CONTEXT.md).
+
 ## Not yet specified
 
 In scope, but not yet sharp enough to ticket. Graduates as the frontier advances.
@@ -200,7 +228,8 @@ In scope, but not yet sharp enough to ticket. Graduates as the frontier advances
 - **Error and failure taxonomy** — what the user is shown, what is logged, and what is announced when a registry
   write, a backup write, or a settings load fails. Waits on the registry, elevation and backup tickets.
 - **Log format** — what a record contains and how it reads. **Rotation is settled** by ticket 07
-  (one generation, at open only); the format waits on the failure taxonomy.
+  (one generation, at open only) and its **language** by ticket 11 (always English, outside the Catalogue);
+  the format itself waits on the failure taxonomy.
 - **README and user-facing docs** — including the honest description of what winget/scoop themselves write to
   the machine. Waits on the packaging ticket.
 - **Repository and crate layout for the implementation effort** — module seams, what is a library vs the GUI

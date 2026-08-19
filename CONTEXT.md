@@ -83,8 +83,8 @@ _Avoid_: Backup (reserve that for the act of taking one and for the directory th
 ### Speaking to the user
 
 **Announcement**:
-One of a closed catalogue of messages the application both speaks through the screen reader and shows in
-the Banner. Nothing outside the catalogue is spoken unprompted, and no Announcement is audio-only — hearing
+One of a closed set of messages the application both speaks through the screen reader and shows in
+the Banner. Nothing outside that set is spoken unprompted, and no Announcement is audio-only — hearing
 and seeing carry the same information.
 _Avoid_: Notification, Toast, Alert, Message
 
@@ -92,6 +92,19 @@ _Avoid_: Notification, Toast, Alert, Message
 The single visible home of Announcements — one message line in the main window. It never carries information
 that is not also spoken, and like everything else it never sets its own colours.
 _Avoid_: Status bar (that is command-only and separate), InfoBar, Message area
+
+**Catalogue**:
+The single source of every string the user reads or hears — control labels, Announcements, Issue names,
+dialog titles and buttons alike. There is exactly one, so what is shown and what is spoken can never drift
+apart. The log is deliberately outside it: it is written for a developer reading a machine they cannot see,
+not for the user.
+_Avoid_: Resources, Strings, Locale files, Translations (those are what a Catalogue holds, not what it is)
+
+**Interface Language**:
+The language the application speaks and shows, decided once when it starts — from the user's stored choice,
+or from the system when they have made none. Like Read-only Data it is a property of the run, not of a
+Scope, and it never changes while the application is running.
+_Avoid_: Locale (that is the system's, not ours), Language setting, Culture
 
 ### The application's own storage
 
