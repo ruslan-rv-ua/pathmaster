@@ -1,7 +1,7 @@
 # Repository and crate layout for the implementation effort
 
 Type: grilling
-Status: open
+Status: resolved
 Blocked by: 20, 21
 
 ## Question
@@ -41,3 +41,54 @@ silent-drop-and-count behaviour) is imperative shell; the **panic hook** writes 
 straight to the file, so its placement must not create a core→shell dependency. The `area` tokens
 (`startup`, `apply`, `settings`, `log`, `panic`) will tend to mirror module seams — worth a glance
 when naming modules, not a constraint.
+
+## Answer
+
+Resolved 2026-08-19 with the user, per the standing directive: best practices researched first
+(matklad's "Large Rust Workspaces", Rust Project Primer, the Cargo book, corrode.dev), then decided.
+
+**Topology: a three-crate Cargo workspace — the crate boundary is the test boundary
+([ADR-0007](../../../docs/adr/0007-crate-boundary-is-the-test-boundary.md)).** Prevailing guidance
+puts the workspace threshold at ~10k lines, but two local facts override it: ticket 19 already fixed
+three test tiers (the seams are not invented, only recorded), and wxdragon statically compiles
+wxWidgets from source, so in a single crate every `cargo test` binary would link that C++ archive.
+With the split, no test ever links wxWidgets.
+
+**Layout (flat, matklad-style): virtual manifest root, all crates under `crates/`, folder named
+exactly as the crate.** `[profile.release]` from ticket 04 lives once in the root manifest; release
+CI keeps gating on the artifact's imports, never the build config.
+
+- **`crates/pathmaster-core`** — pure, no I/O, builds and tests on any OS (a free bonus, not a
+  promise — the user confirmed non-Windows dev is theoretical). Modules (indicative, renameable;
+  the *inter-crate* seams are what the spec fixes hard): `path` (split/join), `normalize`,
+  `diagnostics`, `session`, `snapshot`, `rotation`, `thresholds`, `settings` (parse + per-field
+  fallback rules), `logfmt` (line shape, truncation, levels), `msgids` (msgid-constant registry +
+  `.po` integrity gate via polib parsing — no wx).
+- **`crates/pathmaster-platform`** — imperative shell without wx; depends on core. `registry`
+  (adapter, key path as constructor parameter), `datadir`, `elevation`, `logwriter`
+  (append, rotate-at-open, silent-drop-and-count), `panic_hook` (writes past the logger straight to
+  the file; core supplies only the line format, so no core→shell edge), `broadcast`
+  (`WM_SETTINGCHANGE`).
+- **`crates/pathmaster`** — the GUI shell, **bin-only, no lib target** (integration tests cannot
+  import a binary, and the GUI's coverage is the Release Checklist by ticket 19). `ui/*`, `announce`,
+  `pump` (Timer-drain), `catalog` (TranslationsLoader, embedded `.mo`), `main.rs` (startup order:
+  panic hook → settings → language → window), `build.rs` (polib → `.mo`, llvm-rc → icon/VERSIONINFO),
+  `i18n/` with the `.po` files. `[[bin]] name = "PathMaster"` so cargo emits `PathMaster.exe` and the
+  release workflow has no rename step.
+
+**Tests.** Unit tests in-module throughout. The three proptest properties live in
+`crates/pathmaster-core/tests/properties.rs` — they deliberately exercise the core's *public*
+surface, and `proptest` stays a dev-dependency of core alone. Registry integration tests are plain
+`#[cfg(windows)]` modules against a temporary key on the live `HKCU` — no opt-in feature gate (a
+gate nobody enables is a test nobody runs); on non-Windows they do not exist, which *is* the ticket's
+"skips gracefully". **Ticket 11's msgid gate is split**: `.po` integrity (placeholders, mnemonic
+uniqueness, fuzzy-exclusion, self-sensitivity) is checked wx-free in core via polib; one smoke test
+(`get_string(…).is_some()` over a few keys through real wxTranslations) lives in the binary and runs
+in CI, where wx is built anyway.
+
+**Tooling promotion.** `nvda-drive.ps1` moves from `.scratch/` to a permanent repo-root `tools/`,
+and the ticket-24 `WM_GETOBJECT` watcher joins it there when built — the Release Checklist is a
+permanent document and the harness backing its Sanity Check cannot live in an effort-scoped
+scratch directory. The rest of `.scratch/` remains this wayfinding effort's archive.
+
+No new CONTEXT.md terms — crate layout is implementation, and the glossary stays free of it.

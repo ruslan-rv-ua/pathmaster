@@ -3,6 +3,12 @@
 Wayfinder map. Tickets are the files in `issues/`; the frontier is every ticket that is `open`, unclaimed,
 and whose `Blocked by` list is fully `resolved`.
 
+> **This map is complete (2026-08-19).** Every ticket is resolved and the destination artifact
+> exists: **[spec.md](spec.md)**, the locked v0.1.0 specification. The effort leaves wayfinding
+> for an implementation effort. Release-time actions still owed (not decisions): clean-VM run,
+> one live winget install observation, repo URL in the manifest drafts — listed in
+> [ticket 16's Answer](issues/16-locked-spec.md).
+
 ## Destination
 
 A **locked, technically de-risked specification for PathMaster v0.1.0** — `spec.md` in this directory —
@@ -140,7 +146,8 @@ transient, non-focus messages — which is why that has its own ticket.
   `set_accessibility_*` call moves a widget off this comctl32 path — so re-measure, never assume it only added.
   A measurement was lost to a state where NVDA treated the list as a leaf and announced nothing (now
   **[ticket 18](issues/18-nvda-deaf-on-listctrl.md)**); every pass now checks `NVDA+Tab` on a row answers
-  `'елемент списку'` first. Harness: [tools/nvda-drive.ps1](tools/nvda-drive.ps1).
+  `'елемент списку'` first. Harness: [tools/nvda-drive.ps1](../../tools/nvda-drive.ps1)
+  (promoted to the repo root by tickets 23/16).
   Details: [research/02](research/02-nvda-baseline.md).
 
 - [Live announcement mechanism](issues/08-live-announcement-mechanism.md) — **one event speaks, and it is
@@ -366,6 +373,32 @@ transient, non-focus messages — which is why that has its own ticket.
   directly past the logger so it cannot recurse. `pathmaster.log`, rotated at open over 1 MB to a
   single overwritten `.old`. Ticket 20's logger-generated `N records were lost` line needs no
   special syntax — the logger is just another area.
+
+- [Repository and crate layout](issues/23-crate-and-module-layout.md) — **three-crate workspace; the
+  crate boundary is the test boundary**
+  ([ADR-0007](../../docs/adr/0007-crate-boundary-is-the-test-boundary.md)): `pathmaster-core` (pure,
+  any-OS), `pathmaster-platform` (imperative, no wx: registry adapter, datadir, elevation, log
+  writer, panic hook, broadcast), `pathmaster` (**bin-only**, wx shell + `announce` + Timer pump +
+  `build.rs`; `[[bin]] name = "PathMaster"` — no CI rename step). Ticket 19's tiers made structural:
+  **no test ever links wxWidgets** — the general ~10k-line workspace threshold is overridden by the
+  static wxWidgets build. Flat matklad layout (`crates/`, virtual root holding the ticket-04
+  profile). Proptest properties in `core/tests/properties.rs`; registry tests plain
+  `#[cfg(windows)]`, no opt-in gate. **Ticket 11's msgid gate splits**: `.po` integrity wx-free in
+  core via polib, one `get_string` smoke test in the binary for CI. `nvda-drive.ps1` (and the
+  ticket-24 watcher, when built) promoted to a permanent repo-root `tools/`. Dependency direction
+  fixed: bin → platform → core, never reverse.
+
+- [Locked v0.1.0 spec](issues/16-locked-spec.md) — **the destination is reached:
+  [spec.md](spec.md) locks every decision** with a full kept/rewritten/cut disposition of the PRD,
+  per-requirement traceability, exact NVDA speech in the acceptance criteria, and thirteen
+  enumerated PRD overrides. The canonical **Release Checklist** now lives at
+  [docs/release-checklist.md](../../docs/release-checklist.md) (Sanity Check gate, the 17 D8 steps
+  with ticket-13 wording, ticket-10 dialog steps, elevated-instance section, DPI-drag,
+  README-sync/ProcMon/clean-VM); `nvda-drive.ps1` is promoted to the permanent repo-root
+  [tools/](../../tools/). Delegated assembly decisions fixed and marked **[assembly]** in the spec:
+  exact Catalogue English, the menu/shortcut table, StatusBar wording, Restore's dropped confirm
+  and post-Restore focus, `MinimumOSVersion` 10.0.19044.0; the 07-vs-21 log-rotation conflict
+  resolves to ticket 21 (1 MB, `.old`) by recency. **The map is complete.**
 
 ## Not yet specified
 

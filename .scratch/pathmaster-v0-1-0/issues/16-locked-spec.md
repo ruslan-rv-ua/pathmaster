@@ -1,7 +1,7 @@
 # Locked v0.1.0 spec
 
 Type: task
-Status: open
+Status: resolved
 Blocked by: 09, 10, 11, 12, 13, 14, 15, 17, 19, 20, 21, 22, 23, 24
 
 ## Question
@@ -21,6 +21,40 @@ Rewrite the source PRD in English with all decisions folded in:
 - Traceability: each requirement points at the ticket that settled it.
 
 When this ticket closes, the map is complete and the effort leaves wayfinding for an implementation effort.
+
+## Answer
+
+Resolved 2026-08-19. **The spec is locked: [spec.md](../spec.md).** Three artifacts were produced:
+
+1. **[spec.md](../spec.md)** — the destination. Every PRD US/FR/NFR/TC is dispositioned
+   kept/rewritten/cut in one traceability table (§2), each pointing at its settling ticket; the
+   rewritten contracts fill §3–§19; cuts carry one-line reasons (§20); outright PRD overrides are
+   enumerated (§21, thirteen items — FR-settings-file, the WM_SETTINGCHANGE 5000 ms bug, inline
+   editing, the dropped confirm dialogs, the six-types amendment, and the rest). WinUI vocabulary
+   is replaced throughout (`InlineAlert`/`InlineBanner`/`TabPages` → the Banner, menu-command
+   elevation, wx notebook; `os.Stat()` → `std::fs::metadata` semantics). Accessibility acceptance
+   criteria name the exact text NVDA speaks. The ticket-18 anomaly is recorded as a documented open
+   risk (§19), per the decision not to block on it.
+2. **[docs/release-checklist.md](../../docs/release-checklist.md)** — the canonical Release
+   Checklist: gate-zero Sanity Check, the 17 D8 steps with the ticket-13 wording filled in, the
+   ticket-10 dialog steps, the elevated-instance section (installed-NVDA requirement), the
+   cross-DPI drag step, and the non-NVDA release checks (README.uk sync, Process Monitor, clean-VM).
+3. **Tooling promoted**: `nvda-drive.ps1` and its README moved (`git mv`) from
+   `.scratch/pathmaster-v0-1-0/tools/` to the permanent repo-root `tools/`, links updated.
+
+Assembly-level decisions the tickets delegated here are marked **[assembly]** in the spec and were
+fixed as: the exact Catalogue English for all Announcements, dialog titles and failure texts
+(ticket 12 D10's delegation); the menu structure and shortcut table (ticket 09 D5's delegation —
+Ctrl+S Apply, Del Delete, Alt+Up/Down Move); the StatusBar field wording (ticket 17 D10's
+delegation); operation names "Change value type" and "Restore snapshot" added to the undo set;
+Restore's confirm dialog dropped and post-Restore focus fixed (extending tickets 10 D4 / 14);
+winget `MinimumOSVersion` pinned to 10.0.19044.0 (= Win10 21H2, closing ticket 15's open floor).
+The log-rotation conflict between tickets 07 (5 MB/`.log.1`) and 21 (1 MB/`.old`) resolves to
+ticket 21 by recency.
+
+**The map is complete.** No open question stands between the spec and an implementation effort;
+still owed at release time (actions, not decisions): the clean-VM run, one live winget install
+observation, and the repo URL in the manifest drafts.
 
 ## Comments
 
@@ -47,3 +81,15 @@ the PRD's "overwrite the corrupted file with a valid version + StatusBar warning
 tolerance with raw values preserved). List it in the PRD-deviation notes with ticket 20 as the
 settling ticket. `maxBackups` acceptance gains a testable bound: valid domain ≥ 1, default 50,
 invalid → default in memory with the raw value preserved in the file.
+
+**2026-08-19, from ticket 23 (crate layout, resolved):** the last blocker is closed — this ticket is
+now the frontier, and the whole map's remaining work. What 23 hands the assembly: the spec gains a
+short **repository layout** section (three-crate workspace, dependency direction bin → platform →
+core, bin-only GUI crate, `[[bin]] name = "PathMaster"`, flat `crates/` layout with the ticket-04
+profile in the virtual root — details in [ADR-0007](../../../docs/adr/0007-crate-boundary-is-the-test-boundary.md));
+ticket 19's test-strategy section can now name *where* each tier lives (core unit tests + the three
+proptest properties in `core/tests/properties.rs`; registry integration tests `#[cfg(windows)]` in
+platform; the GUI tier is the Release Checklist only); ticket 11's msgid gate is restated as split
+(polib integrity check in core, one `get_string` smoke test in the bin); and the Release Checklist
+tooling reference points at the permanent repo-root `tools/` (nvda-drive.ps1 promoted out of
+`.scratch/`), which this ticket should perform as part of assembly.

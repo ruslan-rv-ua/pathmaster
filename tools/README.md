@@ -1,6 +1,9 @@
 # tools
 
-Measurement harness for the accessibility tickets. Nothing here ships.
+Measurement harness backing the Release Checklist's Sanity Check ([docs/release-checklist.md](../docs/release-checklist.md)).
+Originally built for the v0.1.0 wayfinding effort's accessibility tickets; promoted to the repo root
+by ticket 23 because the Checklist is a permanent document. Nothing here ships. The ticket-24
+`WM_GETOBJECT` watcher joins this directory when built.
 
 ## `nvda-drive.ps1`
 
@@ -29,7 +32,7 @@ speech follows accessibility events, not keystrokes, so injection cannot by itse
 
 ```powershell
 # start the app under measurement and remember its pid + a log offset
-.\nvda-drive.ps1 -Launch -Exe ..\prototypes\02-nvda-baseline\target\release\nvda-baseline.exe
+.\nvda-drive.ps1 -Launch -Exe ..\.scratch\pathmaster-v0-1-0\prototypes\02-nvda-baseline\target\release\nvda-baseline.exe
 
 # send keys, one at a time, waiting for speech after each; prints the log slice
 .\nvda-drive.ps1 -Keys 'TAB,DOWN,DOWN,DOWN,CTRL+HOME'
@@ -71,9 +74,9 @@ measurement to it and reached the opposite conclusion.
 
 ### Where it has been used
 
-Ticket 02 (`../research/02-nvda-baseline.md`) — the baseline measurement.
-Ticket 08 needs the same loop for verifying whichever announcement rung it picks.
-Ticket 18 needs it to try to reproduce the state where NVDA stops announcing rows.
+Ticket 02 (`../.scratch/pathmaster-v0-1-0/research/02-nvda-baseline.md`) — the baseline measurement.
+Ticket 08 used the same loop to verify the announcement mechanism.
+Ticket 18 used it to try to reproduce the state where NVDA stops announcing rows.
 
-**Do not add accessibility calls to `../prototypes/02-nvda-baseline/`.** It is the baseline that
+**Do not add accessibility calls to `../.scratch/pathmaster-v0-1-0/prototypes/02-nvda-baseline/`.** It is the baseline that
 later measurements are compared against. Copy it first.
