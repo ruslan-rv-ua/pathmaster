@@ -66,3 +66,9 @@ part of why JSON was chosen. This is the ticket where those two goals are traded
   disabled state says.
 - **`winget uninstall` deletes the Data Directory, Snapshots included.** Relevant if this ticket wants to say
   anything about the durability of a backup; the README honesty paragraph is ticket 15's.
+
+## Carried in from ticket 09
+
+Backup failures abort Apply and are Announced (ticket 09, D3 — closed catalogue, item 3); this ticket owns
+the exact texts. Dialog discipline applies: all critical information in a dialog's **title and buttons** —
+NVDA never speaks a `MessageDialog` body.

@@ -71,3 +71,10 @@ not exist and the near-miss fails silently:
 - **Diagnostics is the only consumer of Normalisation**, which is a comparison-time function whose result is
   never stored and never written. This ticket therefore owns its exact definition (case, trailing `\`, slash
   direction, `%VAR%` expansion) — ticket 06 fixed only that it exists and where it may not leak.
+
+## Carried in from ticket 09
+
+The Status column is the per-entry carrier (ticket 09, D1): issue types only, no severity prefix; several
+Issues comma-joined in a fixed severity order; empty column for a healthy Entry (never "OK"). This ticket
+owns the **exact word for each of the five types** and the **severity order** used for joining. Keep each
+word short — it is spoken on every arrow key over an affected row.

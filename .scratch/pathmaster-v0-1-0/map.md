@@ -150,14 +150,26 @@ transient, non-focus messages — which is why that has its own ticket.
   NVDA 2025.3.3 / Win11 25H2, every pass gated on the ticket-18 sanity check.
   Details: [research/08](research/08-announcements.md).
 
+- [Accessibility contract](issues/09-accessibility-contract.md) — **everything must-hear rides a measured
+  channel, and nothing else speaks.** The Status column carries per-entry Issues: types only, no severity
+  prefix, all of them comma-joined in a severity order (owned by ticket 13), empty for healthy — never "OK".
+  **Zero `set_accessibility_*` calls in v0.1.0** — visible labels on the native comctl32 path plus one
+  `announce()` are the whole strategy ([ADR-0003](../../docs/adr/0003-no-accessibility-calls-except-announce.md));
+  any future label is a re-measure, not an improvement. Announcements are a **closed seven-item catalogue**
+  (tab/Refresh entry counts, Apply success/failure, undo/redo with "unsaved changes" after crossing the Apply
+  barrier, Cancel, Read-only Data at startup), each with a visible home on the Banner — no audio-only messages,
+  and the empty-list gap is closed by the count announcement. Dialog bodies stay unheard **by discipline**: all
+  critical dialog information lives in the title and buttons. No F6, no position announcements; focus never
+  jumps without a reason (rules per Apply/Refresh/dialog-close). WCAG 4.5:1 inverts into a prohibition: the app
+  never sets a colour. Verification is a 17-step NVDA checklist with expected speech per step, gated on the
+  ticket-18 sanity check. New terms **Announcement** and **Banner**: [CONTEXT.md](../../CONTEXT.md).
+
 ## Not yet specified
 
 In scope, but not yet sharp enough to ticket. Graduates as the frontier advances.
 
 - **Error and failure taxonomy** — what the user is shown, what is logged, and what is announced when a registry
   write, a backup write, or a settings load fails. Waits on the registry, elevation and backup tickets.
-- **Test and verification strategy** — how the accessibility contract is regression-tested by one person before
-  each release, and what is worth automating at all. Waits on the accessibility contract.
 - **Log format** — what a record contains and how it reads. **Rotation is settled** by ticket 07
   (one generation, at open only); the format waits on the failure taxonomy.
 - **README and user-facing docs** — including the honest description of what winget/scoop themselves write to

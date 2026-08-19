@@ -27,3 +27,9 @@ Open:
   `WM_SETTINGCHANGE` payload.
 - Do any announced strings need plural forms or interpolation ("3 items", "N of M entries")? That constrains
   the mechanism choice, so decide it here rather than discovering it in v0.2.0.
+
+## Carried in from ticket 09
+
+Announcement texts are translation strings like any other UI text: canonical English in the spec,
+Ukrainian shipped as translations. The closed catalogue of Announcements (ticket 09, D3) defines which
+strings exist; this ticket owns only how they are stored, embedded and selected.

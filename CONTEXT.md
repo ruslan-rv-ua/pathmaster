@@ -80,6 +80,19 @@ One saved copy of a single Scope's value, written to a file before that Scope is
 later. Exactly what a Snapshot must record to be a faithful restore source is settled separately.
 _Avoid_: Backup (reserve that for the act of taking one and for the directory they live in)
 
+### Speaking to the user
+
+**Announcement**:
+One of a closed catalogue of messages the application both speaks through the screen reader and shows in
+the Banner. Nothing outside the catalogue is spoken unprompted, and no Announcement is audio-only — hearing
+and seeing carry the same information.
+_Avoid_: Notification, Toast, Alert, Message
+
+**Banner**:
+The single visible home of Announcements — one message line in the main window. It never carries information
+that is not also spoken, and like everything else it never sets its own colours.
+_Avoid_: Status bar (that is command-only and separate), InfoBar, Message area
+
 ### The application's own storage
 
 **Data Directory**:

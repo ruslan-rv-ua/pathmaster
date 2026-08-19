@@ -69,3 +69,9 @@ freeze, while a healthy broadcast measured 37 ms. Rewrite to 1000–2000 ms with
 - **Startup predicts, Apply verifies.** The startup writability verdict governs the UI only; Apply always
   begins by writing a Snapshot and treats its failure as an Apply failure. The write-failure taxonomy this
   ticket owns therefore has to cover a *data directory* failure at Apply time, not only a registry one.
+
+## Carried in from ticket 09
+
+Every Apply failure is Announced (ticket 09, D3 — closed catalogue, item 3). This ticket owns the exact
+failure texts for registry-write and elevation errors. Dialog discipline applies: all critical
+information in a dialog's **title and buttons** — NVDA never speaks a `MessageDialog` body.
