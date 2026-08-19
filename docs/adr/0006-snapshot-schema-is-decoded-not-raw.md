@@ -38,4 +38,6 @@ not "does it reproduce a byte buffer no other part of the application ever touch
   (`CONTEXT.md`, **Absent**) rather than collapsing them into "no file" or "empty array" by accident.
 - **This schema cannot represent a value that fails to round-trip through decode/split/join.** Not observed for
   `PATH` — a `REG_SZ`/`REG_EXPAND_SZ` payload is well-formed UTF-16 text by definition of the type — and
-  accepted rather than defended against, because nothing else in the application handles raw bytes either.
+  accepted rather than defended against, because raw bytes appear nowhere outside the registry adapter,
+  which handles them only as a transport and external-change comparison primitive (spec §4), never as a
+  restore source.

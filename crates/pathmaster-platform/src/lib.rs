@@ -2,3 +2,6 @@
 //!
 //! Modules land with their tickets: `registry` (key path as a constructor parameter),
 //! `datadir`, `elevation`, `logwriter`, `panic_hook`, `broadcast`.
+
+#[cfg(windows)]
+pub mod registry;

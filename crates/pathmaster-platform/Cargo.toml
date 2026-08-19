@@ -8,3 +8,11 @@ publish = false
 
 [dependencies]
 pathmaster-core = { path = "../pathmaster-core" }
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.56"
+
+# The registry integration tests write degenerate values (double-NUL terminators,
+# REG_BINARY) directly, bypassing the adapter under test.
+[target.'cfg(windows)'.dev-dependencies]
+winreg = "0.56"
