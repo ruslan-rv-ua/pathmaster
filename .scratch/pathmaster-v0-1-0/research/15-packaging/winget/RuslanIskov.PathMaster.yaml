@@ -1,0 +1,8 @@
+# Version manifest — manifests/r/RuslanIskov/PathMaster/0.1.0/RuslanIskov.PathMaster.yaml
+# TODO(publisher): "RuslanIskov" is the recommended option, not a settled decision — see research/15-packaging.md §1.
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.version.1.12.0.schema.json
+PackageIdentifier: "RuslanIskov.PathMaster"
+PackageVersion: "0.1.0"
+DefaultLocale: "en-US"
+ManifestType: "version"
+ManifestVersion: "1.12.0"

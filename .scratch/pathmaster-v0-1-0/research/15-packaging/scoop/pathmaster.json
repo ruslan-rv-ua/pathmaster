@@ -1,0 +1,41 @@
+{
+    "##": [
+        "Own-bucket manifest (bucket generated from ScoopInstaller/BucketTemplate, whose excavator.yml",
+        "runs checkver/autoupdate on schedule — that is how this file gets bumped on release).",
+        "TODO(repo): homepage/urls assume github.com/ruslan-rv-ua/PathMaster.",
+        "TODO(license): not decided yet — required field.",
+        "The '#/PathMaster.exe' fragment renames the download, so bin/shortcuts stay stable across versions.",
+        "GUI app needs nothing special: scoop patches the shim's PE subsystem to GUI when the target is GUI",
+        "(lib/core.ps1), so the PATH shim does not flash a console; 'shortcuts' adds the Start Menu entry.",
+        "persist 'data' junctions <app>\\data into ~\\scoop\\persist\\pathmaster\\data — survives updates."
+    ],
+    "version": "0.1.0",
+    "description": "Portable, screen-reader-friendly editor and diagnostics for the Windows PATH environment variable",
+    "homepage": "https://github.com/ruslan-rv-ua/PathMaster",
+    "license": "TODO",
+    "architecture": {
+        "64bit": {
+            "url": "https://github.com/ruslan-rv-ua/PathMaster/releases/download/v0.1.0/PathMaster-v0.1.0-x64.exe#/PathMaster.exe",
+            "hash": "TODO-sha256-from-release-sidecar"
+        }
+    },
+    "bin": "PathMaster.exe",
+    "shortcuts": [
+        [
+            "PathMaster.exe",
+            "PathMaster"
+        ]
+    ],
+    "persist": "data",
+    "checkver": "github",
+    "autoupdate": {
+        "architecture": {
+            "64bit": {
+                "url": "https://github.com/ruslan-rv-ua/PathMaster/releases/download/v$version/PathMaster-v$version-x64.exe#/PathMaster.exe",
+                "hash": {
+                    "url": "https://github.com/ruslan-rv-ua/PathMaster/releases/download/v$version/PathMaster-v$version-x64.exe.sha256"
+                }
+            }
+        }
+    }
+}

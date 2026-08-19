@@ -1,0 +1,21 @@
+# Installer manifest — manifests/r/RuslanIskov/PathMaster/0.1.0/RuslanIskov.PathMaster.installer.yaml
+# TODO(publisher): identifier choice, see research/15-packaging.md §1.
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.12.0.schema.json
+PackageIdentifier: "RuslanIskov.PathMaster"
+PackageVersion: "0.1.0"
+# MinimumOSVersion is plausible, not established — no ticket pinned the OS floor (findings §7.8).
+MinimumOSVersion: "10.0.17763.0"
+InstallerType: "portable"
+# Commands[0] names BOTH the Links symlink and the installed exe itself:
+# %LOCALAPPDATA%\Microsoft\WinGet\Packages\<id>_<source>\pathmaster.exe (winget appends .exe).
+# Verified in winget-cli PortableFlow.cpp; there is no top-level PortableCommandAlias for a bare exe.
+Commands:
+- "pathmaster"
+ReleaseDate: "2026-01-01" # TODO: actual release date
+Installers:
+- Architecture: "x64"
+  # TODO(repo): public repository URL is not settled; PathMaster-v0.1.0-x64.exe is the fixed artifact name.
+  InstallerUrl: "https://github.com/ruslan-rv-ua/PathMaster/releases/download/v0.1.0/PathMaster-v0.1.0-x64.exe"
+  InstallerSha256: "0000000000000000000000000000000000000000000000000000000000000000" # TODO: from the release's .sha256 sidecar
+ManifestType: "installer"
+ManifestVersion: "1.12.0"

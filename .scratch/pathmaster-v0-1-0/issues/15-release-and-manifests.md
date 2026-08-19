@@ -1,7 +1,7 @@
 # Release and package manifests
 
 Type: research
-Status: open
+Status: resolved
 Blocked by: 04, 07
 
 ## Question
@@ -86,3 +86,50 @@ Several of this ticket's open facts were measured on a real machine while resolv
 - **A derived constraint the packaging story should not quietly break:** v0.1.0 opens **no native file
   dialogs**, since ComDlg32 MRU writes would land under our process. `COMDLG32` is in the import list anyway
   (wxWidgets links it unconditionally), so no artifact check can verify this — it is code discipline.
+
+## Answer
+
+Established 2026-08-19 against primary sources (winget-pkgs/winget-cli docs, JSON schemas **and source
+code**, the Scoop wiki plus Scoop/Shim source, actions/runner-images). Findings:
+[research/15-packaging.md](../research/15-packaging.md). Draft artifacts, ready to lift (TODOs marked):
+[winget multi-file manifest](../research/15-packaging/winget/),
+[scoop manifest](../research/15-packaging/scoop/pathmaster.json),
+[release workflow](../research/15-packaging/github/release.yml).
+
+- **Name is free everywhere.** Zero `PathMaster` hits in `microsoft/winget-pkgs`; no
+  `pathmaster`/`PathMaster`/`path-master` manifest in scoop Main or Extras. Recommended identifier
+  **`RuslanIskov.PathMaster`** (GitHub account `ruslan-rv-ua`, display name "Ruslan Iskov");
+  `ruslan-rv-ua.PathMaster` is the legal alternative — **user picks**, and VERSIONINFO `CompanyName`
+  must match the choice. Manifest schema: **1.12.0**, three files (version/installer/defaultLocale).
+- **winget portable, from source:** `Commands: ["pathmaster"]` names both the Links symlink *and the
+  installed exe itself* (`pathmaster.exe`, stable across versions; `PortableCommandAlias` exists only
+  for the zip/nested case). winget writes an ARP key `HKCU\Software\Microsoft\Windows\CurrentVersion\
+  Uninstall\<ProductCode>` with 16 values (`DisplayName`…`InstallDirectoryAddedToPath` — exact list in
+  findings §2) and puts the Links dir on the **user PATH** — the README irony is confirmed at source
+  level. `data\` survives `winget upgrade` (in-place, un-versioned dir); assume `winget uninstall`
+  deletes it (spec says preserved without `--purge`, ticket 07 observed deletion — document the
+  observed behavior).
+- **scoop:** bare-exe URL with `#/PathMaster.exe` rename fragment; `bin` + `shortcuts` +
+  `persist: "data"` (junction into `persist\`, survives updates, interacts correctly with ticket 07's
+  resolve-then-append rule); `checkver: "github"` + autoupdate hash from our `.sha256` sidecar; bucket
+  from ScoopInstaller/BucketTemplate whose `excavator.yml` does the per-release bump automatically.
+  **GUI shim needs nothing special**: scoop patches the shim exe's PE subsystem to GUI when the target
+  is GUI (`lib/core.ps1`) — no console flash.
+- **Workflow:** tag `v*` → `windows-2025` → `rustup show` (pins via `rust-toolchain.toml`) → three-way
+  version gate (tag/Cargo.toml/`.rc`) → `cargo build --release --locked --target x86_64-pc-windows-msvc`
+  with job-level `RUSTFLAGS=crt-static`, `LIBCLANG_PATH`, and **`CARGO_TARGET_DIR=C:\t`** (the MAX_PATH
+  fix) → **dumpbin gate** via vswhere failing on `VCRUNTIME|MSVCP|api-ms-win-crt` (plus a
+  KERNEL32-present sanity check) → exe + `<hex64> *<name>`-format `.sha256` sidecar to the release via
+  preinstalled `gh`; **PDB to `actions/upload-artifact`, never the release**. No third-party actions
+  beyond checkout/upload-artifact. **Runner drift found:** `windows-2025` is now the **VS2026** image
+  (LLVM 20.1.8, CMake 4.4.2, Ninja 1.13.2) — CMake/Ninja/toolset now *match* the dev pins, and the
+  gates assert the artifact precisely because image contents drift.
+- **Archive or bare exe: bare exe + `.sha256`, no zip.** Both managers take the exe directly; a zip
+  adds nested-manifest fields and an extraction step for zero gain, and dodges no SmartScreen.
+
+**Could not establish / new questions** (findings §7): nothing was executed live — first real tag is
+the test; the clean-VM run owed since ticket 04 is still owed; repo URL and **license** are TODO
+(license is a *required* field in both manifests — needs a user decision); Publisher choice needs user
+sign-off; the winget-symlink `current_exe()` observation and the uninstall-vs-`data\` check from
+ticket 07 both want one live winget install session; `MinimumOSVersion: 10.0.17763.0` is plausible but
+no ticket has pinned the OS floor.

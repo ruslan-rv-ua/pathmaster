@@ -164,6 +164,21 @@ transient, non-focus messages — which is why that has its own ticket.
   never sets a colour. Verification is a 17-step NVDA checklist with expected speech per step, gated on the
   ticket-18 sanity check. New terms **Announcement** and **Banner**: [CONTEXT.md](../../CONTEXT.md).
 
+- [Release and package manifests](issues/15-release-and-manifests.md) — **bare exe + `.sha256` sidecar, no
+  zip; the name is free everywhere.** Recommended `PackageIdentifier` **`RuslanIskov.PathMaster`** (user
+  still to confirm; VERSIONINFO `CompanyName` must match), winget schema 1.12.0, three-file manifest. From
+  winget's own source: `Commands: ["pathmaster"]` names the Links symlink **and renames the installed exe**,
+  and winget writes an `HKCU\…\Uninstall\<ProductCode>` ARP key (16 values) plus the Links dir on the user
+  PATH — README material. scoop: bare-exe URL with `#/PathMaster.exe` rename, `persist: "data"` junction
+  (compatible with ticket 07's resolve rule), `checkver: "github"` + autoupdate off the sidecar, bucket from
+  BucketTemplate whose excavator does the per-release bump; **GUI shim needs nothing** — scoop patches the
+  shim's PE subsystem, no console flash. Workflow: tag → `windows-2025` (now the **VS2026 image** — drifted
+  since ticket 04, CMake/Ninja now match the dev pins) → three-way version gate → build with
+  `CARGO_TARGET_DIR=C:\t` (MAX_PATH) → **dumpbin gate on `VCRUNTIME|MSVCP|api-ms-win-crt`** → release via
+  `gh`; PDB to CI artifacts only. Open: license (required field, user decision), repo URL, clean-VM run.
+  Drafts ready to lift: [research/15-packaging/](research/15-packaging/); details:
+  [research/15](research/15-packaging.md).
+
 ## Not yet specified
 
 In scope, but not yet sharp enough to ticket. Graduates as the frontier advances.

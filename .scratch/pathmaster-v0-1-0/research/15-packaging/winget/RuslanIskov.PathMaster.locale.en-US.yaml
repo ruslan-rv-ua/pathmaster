@@ -1,0 +1,28 @@
+# Default locale manifest — manifests/r/RuslanIskov/PathMaster/0.1.0/RuslanIskov.PathMaster.locale.en-US.yaml
+# Publisher / PackageName here should match the exe's VERSIONINFO (CompanyName / ProductName):
+# for a portable install winget writes the ARP entry from THIS manifest, and consistency is the
+# only identity an unsigned binary has (research/15-packaging.md §1).
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.12.0.schema.json
+PackageIdentifier: "RuslanIskov.PathMaster"
+PackageVersion: "0.1.0"
+PackageLocale: "en-US"
+Publisher: "Ruslan Iskov" # TODO(publisher): confirm, see findings §1
+PublisherUrl: "https://github.com/ruslan-rv-ua"
+PublisherSupportUrl: "https://github.com/ruslan-rv-ua/PathMaster/issues" # TODO(repo)
+PackageName: "PathMaster"
+PackageUrl: "https://github.com/ruslan-rv-ua/PathMaster" # TODO(repo)
+License: "TODO" # TODO(license): not decided anywhere in the map — required field, needs a user decision
+# LicenseUrl: "https://github.com/ruslan-rv-ua/PathMaster/blob/main/LICENSE" # TODO(license)
+ShortDescription: "Portable, screen-reader-friendly editor and diagnostics for the Windows PATH environment variable."
+Moniker: "pathmaster"
+Tags:
+- "path"
+- "environment-variables"
+- "environment"
+- "portable"
+- "accessibility"
+- "nvda"
+- "registry"
+- "utilities"
+ManifestType: "defaultLocale"
+ManifestVersion: "1.12.0"
