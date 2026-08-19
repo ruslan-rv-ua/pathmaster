@@ -43,6 +43,13 @@ ticket-18 sanity check, one list-row reading, one Announcement, the "Administrat
 title on Alt+Tab), and record which NVDA (installed vs portable) the pass used. The README owes the
 user the installed-NVDA requirement for elevated use.
 
+**2026-08-19, from ticket 18 (resolved):** the condition on D3 fired — the deaf state **does** have a
+detectable signature (focus change with no `WM_GETOBJECT (OBJID_CLIENT)` within ~1 s, observable via
+`SetWindowSubclass`, no accessibility code). Per this ticket's own terms the automation/detection
+question reopens; it is re-posed as
+[ticket 24](24-deaf-state-detection-decision.md), which now blocks the spec. D3's other half —
+`nvda-drive.ps1` is never a CI gate — is not touched by that ticket.
+
 ## Answer
 
 Resolved 2026-08-19 by a grilling session, preceded (at the user's direction) by an internet survey of

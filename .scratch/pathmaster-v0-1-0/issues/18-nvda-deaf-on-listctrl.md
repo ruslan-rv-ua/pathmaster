@@ -1,7 +1,7 @@
 # NVDA went deaf on the list — unexplained
 
 Type: research
-Status: open
+Status: resolved
 Blocked by: —
 
 ## Question
@@ -78,6 +78,45 @@ row must answer `'елемент списку'`, not `'список'`.** If it a
 and the pass is void. This is already noted in tickets 02 and 08 and in `../tools/README.md`.
 
 Findings → `../research/18-nvda-deaf-on-listctrl.md`.
+
+## Answer
+
+Resolved 2026-08-19 by a source-reading investigation against NVDA `release-2025.3.3`, wxWidgets
+`v3.3.3` and the NVDA issue tracker. Full findings with file+line permalinks:
+[research/18](../research/18-nvda-deaf-on-listctrl.md).
+
+**Cause (ranked).** The failure sits *before* NVDA's object logic: for the whole silent window,
+zero focus winEvents from the list HWND survived to NVDA's object-creation stage. NVDA's
+`processFocusWinEvent` has a SysListView32 branch that descends to the focused row via a **live
+`accFocus` call** on any processed focus event — and `accFocus` was measurably healthy — so a single
+processed event would have healed focus onto the row. It never happened; meanwhile the benign
+`LVM_GETGROUPINFOBYINDEX failed` line proves a container gainFocus did execute and the in-proc RPC
+was alive. **Refuted by source:** stale-cached-object (focus path is `useCache=False`; the object
+table is a WeakValueDictionary), injection-instance (event delivery is fully out-of-proc; injection
+only affects text reading and demonstrably worked), and event-flood starvation (focus events are
+exempt from the per-thread cap). **Top-ranked survivor, PLAUSIBLE not confirmed:** winEvent delivery
+loss for that app instance on the OS/comctl32 side; second: a deterministic early drop inside NVDA —
+both produce exactly the observed zero-log silence because every drop site logs only under NVDA's
+MSAA debug logging. No matching issue exists on the tracker; this state is unreported upstream.
+
+**Detectable signature: YES.** A processed focus event necessarily sends `WM_GETOBJECT
+(OBJID_CLIENT)` to the list HWND. Deaf-state signature = screen reader present + item focus changed
++ no `WM_GETOBJECT` within ~1 s, observable via `SetWindowSubclass` with **no accessibility code**.
+This satisfies the condition under which ticket 19's D3 (no NVDA automation/detection) said the
+question reopens — that decision is now re-posed as ticket 24, which blocks the spec.
+
+**Mitigation.** No reliable app-side self-heal: re-firing `EVENT_OBJECT_FOCUS` rides the same dead
+pipeline (and unconditional re-fire double-speaks — childID>0 events are never deduplicated); focus
+toggling was effectively tried in the wild (the Shift+Tab re-entry) and failed; control recreation
+has no source-backed cache to clear. Best candidate is a **user** gesture: Alt+Tab out/in triggers
+NVDA's `_fakeFocus` fallback, which rebuilds focus by direct MSAA descent bypassing the app's events
+(needs live confirmation). Support ladder: **Alt+Tab → restart the app (observed to clear it) →
+restart NVDA (guaranteed — re-registers hooks, rebuilds caches and injection)**.
+
+**Cross-ticket warning.** Ticket 08's `announce()` (`EVENT_OBJECT_LIVEREGIONCHANGED`) rides the same
+pipeline and is very likely silent in this state too — the spec's risk note must say so. Companion
+practice: enable NVDA's `debugLog → MSAA` on the measurement machine so any recurrence
+self-documents. The `NVDA+Tab` sanity-check precondition on every NVDA pass stays in force.
 
 ## Comments
 

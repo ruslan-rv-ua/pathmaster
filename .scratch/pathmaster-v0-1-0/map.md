@@ -44,6 +44,8 @@ NVDA working inside wxdragon, never *whether* to switch toolkits.
     to "**nothing outside the app's own directory**" — with **one named exception** decided in ticket 10:
     ComDlg32 MRU writes from the Browse folder picker (`wxDirDialog`), accepted and documented.
 12. All artifacts (map, tickets, research, spec) are written in **English**; conversation with the user is Ukrainian.
+13. Before asking the user questions in any HITL session, **research best practices on the internet first**
+    (user directive, 2026-08-19) — bring the user informed options with evidence, not open-ended questions.
 
 **Skills every session should consult.** `/grilling` and `/domain-modeling` for every grilling ticket;
 `/research` for research tickets; `/prototype` for prototype tickets. Domain terms resolved by a ticket go
@@ -312,6 +314,19 @@ transient, non-focus messages — which is why that has its own ticket.
   attempt, failures silently dropped but counted, one `N log records were lost` line on recovery;
   an unopenable log at startup means a run without a log, never Read-only Data. Absent
   `settings.json` is a first run, not a failure.
+
+- [NVDA went deaf on the list — unexplained](issues/18-nvda-deaf-on-listctrl.md) — **cause narrowed,
+  signature found, no reliable in-app cure.** Zero focus winEvents from the list survived to NVDA's
+  object stage for the whole silent window; NVDA's own SysListView32 focus branch descends via live
+  `accFocus` (which was healthy), so one processed event would have healed it. Source-refuted:
+  stale-object cache, injection-instance, event-flood starvation. Plausible survivor: OS-side winEvent
+  delivery loss for that app instance — unreported on NVDA's tracker. **Signature:** focus change with
+  no `WM_GETOBJECT (OBJID_CLIENT)` within ~1 s, observable via `SetWindowSubclass` with zero
+  accessibility code — this reopens 19 D3's condition, re-posed as
+  [ticket 24](issues/24-deaf-state-detection-decision.md) (blocks the spec). Support ladder:
+  Alt+Tab (triggers NVDA's `_fakeFocus` direct-MSAA rebuild; needs live test) → restart app (observed
+  to clear) → restart NVDA (guaranteed). **Warning:** `announce()` rides the same pipeline — likely
+  silent in this state. Details: [research/18](research/18-nvda-deaf-on-listctrl.md).
 
 ## Not yet specified
 

@@ -2,7 +2,7 @@
 
 Type: task
 Status: open
-Blocked by: 09, 10, 11, 12, 13, 14, 15, 17, 19, 20, 21, 22, 23
+Blocked by: 09, 10, 11, 12, 13, 14, 15, 17, 19, 20, 21, 22, 23, 24
 
 ## Question
 
@@ -32,6 +32,14 @@ ticket 09's 17 D8 steps, the elevated-instance section (ticket 12), the cross-DP
 Instead the spec records it as a **documented open risk** — the sanity-check precondition on every
 NVDA pass as interim detection, restart-NVDA as the user-facing workaround — and links the open
 ticket. Blocked-by extended with the four tickets graduated from the fog on the same day (20–23).
+
+**2026-08-19, from ticket 18 (NVDA deaf-list anomaly, resolved):** the risk note this ticket
+records is now sharper than "does not reproduce, restart NVDA": cause narrowed to winEvent
+delivery loss for the app instance (plausible, unreported upstream), a **detectable signature**
+exists (`WM_GETOBJECT` silence after a focus change — what v0.1.0 does with it is ticket 24, now
+also blocking this spec), the support ladder is Alt+Tab → restart app → restart NVDA, and the note
+must warn that **`announce()` is very likely silent in the deaf state too**. Details:
+[ticket 18's Answer](18-nvda-deaf-on-listctrl.md).
 
 **2026-08-19, from ticket 20 (failure taxonomy):** FR-settings-file is **rewritten, not kept** —
 the PRD's "overwrite the corrupted file with a valid version + StatusBar warning" is overridden
