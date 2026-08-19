@@ -4,3 +4,6 @@
 //! `session`, `snapshot`, `rotation`, `thresholds`, `settings`, `logfmt`, `msgids`.
 
 #![forbid(unsafe_code)]
+
+pub mod path;
+pub mod session;
