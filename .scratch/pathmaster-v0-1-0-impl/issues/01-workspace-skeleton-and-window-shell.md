@@ -40,8 +40,9 @@ Implemented 2026-08-19.
   constant via `ClientDC::get_ppi()`. This is the app's only explicit conversion.
 - **CI**: `.github/workflows/ci.yml` runs `cargo test --workspace --locked` + clippy
   `-D warnings` on push/PR to `develop` (windows-2025, Ninja installed, `LIBCLANG_PATH`
-  set, `CARGO_TARGET_DIR=C:\t` for MAX_PATH, build tree cached). The repo has **no remote
-  yet**, so the workflow has not run on GitHub; the identical commands are green locally.
+  set, `CARGO_TARGET_DIR=C:\t` for MAX_PATH, build tree cached). **Green on GitHub**:
+  run 32274304433 on the private remote `ruslan-rv-ua/pathmaster2` (pushed 2026-08-19)
+  passed every step, ~9 min cold, build tree now cached.
 - Ctrl+Tab / Ctrl+Shift+Tab page switching and full Tab traversal ride the native
   wxNotebook/comctl32 behaviour measured in wayfinder ticket 02; the NVDA pass itself is
   Release-Checklist work, not CI.
