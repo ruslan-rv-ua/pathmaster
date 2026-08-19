@@ -133,3 +133,15 @@ the test; the clean-VM run owed since ticket 04 is still owed; repo URL and **li
 sign-off; the winget-symlink `current_exe()` observation and the uninstall-vs-`data\` check from
 ticket 07 both want one live winget install session; `MinimumOSVersion: 10.0.17763.0` is plausible but
 no ticket has pinned the OS floor.
+
+## Comments
+
+**2026-08-19, from ticket 10 (resolved the same day):**
+
+1. **The carried-in "no native file dialogs" constraint is overridden** — the user decided (ticket 10, D2)
+   that v0.1.0 *does* open exactly one: `wxDirDialog` behind the Edit dialog's Browse button. Consequence
+   here: the README honesty paragraph must list **ComDlg32 MRU writes (HKCU, under our process)** alongside
+   winget's ARP key and Links-dir PATH entry, and the Process-Monitor release check for
+   NFR-no-registry-writes must expect them after Browse is used.
+2. **Publisher is decided**: the user confirmed **`RuslanIskov.PathMaster`**; VERSIONINFO `CompanyName` is
+   "Ruslan Iskov". The draft manifests' TODO on this point can be filled in.

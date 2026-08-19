@@ -40,7 +40,8 @@ NVDA working inside wxdragon, never *whether* to switch toolkits.
     the README). Scoop via an **own bucket** with `persist: data`; winget submitted to `microsoft/winget-pkgs`
     as `InstallerType: portable`.
 11. Portability: `data/` sits next to the exe; NFR-no-registry-writes is reworded from "nothing in AppData"
-    to "**nothing outside the app's own directory**".
+    to "**nothing outside the app's own directory**" — with **one named exception** decided in ticket 10:
+    ComDlg32 MRU writes from the Browse folder picker (`wxDirDialog`), accepted and documented.
 12. All artifacts (map, tickets, research, spec) are written in **English**; conversation with the user is Ukrainian.
 
 **Skills every session should consult.** `/grilling` and `/domain-modeling` for every grilling ticket;
@@ -165,8 +166,8 @@ transient, non-focus messages — which is why that has its own ticket.
   ticket-18 sanity check. New terms **Announcement** and **Banner**: [CONTEXT.md](../../CONTEXT.md).
 
 - [Release and package manifests](issues/15-release-and-manifests.md) — **bare exe + `.sha256` sidecar, no
-  zip; the name is free everywhere.** Recommended `PackageIdentifier` **`RuslanIskov.PathMaster`** (user
-  still to confirm; VERSIONINFO `CompanyName` must match), winget schema 1.12.0, three-file manifest. From
+  zip; the name is free everywhere.** `PackageIdentifier` **`RuslanIskov.PathMaster`** (confirmed by the
+  user; VERSIONINFO `CompanyName` must match), winget schema 1.12.0, three-file manifest. From
   winget's own source: `Commands: ["pathmaster"]` names the Links symlink **and renames the installed exe**,
   and winget writes an `HKCU\…\Uninstall\<ProductCode>` ARP key (16 values) plus the Links dir on the user
   PATH — README material. scoop: bare-exe URL with `#/PathMaster.exe` rename, `persist: "data"` junction
@@ -178,6 +179,19 @@ transient, non-focus messages — which is why that has its own ticket.
   `gh`; PDB to CI artifacts only. Open: license (required field, user decision), repo URL, clean-VM run.
   Drafts ready to lift: [research/15-packaging/](research/15-packaging/); details:
   [research/15](research/15-packaging.md).
+
+- [Entry editing interaction](issues/10-entry-editing-interaction.md) — **editing is a modal dialog, not
+  inline**: F2/Enter/double-click open one dialog (labelled path field + Browse + OK/Cancel), which kills the
+  un-vetoable-edit problem and the `edit_label`-vs-F2 spike in one move; the menu gains "Edit Entry…\tF2".
+  Browse **survives as a named exception** to "no native file dialogs" (user override of ticket 07's derived
+  constraint): `wxDirDialog`'s ComDlg32 MRU writes are accepted and go in the README. Add is dialog-first —
+  OK appends at the end as one Checkpoint, Cancel leaves no trace, closing the Add-then-Escape question.
+  Delete **loses its confirm dialog** — undo is the safety net. Validation on OK blocks `< > | "`, the
+  separator `;`, and length-zero only (whitespace-only commits verbatim → ticket 13); errors are a
+  MessageDialog with the message **in the title**; the OK sequence is validate → `%VAR%`-into-`REG_SZ`
+  convert-or-keep → one Checkpoint, so a rejected edit leaves nothing to undo into. Duplicates and
+  not-yet-existing paths commit legally; diagnostics flags them asynchronously. A **quoted-entry** question
+  surfaced for Normalisation (→ ticket 13 comment).
 
 ## Not yet specified
 

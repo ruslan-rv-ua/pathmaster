@@ -78,3 +78,17 @@ The Status column is the per-entry carrier (ticket 09, D1): issue types only, no
 Issues comma-joined in a fixed severity order; empty column for a healthy Entry (never "OK"). This ticket
 owns the **exact word for each of the five types** and the **severity order** used for joining. Keep each
 word short — it is spoken on every arrow key over an affected row.
+
+## Comments
+
+**2026-08-19, from ticket 10 (resolved):** two hand-offs.
+
+1. **Whitespace-only Entries commit.** The editor blocks only length-zero values — blocking `"   "` would
+   smuggle a trim into validation, and the editor never trims (ticket 06). So whether a whitespace-only
+   Entry reads as `Empty entry` is now entirely this ticket's call, as its existing bullet suspected.
+2. **Quoted entries are a real Normalisation input.** The editor forbids typing a new `;` (ticket 10, D5),
+   but values arriving from the registry may contain **quoted entries** (`"C:\Program Files\foo"`, and
+   historically quotes were how a `;` was embedded in one entry). A raw existence check on the quoted string
+   false-positives `Non-existent`. Decide whether Normalisation strips surrounding quotes for existence and
+   duplicate comparison — the raw string still round-trips untouched — and verify first *which* Windows
+   consumers actually honour quotes in `PATH` (a fact to check, not assume).
