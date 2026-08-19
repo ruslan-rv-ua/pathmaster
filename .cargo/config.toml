@@ -1,0 +1,6 @@
+# crt-static is what makes the exe portable (🔴 NFR-portable): wxdragon-sys reads
+# CARGO_CFG_TARGET_FEATURE and propagates it into the vendored wxWidgets build as /MT.
+# Beware: a RUSTFLAGS environment variable silently overrides this file (research/04) —
+# release CI therefore gates on the linked artifact's imports, never on build config.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

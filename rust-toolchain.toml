@@ -1,0 +1,6 @@
+# Exact pin, not "stable": neither wxdragon crate declares a rust-version, so there is
+# no MSRV to read off and drift is silent until it isn't (research/04 §5).
+[toolchain]
+channel = "1.94.0"
+components = ["clippy", "rustfmt"]
+targets = ["x86_64-pc-windows-msvc"]

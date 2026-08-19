@@ -1,0 +1,45 @@
+# Push CI (spec §18): cargo test + clippy on every push/PR to develop.
+# The wx-linking targets are built here too — this is the CI "where wx is built anyway"
+# that the binary's future smoke test relies on.
+name: CI
+
+on:
+  push:
+    branches: [develop]
+  pull_request:
+    branches: [develop]
+
+jobs:
+  test:
+    name: cargo test + clippy
+    runs-on: windows-2025
+    env:
+      # MAX_PATH: a deep build path breaks the wxWidgets build while blaming the
+      # compiler (research/04) — keep the build tree at the drive root.
+      CARGO_TARGET_DIR: C:\t
+      # bindgen runs unconditionally in wxdragon-sys; the runner image ships LLVM but
+      # libclang.dll is not discoverable without this (research/04).
+      LIBCLANG_PATH: C:\Program Files\LLVM\bin
+    steps:
+      - uses: actions/checkout@v4
+
+      # Load-bearing: wxdragon-sys hardcodes the Ninja CMake generator on x64 MSVC.
+      - name: Install Ninja
+        run: choco install ninja --no-progress -y
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install
+
+      # The wxWidgets static libs (~450 MB) sit at the profile root of the target dir
+      # and dominate cold-build time — cache the whole build tree.
+      - name: Cache build tree
+        uses: actions/cache@v4
+        with:
+          path: C:\t
+          key: build-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+
+      - name: Test
+        run: cargo test --workspace --locked
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings

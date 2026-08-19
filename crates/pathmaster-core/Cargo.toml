@@ -1,0 +1,9 @@
+[package]
+name = "pathmaster-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "PathMaster's pure rules: no I/O, no OS calls, buildable on any OS"
+publish = false
+
+[dependencies]

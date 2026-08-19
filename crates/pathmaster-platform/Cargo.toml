@@ -1,0 +1,10 @@
+[package]
+name = "pathmaster-platform"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "PathMaster's imperative shell: registry, data directory, elevation — no wx"
+publish = false
+
+[dependencies]
+pathmaster-core = { path = "../pathmaster-core" }

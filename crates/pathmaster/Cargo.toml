@@ -1,0 +1,21 @@
+[package]
+name = "pathmaster"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Portable Windows PATH editor, built for a screen-reader (NVDA) user first"
+publish = false
+
+# Bin-only, no lib target (ADR-0007): the GUI's coverage is the Release Checklist, and
+# anything worth an automated test must first move down a tier.
+[[bin]]
+name = "PathMaster"
+path = "src/main.rs"
+
+[dependencies]
+pathmaster-core = { path = "../pathmaster-core" }
+pathmaster-platform = { path = "../pathmaster-platform" }
+# ≥ 0.9.17: earlier AccRole discriminants are mis-ordered (ticket 01). Cargo.lock pins the
+# exact resolved version; wxWidgets 3.3.3 is SHA256-pinned inside wxdragon-sys and compiled
+# from source, statically, with crt-static propagating into the C++ build.
+wxdragon = "0.9.17"

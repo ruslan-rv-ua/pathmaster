@@ -1,0 +1,25 @@
+# PathMaster — three-crate workspace, flat matklad layout (spec §17, ADR-0007).
+# Dependency direction is fixed: pathmaster → pathmaster-platform → pathmaster-core,
+# never the reverse. No test links wxWidgets.
+
+[workspace]
+resolver = "2"
+members = [
+    "crates/pathmaster-core",
+    "crates/pathmaster-platform",
+    "crates/pathmaster",
+]
+exclude = [".scratch"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+# Single-exe release profile (spec §16). LTO is the only lever that moves real bytes;
+# opt-level stays at the release default (3 and "z" both measured bigger — research/04).
+# `strip` moves zero bytes on MSVC: debug info lives in the PDB, which is simply not shipped.
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
