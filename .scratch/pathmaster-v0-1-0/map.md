@@ -256,14 +256,27 @@ transient, non-focus messages — which is why that has its own ticket.
   Empty is exclusive, Relative skips existence. All research:
   [research/13](research/13-diagnostics-facts.md).
 
+- [Backup and restore contract](issues/14-backup-restore-contract.md) — **rotation is per-Scope**, never a
+  single pooled count. Filename is `YYYY-MM-DDTHH-MM-SS-<Scope>.json`, local time, numeric suffix on same-second
+  collision — Scope in the name is load-bearing for per-Scope rotation and listing without parsing content. A
+  Snapshot now carries `valueType` alongside `entries` (or an explicit `absent: true`), closing ticket 05's H15
+  and satisfying ticket 06's Absent/zero-Entries requirement, while staying human-readable JSON
+  ([ADR-0006](../../docs/adr/0006-snapshot-schema-is-decoded-not-raw.md)). **Restore loads into the Working
+  Copy and never writes the registry directly** — one ordinary Checkpoint, reusing the Apply path and its
+  pre-Apply backup. **Corrupted** is schema-validity, two-layer (parse, then shape), all-or-nothing, surfaced as
+  passive Backups-list text — never a new Announcement, keeping ticket 09's catalogue closed at seven — and a
+  Corrupted file still counts toward its Scope's rotation budget. Foreign files are silently invisible; atomic
+  temp files get a `.tmp` extension so both listing and rotation skip them by extension alone. New term
+  **Corrupted**: [CONTEXT.md](../../CONTEXT.md).
+
 ## Not yet specified
 
 In scope, but not yet sharp enough to ticket. Graduates as the frontier advances.
 
 - **Error and failure taxonomy** — what the user is shown, what is logged, and what is announced when a registry
-  write, a backup write, or a settings load fails. **Apply-time failures are now settled** by ticket 12 (four-row
-  taxonomy, two invariants); what remains is the non-Apply surface — settings load, log write, Snapshot rotation,
-  restore-read failures — and waits on the backup ticket.
+  write or a settings load fails. **Apply-time failures are settled** by ticket 12 (four-row taxonomy, two
+  invariants), and **Snapshot/restore-read failures are settled** by ticket 14 (Corrupted, schema-validity,
+  passive list text); what remains is settings load and log write.
 - **Log format** — what a record contains and how it reads. **Rotation is settled** by ticket 07
   (one generation, at open only) and its **language** by ticket 11 (always English, outside the Catalogue);
   the format itself waits on the failure taxonomy.

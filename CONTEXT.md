@@ -78,8 +78,17 @@ _Avoid_: Error, Warning, Problem (those name severity, not the finding), Diagnos
 
 **Snapshot**:
 One saved copy of a single Scope's value, written to a file before that Scope is applied and restorable
-later. Exactly what a Snapshot must record to be a faithful restore source is settled separately.
+later — a JSON file recording the Scope, its Value Type, and either its Entries or that it was Absent
+([ADR-0006](../docs/adr/0006-snapshot-schema-is-decoded-not-raw.md)). Restoring loads a Snapshot into the
+Working Copy rather than writing the registry directly, so a Restore is one ordinary Checkpoint and Apply is
+what actually writes it.
 _Avoid_: Backup (reserve that for the act of taking one and for the directory they live in)
+
+**Corrupted**:
+The state of a Snapshot file that fails schema validation — unparsable JSON, or a missing or mistyped field.
+Shown as passive text in the Backups list, the same free ride NVDA already gets on other list columns; never
+spoken as an Announcement. A Corrupted Snapshot still counts toward its Scope's rotation budget.
+_Avoid_: Invalid, Broken, Damaged
 
 ### Speaking to the user
 
