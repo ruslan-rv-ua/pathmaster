@@ -11,8 +11,16 @@ pathmaster-core = { path = "../pathmaster-core" }
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.56"
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Threading",
+] }
 
 # The registry integration tests write degenerate values (double-NUL terminators,
-# REG_BINARY) directly, bypassing the adapter under test.
+# REG_BINARY) directly, bypassing the adapter under test; the datadir tests
+# build junctions and deny-ACL'd directories in per-test temp dirs.
 [target.'cfg(windows)'.dev-dependencies]
 winreg = "0.56"
+tempfile = "3.27"

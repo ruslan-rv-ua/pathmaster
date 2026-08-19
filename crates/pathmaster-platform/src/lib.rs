@@ -4,4 +4,8 @@
 //! `datadir`, `elevation`, `logwriter`, `panic_hook`, `broadcast`.
 
 #[cfg(windows)]
+pub mod datadir;
+#[cfg(windows)]
+pub mod elevation;
+#[cfg(windows)]
 pub mod registry;

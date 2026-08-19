@@ -115,11 +115,7 @@ impl ScopeKey {
         )
     }
 
-    pub fn at(
-        hive: Hive,
-        key_path: impl Into<String>,
-        value_name: impl Into<String>,
-    ) -> Self {
+    pub fn at(hive: Hive, key_path: impl Into<String>, value_name: impl Into<String>) -> Self {
         ScopeKey {
             hive,
             key_path: key_path.into(),
@@ -151,7 +147,11 @@ impl ScopeKey {
     /// Reads the value raw. An absent key or value is `RawValue::Absent`,
     /// never an error and never an empty string.
     pub fn read(&self) -> Result<RawValue, RegistryError> {
-        let key = match self.hive.key().open_subkey_with_flags(&self.key_path, KEY_READ) {
+        let key = match self
+            .hive
+            .key()
+            .open_subkey_with_flags(&self.key_path, KEY_READ)
+        {
             Ok(key) => key,
             Err(err) if is_not_found(&err) => return Ok(RawValue::Absent),
             Err(err) => return Err(RegistryError::Io(err)),
