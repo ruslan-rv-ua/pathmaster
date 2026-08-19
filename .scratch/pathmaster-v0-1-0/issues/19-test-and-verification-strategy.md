@@ -120,3 +120,8 @@ workaround (restart NVDA). Noted on ticket 16.
 New term **Release Checklist**: [CONTEXT.md](../../CONTEXT.md). No ADR: the no-NVDA-automation
 choice is cheap to reverse once ticket 18 produces a detectable signature, so it fails the
 hard-to-reverse test.
+
+**2026-08-19, from ticket 22 (README and user docs):** the Release Checklist gains one non-NVDA
+step — "`README.uk.md` is in sync with `README.md`, or the release did not change the README" —
+the drift guard for the full Ukrainian README translation ticket 22 decided on. To be included
+when `docs/release-checklist.md` is authored at implementation time.

@@ -328,6 +328,18 @@ transient, non-focus messages — which is why that has its own ticket.
   to clear) → restart NVDA (guaranteed). **Warning:** `announce()` rides the same pipeline — likely
   silent in this state. Details: [research/18](research/18-nvda-deaf-on-listctrl.md).
 
+- [README and user-facing docs](issues/22-readme-and-user-docs.md) — **one `README.md`, mirrored in
+  full by `README.uk.md`** (English canonical, cross-linked at the top; commands untranslated), no
+  split docs, no badges. Accessibility is the headline section right after a non-technical opening
+  (NVDA tested, JAWS/Narrator untargeted, installed-NVDA-for-elevated, ticket-18 workaround); Install
+  couples the SmartScreen explanation with `Get-FileHash` verification against the `.sha256` sidecar;
+  a ~10-row keyboard reference table; the portability section names everything written to the machine
+  (ComDlg32 exception, winget's ARP key/Links/rename, scoop's shim/junction, uninstall-deletes-`data\`);
+  `settings.json` + `.bad` documented; by-design cuts get one-line reasons but **no v0.2.0 promise
+  list**; the Release Checklist is user-visible trust documentation (filled copy per release). One
+  screenshot with full alt text at release time. **License: MIT** — closing ticket 15's open field.
+  Drift guard: one new non-NVDA Checklist step — `README.uk.md` in sync or README untouched.
+
 ## Not yet specified
 
 In scope, but not yet sharp enough to ticket. Graduates as the frontier advances.

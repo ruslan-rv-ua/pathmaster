@@ -1,7 +1,7 @@
 # README and user-facing docs
 
 Type: grilling
-Status: open
+Status: resolved
 Blocked by: —
 
 ## Question
@@ -36,3 +36,59 @@ or internal; and what, if anything, of the spec's cut/deferred list is worth tel
 Document the `.bad` file: what it is, that the previous content is recoverable from it, and that
 bad *values* of individual fields are tolerated per-field (raw value kept in the file) rather than
 resetting the whole file.
+
+## Answer
+
+Resolved 2026-08-19 with the user, per the standing directive: internet research on README best
+practices first, informed options second. Research consulted: Standard Readme / community README
+guides (structure, non-technical opening, copy-paste install commands), the GitHub community
+practice for multilingual READMEs (canonical English + `README.<lang>.md` translations,
+cross-linked at the top, prose-only translation), and how unsigned-exe projects communicate
+SmartScreen (explanation + bypass steps + published-hash verification as one unit).
+
+**Shape: one `README.md`, mirrored in full by `README.uk.md`.** No split docs — warnings scattered
+across files go unread, and a screen-reader user navigates one file's headings faster than a file
+tree. English is canonical; the Ukrainian translation is complete (the app has a Ukrainian
+Interface Language and Ukrainian screen-reader users are a target audience, so they get the whole
+document, not a half). Cross-language links sit at the top of both files; code blocks and commands
+stay untranslated. Drift guard: the Release Checklist (ticket 19) gains one non-NVDA step —
+"`README.uk.md` is in sync with `README.md`, or the release did not change the README."
+
+**Section skeleton** (both language versions mirror it):
+
+1. **Title + description** — 1–3 non-technical sentences; **no badges** (noisy images read first
+   by a screen reader). One screenshot of the main window with a full alt text, added at release
+   time (the spec only reserves its place).
+2. **Accessibility** — the headline section: NVDA is the tested screen reader; JAWS/Narrator are
+   not deliberately broken but not tested; the elevated instance requires *installed* NVDA
+   (portable NVDA is deaf to it — ticket 12); the ticket-18 workaround: if NVDA goes silent on
+   the list, restart NVDA.
+3. **Install** — winget, scoop, direct download, copy-paste commands. Direct download carries the
+   SmartScreen block: the warning is expected on an unsigned exe and why, "More info → Run
+   anyway", and verification via PowerShell `Get-FileHash` against the released `.sha256` sidecar
+   (chosen over `certutil` for readability). Signing is deferred by decision, stated plainly.
+4. **Keyboard reference** — a short table (~10 rows) mirroring the bindings fixed by tickets
+   10/17 (F2/Enter/double-click edit, Delete without confirm — undo is the safety net, Ctrl+Z/Y,
+   Apply, tab order, NVDA+End for the status bar). For a blind user this is the difference
+   between reading one screen and exploring by touch.
+5. **Portability: what gets written where** — `data\` beside the exe; the one exception: ComDlg32
+   MRU writes from the Browse folder picker (tickets 07/10); what the package managers themselves
+   write: winget's ARP key under `HKCU`, the Links directory on the user PATH, the exe rename via
+   `Commands`; scoop's shim and `persist: data` junction; `winget uninstall` deletes `data\`,
+   backups included, `winget upgrade` keeps it.
+6. **Settings** — `settings.json` is hand-editable; unparsable file is set aside as
+   `settings.json.bad` (single copy, previous content recoverable) and the app starts on
+   defaults; bad values of known fields fall back per-field while the file keeps the raw value.
+7. **What PathMaster deliberately does not do** — by-design cuts with one-line reasons:
+   similar-path/typo detection (false-positive generator), a theme setting (system colours
+   always), probing network paths (a dead UNC blocks 20–60 s and cannot be cancelled). **No
+   v0.2.0 promise list** — deferred features live in the issue tracker, not the README.
+8. **How releases are verified** — the Release Checklist is user-visible trust documentation:
+   link to `docs/release-checklist.md` and note that every release attaches a filled copy naming
+   the NVDA version used. For an unsigned exe this recorded manual NVDA pass is the honest trust
+   signal no badge replaces.
+9. **License** — **MIT** (user decision; also closes ticket 15's open `License` field in the
+   winget manifest — `CompanyName`/`PackageIdentifier` unaffected).
+
+This closes the list the resolved tickets accumulated: every item named in the Question and the
+ticket-20 comment has a home in the skeleton above.

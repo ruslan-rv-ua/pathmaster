@@ -145,3 +145,8 @@ no ticket has pinned the OS floor.
    NFR-no-registry-writes must expect them after Browse is used.
 2. **Publisher is decided**: the user confirmed **`RuslanIskov.PathMaster`**; VERSIONINFO `CompanyName` is
    "Ruslan Iskov". The draft manifests' TODO on this point can be filled in.
+
+**2026-08-19, from ticket 22 (README and user docs):** the open `License` field is closed — **MIT**,
+decided by the user. Fill `License: MIT` in the winget manifest drafts (and the matching SPDX
+expression in `Cargo.toml`/GitHub when implementation starts). The other open items (repo URL,
+clean-VM run) remain open.
