@@ -73,7 +73,8 @@ $VK = @{
   'CTRL'=0x11; 'SHIFT'=0x10; 'ALT'=0x12; 'INS'=0x2D
   'F1'=0x70;'F2'=0x71;'F3'=0x72;'F4'=0x73;'F5'=0x74;'F6'=0x75;'F7'=0x76;'F8'=0x77;'F9'=0x78;'F10'=0x79;'F11'=0x7A;'F12'=0x7B
 }
-0..25 | ForEach-Object { $VK[[char](65 + $_)] = 65 + $_ }   # A..Z
+0..25 | ForEach-Object { $VK[[string][char](65 + $_)] = 65 + $_ }   # A..Z (string keys: char keys never match the string lookup in Send-One)
+0..9  | ForEach-Object { $VK["$_"] = 48 + $_ }              # 0..9 (top row; ticket 08's Ctrl+digit triggers)
 
 # Keys that must carry KEYEVENTF_EXTENDEDKEY, or Windows reads them as their numpad twins.
 # INS is here because NVDA's default modifier is the *extended* Insert.

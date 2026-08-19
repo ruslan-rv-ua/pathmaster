@@ -46,3 +46,12 @@ questions are decisions rather than unknowns.
 that a ListCtrl sub-item cannot carry an icon, so Status is text-only; that decision and the
 verbosity policy around it are the accessibility contract's, not this ticket's. Keep the boundary:
 this ticket decides what is *seen*, ticket 09 decides what is *said*.
+
+## Carried in from ticket 08
+
+The banner's announcement mechanism is settled and imposes exactly one structural requirement: the
+banner contains a **dedicated message `StaticText`** that the app-wide `announce(text)` function
+owns (label set + `EVENT_OBJECT_LIVEREGIONCHANGED` fired on its HWND — see
+[research/08](../research/08-announcements.md)). Nothing else about the banner's design is
+constrained by accessibility: it needs no focusability, no role, no wx accessibility calls — and the
+standing rule stands, **no background colour**.

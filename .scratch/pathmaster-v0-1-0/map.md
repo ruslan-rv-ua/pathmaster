@@ -139,6 +139,17 @@ transient, non-focus messages — which is why that has its own ticket.
   `'елемент списку'` first. Harness: [tools/nvda-drive.ps1](tools/nvda-drive.ps1).
   Details: [research/02](research/02-nvda-baseline.md).
 
+- [Live announcement mechanism](issues/08-live-announcement-mechanism.md) — **one event speaks, and it is
+  enough**: `NotifyWinEvent(EVENT_OBJECT_LIVEREGIONCHANGED, hwnd, OBJID_CLIENT, CHILDID_SELF)` on a dedicated
+  message `StaticText` whose label was just set — verbatim, every time, repeating identical text, with focus
+  anywhere, even while the widget is hidden. Every other candidate is dead: `NAMECHANGE`/`ALERT`/`SHOW` silent,
+  `UiaRaiseNotificationEvent` **succeeds and is ignored**, the wx route (`notify_event` + Alert role) silent
+  despite `wxUSE_ACCESSIBILITY=1`, the status bar unhearable even with an event fired at it. The rule: one
+  `announce(text)` function, and nothing else fires accessibility events. Trap found on the design-away rung:
+  a `MessageDialog` speaks its title and buttons but **never its message body** (→ ticket 09). Measured on
+  NVDA 2025.3.3 / Win11 25H2, every pass gated on the ticket-18 sanity check.
+  Details: [research/08](research/08-announcements.md).
+
 ## Not yet specified
 
 In scope, but not yet sharp enough to ticket. Graduates as the frontier advances.

@@ -61,3 +61,24 @@ gains one has to be re-tested against the ticket-02 baseline rather than assumed
   itself is carrying information and must read as disabled.
 - **The close-confirm dialog names the dirty Scopes explicitly** — "unsaved changes in: User PATH, System PATH" —
   so the user is not left hunting across tabs.
+
+## Carried in from ticket 08
+
+The announcement mechanism is settled — one `announce(text)` function: set the label of one
+dedicated message `StaticText`, fire
+`NotifyWinEvent(EVENT_OBJECT_LIVEREGIONCHANGED, hwnd, OBJID_CLIENT, CHILDID_SELF)` on it; nothing
+else in the app fires accessibility events ([research/08](../research/08-announcements.md)). Three
+consequences land in this contract:
+
+- **The `MessageDialog` trap.** NVDA announced a wxdragon `MessageDialog`'s title and OK button but
+  **never its message body**. Every dialog in the contract needs a measured plan: a focusable text
+  control carrying the message, an `announce()` on open, or an explicit re-test showing that dialog
+  variant speaks. A dialog's body text must never be the only carrier of information.
+- **Audio-only vs visible.** `announce()` speaks even when nothing visual changed (measured with the
+  banner hidden). The contract must say, per message, whether it is audio-only or also has a visual
+  home (banner, status bar) — the mechanism no longer forces that choice.
+- **Repeats are safe.** Identical text announced twice speaks twice — no serial numbers or
+  text-toggling tricks needed in product wording.
+
+Also confirmed here: the status bar stays command-only even with a `NAMECHANGE` fired on its HWND —
+routing any must-hear message there hides it, now as a measurement rather than an inference.

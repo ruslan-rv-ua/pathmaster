@@ -1,7 +1,7 @@
 # Live announcement mechanism
 
 Type: prototype
-Status: open
+Status: resolved
 Blocked by: —
 
 > **Scope note, 2026-08-18.** This ticket was briefly widened to also own "make list-row focus reach
@@ -105,3 +105,38 @@ measuring, NVDA 2025.3.3 was also seen injecting `nvdaHelperRemote.dll`, `IAcces
 **The banner must not set a background colour** — already noted from ticket 03, repeated here because
 ticket 17 (window layout and iconography) now owns the banner's visual design and is the place a
 hardcoded colour would slip in.
+
+## Answer
+
+**Resolved 2026-08-19.** Full evidence: [research/08-announcements.md](../research/08-announcements.md);
+rig: [prototypes/08-announcements](../prototypes/08-announcements/src/main.rs). Measured on the user's
+real NVDA (2025.3.3, Windows 11 25H2), every pass gated on the ticket-18 sanity check, focus in the
+list when triggers fired.
+
+Ten mechanisms measured, one spoke:
+
+- **Winner — rung 2, one specific event:** `NotifyWinEvent(EVENT_OBJECT_LIVEREGIONCHANGED, hwnd,
+  OBJID_CLIENT, CHILDID_SELF)` on a `StaticText` whose label was just set. Spoke **verbatim, every
+  time**, repeats identical text, works with focus anywhere, works even while the widget is hidden,
+  and is unaffected by a sibling widget joining the wx accessibility path. One `user32` call on a
+  handle wxdragon already exposes.
+- **Everything else on rung 2 is dead**: `NAMECHANGE`, `EVENT_SYSTEM_ALERT`, `EVENT_OBJECT_SHOW` —
+  silent. `UiaRaiseNotificationEvent` **succeeds and is ignored** (NVDA does not act on UIA
+  notifications from this MSAA-served window).
+- **Rung 4 (wx route) is dead**: `set_accessibility_role(Alert)` + `Accessible::notify_event(ALERT)`
+  — silent, despite `wxUSE_ACCESSIBILITY=1` confirmed compiled in.
+- **The status bar stays command-only**: text change + `NAMECHANGE` on its HWND — silent. Routing a
+  message there hides it, as ticket 02 warned.
+- **Rung 1 (design it away) is real but bounded**: moving focus to a read-only `TextCtrl` speaks
+  (wrapped in "редактор, лише для читання" chrome, at the cost of the user's place in the list);
+  a modal `MessageDialog` is a **trap** — NVDA announced its title and OK button but **never the
+  message body**.
+
+**The single rule:** every transient message goes through one `announce(text)` function — set the
+label of one dedicated message `StaticText`, fire `EVENT_OBJECT_LIVEREGIONCHANGED` on it, and
+nothing else in the app ever fires accessibility events. Focus moves and dialogs are navigation,
+not announcement; a dialog's body text must never be the only carrier of information.
+
+Carried out: the `MessageDialog` trap and the audio-only/visible split → ticket 09; the banner's
+dedicated message `StaticText` → ticket 17. Two `nvda-drive.ps1` fixes landed (digit keys; latent
+char-vs-string key-table bug).

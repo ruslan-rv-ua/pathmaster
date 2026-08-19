@@ -1,0 +1,26 @@
+# THROWAWAY PROTOTYPE — wayfinder ticket 08 (live announcement mechanism).
+# Exists only to be listened to with NVDA. Delete once ticket 08 is resolved.
+[package]
+name = "nvda-announcements-prototype"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+# >= 0.9.17 per ticket 01: earlier AccRole discriminants are mis-ordered.
+wxdragon = "0.9.18"
+# Rung 2 (raw HWND): NotifyWinEvent + MSAA constants + UIA notification event.
+# Per research/01: NotifyWinEvent lives in Win32_UI_Accessibility, the EVENT_*/OBJID_*
+# constants one module over in Win32_UI_WindowsAndMessaging.
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_UI_Accessibility",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[[bin]]
+name = "nvda-announcements"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = 2
