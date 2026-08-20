@@ -440,15 +440,24 @@ Settled by ticket [12](issues/12-elevation-model.md);
 > action disabled — §5); the System tab and Read-only Data name reasons but never grow a second
 > elevation offer.
 
-**Apply failure taxonomy** (the four rows; invariants: **no failure mutates the Working Copy, none
+**Apply failure taxonomy** (the five rows; invariants: **no failure mutates the Working Copy, none
 moves the Baseline**, every failure lands one log record with the raw error code):
 
 | Failure | User sees (exact text **[assembly]**) |
 |---|---|
+| Re-read fails at Apply | Announcement: "Apply failed — {cause}" — the registry-write row's own text, because nothing was written either way |
 | Snapshot write fails at Apply | Announcement: "Apply failed — could not write a backup, no changes were made." |
 | Registry write fails (access denied / key unopenable / locked) | Announcement: "Apply failed — {cause}", e.g. "Apply failed — access denied." |
 | External edit detected at re-read | the §5 three-button dialog |
 | Broadcast returns 0 / times out | **nothing** — not a failure; `WARN` log line only |
+
+> *Fifth row filled in by impl ticket 13* ([ADR-0008](../../docs/adr/0008-apply-sequence-lives-in-platform.md)).
+> A re-read that fails was named by neither this section nor the ticket, and it is the first step of
+> FR-apply's fixed order — so it needed a row before Apply could be written. Proceeding without the
+> comparison was rejected outright: it is precisely the case where an external change is overwritten
+> with no dialog, which is the hazard the whole order exists for. This is also the row §5's FR-refresh
+> was waiting on: Refresh has failed silently since impl ticket 11 for want of a name, and moves onto
+> this text once it exists.
 
 ## 10. Accessibility contract
 

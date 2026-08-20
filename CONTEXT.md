@@ -69,6 +69,14 @@ _Avoid_: Snapshot (that is a backup file), Undo step, Command, Transaction, Revi
 Writing an Editing Session's Working Copy to its Scope's registry value and moving the Baseline to match.
 _Avoid_: Save, Commit, Write, Persist
 
+**Apply Run**:
+One pass of the Apply sequence over one or more Scopes, in the order it is given them, stopping at the first
+Scope that does not complete — whether it failed or the user cancelled it. Ctrl+S is a run over one Scope; the
+close-confirm's Save is one over every dirty Scope, User first. A Scope a run completes is not necessarily one
+it applied: the external-change dialog's middle answer adopts the value that was just read and writes nothing
+([ADR-0008](docs/adr/0008-apply-sequence-lives-in-platform.md)).
+_Avoid_: Save, Batch, Transaction, Apply-all
+
 ### Diagnosis and recovery
 
 **Issue**:
@@ -81,7 +89,7 @@ _Avoid_: Error, Warning, Problem (those name severity, not the finding), Diagnos
 One saved copy of a single Scope's value, written to a file before that Scope is applied and restorable
 later — a JSON file recording the Scope and either its Entries with the Value Type they were stored under,
 or that it was Absent, which has neither
-([ADR-0006](../docs/adr/0006-snapshot-schema-is-decoded-not-raw.md)). Restoring loads a Snapshot into the
+([ADR-0006](docs/adr/0006-snapshot-schema-is-decoded-not-raw.md)). Restoring loads a Snapshot into the
 Working Copy rather than writing the registry directly, so a Restore is one ordinary Checkpoint and Apply is
 what actually writes it.
 _Avoid_: Backup (reserve that for the act of taking one and for the directory they live in)
