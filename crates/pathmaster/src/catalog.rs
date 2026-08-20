@@ -13,12 +13,19 @@
 //! `OUT_DIR`, where `build.rs` compiled them from `i18n/*.po`, so a single file
 //! stays a single file (NFR-portable).
 //!
+//! What is *composed* out of those strings is not here: it is
+//! `pathmaster_core::catalogue`, which reaches this module through the
+//! [`Installed`] adapter below (ADR-0009). That is still one lookup — the
+//! adapter wraps [`translate`] rather than adding a second answer — and it is
+//! what lets a composition rule be tested without linking wxWidgets.
+//!
 //! The module keeps gettext's spelling (spec §17 names it `catalog`, as do
 //! `add_catalog` and `.mo` catalogs); the domain term for what it serves is the
 //! Catalogue.
 
 use std::borrow::Cow;
 
+use pathmaster_core::catalogue::Lookup;
 use pathmaster_core::language::Language;
 use wxdragon::translations::{
     translate as wx_translate, translate_plural as wx_translate_plural, Translations,
@@ -93,15 +100,41 @@ pub fn translate_plural(singular: &str, plural: &str, n: u32) -> String {
     wx_translate_plural(singular, plural, n)
 }
 
+/// The production side of `pathmaster_core`'s lookup seam: the Catalogue
+/// [`install`] installed, asked through the two functions above (ADR-0009).
+///
+/// It holds nothing, and that is the point — [`Translations::set_global`]
+/// hands ownership to wx, and the free `translate` is how wx is asked
+/// afterwards. An adapter holding a `Translations` would be a second Catalogue
+/// with a second lifetime.
+pub struct Installed;
+
+impl Lookup for Installed {
+    fn translate(&self, msgid: &str) -> String {
+        translate(msgid)
+    }
+
+    fn translate_plural(&self, singular: &str, plural: &str, n: u32) -> String {
+        translate_plural(singular, plural, n)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pathmaster_core::msgids::{fill, ENTRIES_USER, ENTRIES_USER_PLURAL, REGISTRY, TAB_USER};
+    use pathmaster_core::catalogue::{Announcement, Catalogue, UndoStep};
+    use pathmaster_core::msgids::{REGISTRY, TAB_USER};
+    use pathmaster_core::session::{Operation, Scope, UndoOutcome};
 
     /// The wx half of the completeness gate, and the only test that links
     /// wxWidgets (ADR-0007). The `.po`-side gate lives in `pathmaster-core`;
     /// this one proves the same strings survive compilation into a `.mo`,
     /// embedding, and lookup through wx — the part a pure test cannot see.
+    ///
+    /// It runs the composed assertions **through [`Installed`]** rather than
+    /// past it, so the one line of production glue between core's composition
+    /// and wx is covered, and so that one Announcement is asserted whole, in
+    /// real Ukrainian, with wx choosing the plural form (ADR-0009).
     ///
     /// It is one test rather than several because it installs a global: wx is
     /// not thread-safe and cargo runs tests in threads.
@@ -158,17 +191,39 @@ mod tests {
             .get_string("There is no such string in PathMaster", "")
             .is_none());
 
-        // The bytes really are Ukrainian, and really are plural-selected:
-        // nplurals=3 means 1, 2 and 5 are three different words.
+        // The bytes really are Ukrainian: a bare label, looked up as every
+        // bare label is.
         assert_eq!(translate(TAB_USER), "PATH користувача");
+
+        // And composition really runs on them. nplurals=3 means 1, 2 and 5 are
+        // three different words, and the form is chosen by wx — which is the
+        // reason core's tests do not choose it (ADR-0009).
+        let catalogue = Catalogue::new(Installed);
         let count = |n| {
-            fill(
-                &translate_plural(ENTRIES_USER, ENTRIES_USER_PLURAL, n),
-                &[("n", &n.to_string())],
-            )
+            catalogue.announcement(Announcement::EntryCount {
+                scope: Scope::User,
+                count: n,
+            })
         };
         assert_eq!(count(1), "PATH користувача: 1 запис");
         assert_eq!(count(2), "PATH користувача: 2 записи");
         assert_eq!(count(5), "PATH користувача: 5 записів");
+
+        // One Announcement end-to-end, in the language the user hears: a
+        // translated template, a translated operation name filled into it, and
+        // the suffix an undo across the Apply barrier earns (spec §10.1 items
+        // 4 and 5). Three Catalogue lookups and two composition rules in one
+        // sentence — the assertion core's identity adapter cannot make.
+        assert_eq!(
+            catalogue.announcement(Announcement::UndoRedo {
+                step: UndoStep::Undone,
+                outcome: UndoOutcome {
+                    focus: None,
+                    operation: Operation::Delete,
+                    crossed_apply: true,
+                },
+            }),
+            "Скасовано: Видалення запису, незбережені зміни"
+        );
     }
 }

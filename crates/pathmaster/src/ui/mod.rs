@@ -22,17 +22,17 @@ mod scope_page;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+use pathmaster_core::catalogue::{Announcement, Catalogue, ScopeCounts, UndoStep};
 use pathmaster_core::diagnostics::{Diagnosis, Findings};
-use pathmaster_core::msgids::{self, fill};
+use pathmaster_core::msgids;
 use pathmaster_core::normalize::has_variable_reference;
-use pathmaster_core::session::{EntryId, Operation, Scope, Session, UndoOutcome, ValueType};
-use pathmaster_core::thresholds::{self, Overlength};
+use pathmaster_core::session::{EntryId, Operation, Scope, Session, ValueType};
 use pathmaster_platform::datadir::ReadOnlyReason;
 use pathmaster_platform::registry::ScopeKey;
 use wxdragon::prelude::*;
 
 use crate::announce::Announcer;
-use crate::catalog::{translate, translate_plural};
+use crate::catalog::{self, translate};
 use crate::pump::Pump;
 use crate::ui::command::Command;
 use crate::ui::scope_page::ScopePage;
@@ -74,19 +74,14 @@ impl ScopeTab {
             .collect()
     }
 
-    /// This Scope's half of StatusBar field 0: how many Entries it holds now,
-    /// and how many findings the last pass made here.
-    ///
-    /// The two numbers answer to different clocks on purpose — the count is
-    /// the screen's and updates with the edit, the issues are the last pass's
-    /// and catch up one Timer tick later, which is what §12's "updated after
-    /// every diagnostic pass" means. Before any pass there is no issue half at
-    /// all: "(0 issues)" would be a claim about a Scope nothing has read.
-    fn counts_text(&self) -> String {
-        let entries = entry_count_text(self.scope, self.session.borrow().entries().len());
-        match self.findings.borrow().as_ref() {
-            Some(findings) => entries + &issue_count_text(findings.issue_count()),
-            None => entries,
+    /// The two numbers StatusBar field 0 reports about this Scope: how many
+    /// Entries it holds now, and how many findings the last pass made here —
+    /// `None` until one has run (see [`ScopeCounts`]).
+    fn counts(&self) -> ScopeCounts {
+        ScopeCounts {
+            scope: self.scope,
+            entries: self.session.borrow().entries().len(),
+            issues: self.findings.borrow().as_ref().map(Findings::issue_count),
         }
     }
 
@@ -140,6 +135,9 @@ struct App {
     frame: Frame,
     notebook: Notebook,
     menu: MenuBar,
+    /// The one Catalogue (ADR-0009): every string this window composes is
+    /// composed here, and the Announcer holds the same one.
+    catalogue: Rc<Catalogue>,
     announcer: Announcer,
     status: StatusBar,
     tabs: [ScopeTab; 2],
@@ -171,6 +169,12 @@ pub fn build_main_window(
     frame.set_min_size(Size::new(800, 600));
     frame.set_menu_bar(command::build_menu_bar());
 
+    // The one Catalogue, built here and shared by everything that composes a
+    // string out of it: this window, the Announcer, and each Scope tab's
+    // Status column (ADR-0009). `install` has already given wx its own, which
+    // is what `catalog::Installed` asks.
+    let catalogue = Rc::new(Catalogue::new(catalog::Installed));
+
     let root = Panel::builder(&frame).build();
 
     // The Banner: always visible, fixed height, its StaticText empty at rest — the layout
@@ -181,8 +185,8 @@ pub fn build_main_window(
     banner.set_min_size(Size::new(-1, banner.get_char_height()));
 
     let notebook = Notebook::builder(&root).build();
-    let user_page = ScopePage::build(&notebook, &user.borrow());
-    let system_page = ScopePage::build(&notebook, &system.borrow());
+    let user_page = ScopePage::build(&notebook, &catalogue, &user.borrow());
+    let system_page = ScopePage::build(&notebook, &catalogue, &system.borrow());
     let tabs = [
         ScopeTab {
             scope: Scope::User,
@@ -228,7 +232,8 @@ pub fn build_main_window(
         frame,
         notebook,
         menu: frame.get_menu_bar().expect("the menu bar was just set"),
-        announcer: Announcer::new(banner),
+        announcer: Announcer::new(banner, Rc::clone(&catalogue)),
+        catalogue,
         status,
         tabs,
         readonly,
@@ -250,7 +255,9 @@ pub fn build_main_window(
     // Announcement 7 (spec §10.1), once at startup: a Read-only Data run names
     // its reason. Fired after show so the Banner's window exists to speak from.
     if let Some(reason) = &app.readonly {
-        app.announcer.announce(&readonly_text(reason));
+        app.announcer.announce(Announcement::ReadOnly {
+            reason: reason.catalogue_msgid(),
+        });
     }
 
     frame
@@ -293,9 +300,11 @@ impl App {
             // the widget has not caught up when this fires.
             let active = app.tab_at(event.get_selection());
             if let Some(tab) = active {
-                let session = tab.session.borrow();
-                app.announcer
-                    .announce(&entry_count_text(tab.scope, session.entries().len()));
+                let count = tab.session.borrow().entries().len();
+                app.announcer.announce(Announcement::EntryCount {
+                    scope: tab.scope,
+                    count,
+                });
             }
             app.sync_for(active);
             event.base.skip(true);
@@ -377,7 +386,8 @@ impl App {
     /// Entry, no Checkpoint and no Issue behind.
     fn add(&self, tab: &ScopeTab) {
         let title = translate(msgids::DIALOG_ADD_ENTRY);
-        let Some(text) = entry_dialog::ask_for_entry(&self.frame, &title, "") else {
+        let Some(text) = entry_dialog::ask_for_entry(&self.frame, &self.catalogue, &title, "")
+        else {
             return;
         };
         let convert = self.convert_or_keep(tab, &text);
@@ -404,7 +414,8 @@ impl App {
         let Some((row, id)) = focused else { return };
         let raw = tab.session.borrow().entries()[row].raw().to_string();
         let title = translate(msgids::DIALOG_EDIT_ENTRY);
-        let Some(text) = entry_dialog::ask_for_entry(&self.frame, &title, &raw) else {
+        let Some(text) = entry_dialog::ask_for_entry(&self.frame, &self.catalogue, &title, &raw)
+        else {
             return;
         };
         let convert = self.convert_or_keep(tab, &text);
@@ -460,20 +471,23 @@ impl App {
     /// back across an Apply (spec §10.1). The operation name is the one thing
     /// focus cannot say.
     fn undo_redo(&self, tab: &ScopeTab, command: Command) {
-        let redo = command == Command::Redo;
+        let step = match command {
+            Command::Redo => UndoStep::Redone,
+            _ => UndoStep::Undone,
+        };
         let previous_row = tab.page.focused_row();
         let outcome = {
             let mut session = tab.session.borrow_mut();
-            if redo {
-                session.redo()
-            } else {
-                session.undo()
+            match step {
+                UndoStep::Redone => session.redo(),
+                UndoStep::Undone => session.undo(),
             }
         };
         let Some(outcome) = outcome else { return };
         let row = outcome.focus.and_then(|id| tab.row_of(id)).or(previous_row);
         self.after_edit(tab, row);
-        self.announcer.announce(&undo_text(redo, outcome));
+        self.announcer
+            .announce(Announcement::UndoRedo { step, outcome });
     }
 
     /// Cancel discards the Working Copy back to the Baseline. It is itself a
@@ -488,8 +502,7 @@ impl App {
             return;
         }
         self.after_edit(tab, previous_row);
-        self.announcer
-            .announce(&translate(msgids::CHANGES_DISCARDED));
+        self.announcer.announce(Announcement::ChangesDiscarded);
     }
 
     /// Refresh re-reads the active Scope alone and clears its Undo/Redo stacks
@@ -514,7 +527,10 @@ impl App {
         let row = landing.and_then(|id| tab.row_of(id)).or(previous_row);
         self.after_edit(tab, row);
         let count = tab.session.borrow().entries().len();
-        self.announcer.announce(&entry_count_text(tab.scope, count));
+        self.announcer.announce(Announcement::EntryCount {
+            scope: tab.scope,
+            count,
+        });
     }
 
     /// The `%VAR%`-into-`REG_SZ` question, asked between validation and the
@@ -601,16 +617,20 @@ impl App {
         for tab in &self.tabs {
             tab.page.sync_buttons(&tab.session.borrow());
         }
+        // User first, then System: the order the tabs are in, not the runtime
+        // order a pass evaluates them in (spec §12).
         self.status.set_status_text(
-            &general_status(
-                self.tab_of(Scope::User),
-                self.tab_of(Scope::System),
-                self.readonly.as_ref(),
+            &self.catalogue.general_status(
+                [
+                    self.tab_of(Scope::User).counts(),
+                    self.tab_of(Scope::System).counts(),
+                ],
+                self.readonly.as_ref().map(ReadOnlyReason::catalogue_msgid),
             ),
             0,
         );
         self.status
-            .set_status_text(&merged_length_text(self.merged_length.get()), 1);
+            .set_status_text(&self.catalogue.merged_length(self.merged_length.get()), 1);
     }
 }
 
@@ -621,113 +641,4 @@ impl App {
 /// leaves focus in the window the user came for.
 pub fn show_settings_unreadable(parent: &Frame) {
     question::tell(parent, &translate(msgids::DIALOG_SETTINGS_UNREADABLE));
-}
-
-/// Announcements 4 and 5 (spec §10.1): what was undone or redone, and — when
-/// the step re-dirtied a Session that had just been applied — that there are
-/// unsaved changes again. No path text: focus lands on the row and NVDA reads
-/// it for free.
-fn undo_text(redo: bool, outcome: UndoOutcome) -> String {
-    let template = translate(if redo { msgids::REDONE } else { msgids::UNDONE });
-    let operation = translate(outcome.operation.catalogue_msgid());
-    let mut text = fill(&template, &[("operation", &operation)]);
-    if outcome.crossed_apply {
-        text.push_str(&translate(msgids::UNSAVED_CHANGES_SUFFIX));
-    }
-    text
-}
-
-/// Announcement 1's text: the Scope's entry count, with the zero case as its
-/// own msgid — "no entries" is better speech than "0", and Ukrainian's three
-/// plural forms have no zero form to give it (spec §10.1 item 1).
-fn entry_count_text(scope: Scope, count: usize) -> String {
-    let (none, singular, plural) = match scope {
-        Scope::User => (
-            msgids::ENTRIES_USER_NONE,
-            msgids::ENTRIES_USER,
-            msgids::ENTRIES_USER_PLURAL,
-        ),
-        Scope::System => (
-            msgids::ENTRIES_SYSTEM_NONE,
-            msgids::ENTRIES_SYSTEM,
-            msgids::ENTRIES_SYSTEM_PLURAL,
-        ),
-    };
-    if count == 0 {
-        translate(none)
-    } else {
-        fill(
-            &translate_plural(singular, plural, count as u32),
-            &[("n", &count.to_string())],
-        )
-    }
-}
-
-/// Announcement 7's text, which is also StatusBar field 0 in Read-only Data:
-/// the mode and its reason, both halves Catalogue text (spec §10.1 item 7).
-fn readonly_text(reason: &ReadOnlyReason) -> String {
-    fill(
-        &translate(msgids::READONLY),
-        &[("reason", &translate(reason.catalogue_msgid()))],
-    )
-}
-
-/// StatusBar field 0, the general status (spec §12): each Scope's entry count
-/// and the issues the last pass found there — or, in Read-only Data, the mode
-/// and its reason in their place.
-///
-/// User first, then System: this field is read on demand as one sentence
-/// (`NVDA+End`), and the order is the one the tabs are in, not the runtime
-/// order a pass evaluates them in.
-fn general_status(user: &ScopeTab, system: &ScopeTab, readonly: Option<&ReadOnlyReason>) -> String {
-    match readonly {
-        Some(reason) => readonly_text(reason),
-        None => format!("{} | {}", user.counts_text(), system.counts_text()),
-    }
-}
-
-/// The issue half of one Scope's counts, a suffix because one gettext lookup
-/// selects on one number and that line carries two.
-///
-/// Zero is shown like any other count once a pass has run — a Scope with no
-/// Entries provably has no Issues, and a fixed shape is easier to parse
-/// aurally than one that comes and goes. The Status column, where "never OK"
-/// applies, is a different surface.
-fn issue_count_text(count: usize) -> String {
-    fill(
-        &translate_plural(
-            msgids::ISSUES_SUFFIX,
-            msgids::ISSUES_SUFFIX_PLURAL,
-            count as u32,
-        ),
-        &[("m", &count.to_string())],
-    )
-}
-
-/// StatusBar field 1 (spec §12, FR-diag-overlength): the merged length always,
-/// with the `cmd.exe` warning appended past 8,191.
-///
-/// Over-length lives here and nowhere else — never in the Status column, never
-/// an Announcement — because no Entry is at fault for a length that only exists
-/// once both Scopes are merged. Empty only before the first pass has landed:
-/// the length is measured by the pass, and inventing a second place to compute
-/// it would be a second answer to the same question.
-fn merged_length_text(length: Option<usize>) -> String {
-    let Some(length) = length else {
-        return String::new();
-    };
-    let mut text = fill(
-        &translate_plural(
-            msgids::MERGED_LENGTH,
-            msgids::MERGED_LENGTH_PLURAL,
-            length as u32,
-        ),
-        &[("n", &length.to_string())],
-    );
-    // Past the first threshold, which is the one this field names. The hard cap
-    // is past it too, and has nothing further to say here — it speaks at Apply.
-    if thresholds::classify(length) != Overlength::Within {
-        text.push_str(&translate(msgids::MERGED_LENGTH_EXCEEDS));
-    }
-    text
 }

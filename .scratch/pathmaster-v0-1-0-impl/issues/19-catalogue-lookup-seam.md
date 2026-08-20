@@ -10,21 +10,21 @@
 
 **Take before 14, though nothing enforces it.** The frontier rule is "open, unblocked, first by number wins", and it has no way to express priority — with 13 blocked, it hands out 14 next. But 14's Backups list composes its own rows (a date and Scope read off the file name, plus Corrupted), so taken first it adds to exactly the pile this ticket exists to clear. 16 is safe either way: its dialog strings are plain labels.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] A lookup interface in `pathmaster-core` with two adapters: the binary's, calling the free `catalog::translate` / `translate_plural` and never holding a `Translations` (`set_global` transfers ownership to wx); and the tests', answering with the msgid and picking `n == 1 ? singular : plural` — wxdragon's own documented no-catalogue fallback
-- [ ] A `Catalogue` in core holding the injected lookup, with composition as its methods rather than free functions each taking an adapter — `CONTEXT.md`'s "there is exactly one". Never a global: a global is the trap being left
-- [ ] `Announcement` is a data-carrying enum — **six variants for §10.1's seven**, because item 5 is item 4's ", unsaved changes" suffix and `UndoOutcome::crossed_apply` already models it. Announcements 2 and 3 are defined here and wired by ticket 13
-- [ ] No platform type appears in a variant: `ReadOnlyReason` and ticket 13's typed Apply failure contribute a **msgid**, which `catalogue_msgid()` already returns
-- [ ] `Announcer::announce` takes an `Announcement`, not a `&str`, so nothing outside the catalogue can be spoken. It loses `Copy`, which no closure ever used — every one holds `Rc<App>`
-- [ ] Everything that composes moves: the six builders at the tail of `ui/mod.rs`, `status_text` in `scope_page.rs`, `rejection_text` in `entry_dialog.rs`. Bare widget lookups stay on `catalog::translate` — a label has no rule to test
-- [ ] Core tests cover what composition can get wrong, all through the identity adapter and linking no wx: `{operation}` filled, the suffix appended only across the Apply barrier, the zero msgid chosen over a plural form, the Status column's severity-ordered join, StatusBar field 1's conditional threshold warning, and field 0's Read-only substitution
-- [ ] One test asserts the catalogue is §10.1's seven and nothing else
-- [ ] The wx smoke test runs **through** the wx adapter rather than past it, and asserts one composed Announcement in real Ukrainian — the undo line with its suffix. It remains the only test that links wxWidgets
-- [ ] No new dependency: `gettext-ng`, `gettext-rs` and a hand-rolled plural evaluator were all considered and rejected ([ADR-0009](../../../docs/adr/0009-catalogue-lookup-is-injected.md))
-- [ ] No Catalogue text changes and no `.po` changes; the completeness gate passes unchanged. This ticket moves code, not strings
-- [ ] Spec §17's `pathmaster-core` module list gains this ticket's Catalogue module
-- [ ] Deferred, not built here: `Command::menu_label` (which appends the accelerator, so it *is* composition) and `Command::enabled` (pure logic over a core type, in the untested crate) both stay in the binary — moving them means moving `Command`, which is separate work
+- [x] A lookup interface in `pathmaster-core` with two adapters: the binary's, calling the free `catalog::translate` / `translate_plural` and never holding a `Translations` (`set_global` transfers ownership to wx); and the tests', answering with the msgid and picking `n == 1 ? singular : plural` — wxdragon's own documented no-catalogue fallback
+- [x] A `Catalogue` in core holding the injected lookup, with composition as its methods rather than free functions each taking an adapter — `CONTEXT.md`'s "there is exactly one". Never a global: a global is the trap being left
+- [x] `Announcement` is a data-carrying enum — **six variants for §10.1's seven**, because item 5 is item 4's ", unsaved changes" suffix and `UndoOutcome::crossed_apply` already models it. Announcements 2 and 3 are defined here and wired by ticket 13
+- [x] No platform type appears in a variant: `ReadOnlyReason` and ticket 13's typed Apply failure contribute a **msgid**, which `catalogue_msgid()` already returns
+- [x] `Announcer::announce` takes an `Announcement`, not a `&str`, so nothing outside the catalogue can be spoken. It loses `Copy`, which no closure ever used — every one holds `Rc<App>`
+- [x] Everything that composes moves: the six builders at the tail of `ui/mod.rs`, `status_text` in `scope_page.rs`, `rejection_text` in `entry_dialog.rs`. Bare widget lookups stay on `catalog::translate` — a label has no rule to test
+- [x] Core tests cover what composition can get wrong, all through the identity adapter and linking no wx: `{operation}` filled, the suffix appended only across the Apply barrier, the zero msgid chosen over a plural form, the Status column's severity-ordered join, StatusBar field 1's conditional threshold warning, and field 0's Read-only substitution
+- [x] One test asserts the catalogue is §10.1's seven and nothing else
+- [x] The wx smoke test runs **through** the wx adapter rather than past it, and asserts one composed Announcement in real Ukrainian — the undo line with its suffix. It remains the only test that links wxWidgets
+- [x] No new dependency: `gettext-ng`, `gettext-rs` and a hand-rolled plural evaluator were all considered and rejected ([ADR-0009](../../../docs/adr/0009-catalogue-lookup-is-injected.md))
+- [x] No Catalogue text changes and no `.po` changes; the completeness gate passes unchanged. This ticket moves code, not strings
+- [x] Spec §17's `pathmaster-core` module list gains this ticket's Catalogue module
+- [x] Deferred, not built here: `Command::menu_label` (which appends the accelerator, so it *is* composition) and `Command::enabled` (pure logic over a core type, in the untested crate) both stay in the binary — moving them means moving `Command`, which is separate work
 
 ## Comments
 
@@ -53,3 +53,56 @@ composition can actually get wrong does not depend on the language at all.
 from its tail and gains nothing, and `pathmaster-core` gains a module of about the same size — but the
 core version arrives with tests, and the enum arrives with the property `announce(&str)` could never
 have: there is no longer a string in the program that can be announced from outside the catalogue.
+
+---
+
+Implemented 2026-08-21 on `feature/catalogue-lookup-seam`. `pathmaster-core::catalogue` now owns the
+`Lookup` interface, the `Catalogue` that holds one, the `Announcement` type and every composition
+rule that used to be pinned to the wx-linking crate. The three UI files are 97 lines lighter —
+`ui/mod.rs` alone loses 89 — and core gains a 318-line module with 22 tests behind it, none of which
+link wxWidgets.
+
+**The property the enum was built for is real now.** `Announcer::announce` takes an `Announcement`,
+and there is no longer a string in the program that *can* be announced from outside the Catalogue:
+every announcement site hands over a value, and the text is composed inside the one voice. The
+closed-set test is a `match` rather than a count — an eighth Announcement fails to compile before it
+fails an assertion, which is the only gate memory was ever going to lose to.
+
+**Announcement 2 carries a msgid, exactly as 3 does, and that is the one shape the ticket left
+open.** §10.1 item 2 is two per-Scope strings ("User PATH applied" / "System PATH applied") and
+neither is registered yet; a `Applied { scope }` variant could not compose without adding them, and
+this ticket adds no Catalogue text. So both Apply Announcements carry the msgid their caller chose,
+which is also what keeps ticket 13's typed failure — a `pathmaster-platform` type core cannot name —
+out of the enum. When ticket 13 registers the two strings it may narrow the variant to a `Scope`;
+what is fixed here is that both exist, that they are Announcements, and that neither can smuggle a
+platform type into core.
+
+**Three smaller choices, each with a reason a reviewer would otherwise have to reconstruct:**
+
+- **The identity adapter lives in the test file**, not in `src`. The ticket calls it one of the
+  interface's two adapters and it is — but `tests/diagnostics.rs` already keeps `Fs` and `Env` this
+  way, and a production crate that ships a lookup answering with msgids would be shipping a second
+  Catalogue nobody asked for. The binary's adapter, `catalog::Installed`, is production and is where
+  the ticket puts it.
+- **The tests are `tests/composition.rs`**, because `tests/catalogue.rs` is the `.po` completeness
+  gate. The two are about different things — the strings themselves, and what is built out of them
+  — and the file header says so in both directions.
+- **`UndoStep` rather than a `bool`.** `undo_text(redo, outcome)` took a bare `true` at its call
+  site, which this codebase already refuses elsewhere ("the direction is the command, so it travels
+  as the command"). The direction now travels as a named value, and `undo_redo` matches on the same
+  value it announces with.
+
+**Verified live, in Ukrainian, on this machine's real PATH.** Launched the debug build, drove it
+cross-process, and read the results back: the Status column composes «Дублікат»/«Відсутній»,
+StatusBar field 0 reads «PATH користувача: 42 записи (20 проблем) | PATH системи: 19 записів (9
+проблем)» — User first, both counts, and the Ukrainian plural forms selected by wx — and field 1
+«Об'єднаний PATH: 2229 символів» with no threshold warning, correctly. Add with a `;` in the text
+raised «Запис містить заборонений символ: ;» as the dialog's title, so `{character}` reaches the one
+place NVDA will read it; adding `C:\Windows` and then invoking Undo put «Скасовано: Додавання запису»
+in the Banner, with no suffix because no Apply had happened. The window closed cleanly, exit code 0.
+
+**What the wx smoke test now asserts** is one composed Announcement end-to-end: the undo line with
+its across-the-barrier suffix, «Скасовано: Видалення запису, незбережені зміни» — a translated
+template, a translated operation name filled into it, and a translated suffix appended, all through
+`Installed`. That is the assertion core's identity adapter cannot make, and it is the one line of
+production glue that no pure test can cover. It remains the only test that links wxWidgets.

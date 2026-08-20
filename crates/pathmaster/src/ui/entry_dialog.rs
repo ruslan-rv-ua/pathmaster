@@ -13,8 +13,11 @@
 //! edit leaves no Checkpoint — Ctrl+Z into an invalid state is impossible by
 //! construction.
 
-use pathmaster_core::msgids::{self, fill};
-use pathmaster_core::path::{rejection, Rejection};
+use std::rc::Rc;
+
+use pathmaster_core::catalogue::Catalogue;
+use pathmaster_core::msgids;
+use pathmaster_core::path::rejection;
 use wxdragon::prelude::*;
 
 use crate::catalog::translate;
@@ -36,7 +39,12 @@ const FIELD_WIDTH_DIP: i32 = 520;
 /// `title` is the Catalogue's "Add entry" or "Edit entry" — the same strings
 /// Announcement 4 names the operation with, because they name the same thing.
 /// Abandoning leaves nothing behind: no Entry, no Checkpoint, no Issue.
-pub fn ask_for_entry(parent: &dyn WxWidget, title: &str, initial: &str) -> Option<String> {
+pub fn ask_for_entry(
+    parent: &dyn WxWidget,
+    catalogue: &Rc<Catalogue>,
+    title: &str,
+    initial: &str,
+) -> Option<String> {
     let dialog = Dialog::builder(parent, title).build();
     let panel = Panel::builder(&dialog).build();
 
@@ -84,10 +92,11 @@ pub fn ask_for_entry(parent: &dyn WxWidget, title: &str, initial: &str) -> Optio
     dialog.centre();
 
     browse.on_click(move |_| browse_for_folder(&dialog, &field));
+    let catalogue = Rc::clone(catalogue);
     commit.on_click(move |_| match rejection(&field.get_value()) {
         None => dialog.end_modal(ID_COMMIT),
         Some(reason) => {
-            question::tell(&dialog, &rejection_text(reason));
+            question::tell(&dialog, &catalogue.rejection(reason));
             // The text is never touched — the user goes back to what they
             // typed, one character away from a legal Entry.
             field.set_focus();
@@ -104,17 +113,6 @@ pub fn ask_for_entry(parent: &dyn WxWidget, title: &str, initial: &str) -> Optio
     let text = field.get_value();
     dialog.destroy();
     committed.then_some(text)
-}
-
-/// The error dialog's title, which is the whole of the error (spec §6, §10).
-fn rejection_text(reason: Rejection) -> String {
-    let message = translate(reason.catalogue_msgid());
-    match reason {
-        Rejection::Empty => message,
-        Rejection::ForbiddenCharacter(character) => {
-            fill(&message, &[("character", &character.to_string())])
-        }
-    }
 }
 
 /// Browse: the one native file dialog in the application, and a named

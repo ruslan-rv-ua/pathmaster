@@ -9,7 +9,10 @@
 //! that is focused in a control that is not is silent, which for this
 //! application is the same as not having happened.
 
-use pathmaster_core::diagnostics::{Findings, Issue};
+use std::rc::Rc;
+
+use pathmaster_core::catalogue::Catalogue;
+use pathmaster_core::diagnostics::Findings;
 use pathmaster_core::msgids;
 use pathmaster_core::session::{EntryId, Session};
 use wxdragon::prelude::*;
@@ -30,6 +33,10 @@ pub struct ScopePage {
     /// The commands with a button, in Tab order — `Command::ALL` filtered by
     /// [`Command::button_label`], so the two can never disagree.
     buttons: Vec<(Command, Button)>,
+    /// The one Catalogue, for the one thing this tab composes: the Status
+    /// column. Held rather than passed in, because the first write happens in
+    /// [`build`](ScopePage::build), before there is anyone to pass it.
+    catalogue: Rc<Catalogue>,
 }
 
 impl ScopePage {
@@ -40,7 +47,7 @@ impl ScopePage {
     /// app's real shape: Delete, Move Up and Move Down act on one Entry.
     /// `ListCtrlStyle::EditLabels` is deliberately absent: editing is the
     /// modal dialog and nothing else (spec §6).
-    pub fn build(notebook: &Notebook, session: &Session) -> ScopePage {
+    pub fn build(notebook: &Notebook, catalogue: &Rc<Catalogue>, session: &Session) -> ScopePage {
         let panel = Panel::builder(notebook).build();
         let list = ListCtrl::builder(&panel)
             .with_style(ListCtrlStyle::Report | ListCtrlStyle::SingleSel)
@@ -92,6 +99,7 @@ impl ScopePage {
             panel,
             list,
             buttons,
+            catalogue: Rc::clone(catalogue),
         };
         // No pass has run yet, so every Status column starts empty — which is
         // also what a healthy Scope looks like, and stays so for one Timer
@@ -139,8 +147,11 @@ impl ScopePage {
     pub fn render_status(&self, session: &Session, findings: Option<&Findings>) {
         for (index, entry) in session.entries().iter().enumerate() {
             let issues = findings.map_or(&[][..], |findings| findings.issues(entry));
-            self.list
-                .set_item_text_by_column(index as i64, 1, &status_text(issues));
+            self.list.set_item_text_by_column(
+                index as i64,
+                1,
+                &self.catalogue.status_column(issues),
+            );
         }
     }
 
@@ -223,21 +234,4 @@ fn from_dip(widget: &ListCtrl, dip: i32) -> i32 {
     } else {
         dip
     }
-}
-
-/// The Status column's text: the flagged types' words, comma-joined, in the
-/// order the rulebook hands them over — most severe first (spec §7,
-/// FR-diag-status).
-///
-/// A healthy Entry gets the empty string, and that empty column is the whole
-/// of the healthy state: never "OK", never a severity prefix, never an icon.
-/// NVDA then reads "{path}; Status: {types}" on a flagged row and the path
-/// alone on a clean one, for free, on every arrow key — which is why nothing
-/// is added here that a listener would have to hear past.
-fn status_text(issues: &[Issue]) -> String {
-    issues
-        .iter()
-        .map(|issue| translate(issue.catalogue_msgid()))
-        .collect::<Vec<String>>()
-        .join(", ")
 }

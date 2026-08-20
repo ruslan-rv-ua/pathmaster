@@ -747,7 +747,9 @@ ever links wxWidgets.
 - **`crates/pathmaster-core`** — pure, no I/O, any-OS: `path` (split/join), `normalize`,
   `diagnostics`, `session`, `snapshot`, `rotation`, `thresholds`, `settings` (parse + per-field
   rules), `logfmt` (line shape, truncation, levels), `language` (the stored choice and the §11
-  branch), `msgids` (registry + `.po` integrity gate via polib). Module names indicative; the inter-crate seams are what this spec fixes hard.
+  branch), `msgids` (registry + `.po` integrity gate via polib), `catalogue` (the injected lookup,
+  the Announcement type, and everything composed out of the msgids — impl ticket 19, ADR-0009).
+  Module names indicative; the inter-crate seams are what this spec fixes hard.
 - **`crates/pathmaster-platform`** — imperative shell, no wx: `registry` (adapter, **key path as a
   constructor parameter**), `datadir`, `elevation`, `locale` (the system language, §11),
   `logwriter`, `panic_hook` (writes past the logger; core supplies only the line format),

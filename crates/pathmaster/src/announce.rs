@@ -9,6 +9,9 @@
 //! alternative). The Banner is always visible at a fixed height, so setting
 //! its label never reflows the layout and never moves focus.
 
+use std::rc::Rc;
+
+use pathmaster_core::catalogue::{Announcement, Catalogue};
 use wxdragon::prelude::*;
 
 use windows_sys::Win32::UI::Accessibility::NotifyWinEvent;
@@ -16,23 +19,35 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     CHILDID_SELF, EVENT_OBJECT_LIVEREGIONCHANGED, OBJID_CLIENT,
 };
 
-/// The voice, handed to whatever fires an Announcement. `Copy` like the
-/// widget it wraps, so every closure that speaks can hold its own.
-#[derive(Clone, Copy)]
+/// The voice, handed to whatever fires an Announcement: the Banner's widget
+/// and the Catalogue that is allowed to put words in it.
+///
+/// It is not `Copy` — it holds the one Catalogue, shared rather than copied.
+/// The trait was claimed so "every closure that speaks can hold its own", and
+/// no closure ever did: every one holds an `Rc<App>` and reaches the voice
+/// through it.
+#[derive(Clone)]
 pub struct Announcer {
     banner: StaticText,
+    catalogue: Rc<Catalogue>,
 }
 
 impl Announcer {
     /// Wraps the Banner's `StaticText` — the caller builds the widget, this
     /// module owns what may be done with it.
-    pub fn new(banner: StaticText) -> Self {
-        Announcer { banner }
+    pub fn new(banner: StaticText, catalogue: Rc<Catalogue>) -> Self {
+        Announcer { banner, catalogue }
     }
 
-    /// Announcement text is Catalogue output, already translated and filled.
-    pub fn announce(&self, text: &str) {
-        self.banner.set_label(text);
+    /// Speaks and shows one Announcement.
+    ///
+    /// It takes an [`Announcement`] and not a `&str`, which is what closes
+    /// ADR-0003's catalogue: the text is composed here, from the Catalogue, so
+    /// there is no longer a string in the program that *can* be announced from
+    /// outside it.
+    pub fn announce(&self, announcement: Announcement) {
+        let text = self.catalogue.announcement(announcement);
+        self.banner.set_label(&text);
         let hwnd = self.banner.get_handle();
         if hwnd.is_null() {
             return;
