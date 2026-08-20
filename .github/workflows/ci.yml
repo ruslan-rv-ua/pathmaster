@@ -1,4 +1,4 @@
-# Push CI (spec §18): cargo test + clippy on every push/PR to develop.
+# Push CI (spec §18): cargo test + clippy + rustfmt on every push/PR to develop.
 # The wx-linking targets are built here too — this is the CI "where wx is built anyway"
 # that the binary's future smoke test relies on.
 name: CI
@@ -11,7 +11,7 @@ on:
 
 jobs:
   test:
-    name: cargo test + clippy
+    name: cargo test + clippy + fmt
     runs-on: windows-2025
     env:
       # MAX_PATH: a deep build path breaks the wxWidgets build while blaming the
@@ -29,6 +29,12 @@ jobs:
 
       - name: Install pinned Rust toolchain
         run: rustup toolchain install
+
+      # Before the build, deliberately: formatting needs no compilation, so a
+      # drifted file fails here in seconds instead of after a wxWidgets build.
+      # rustfmt is pinned as a component in rust-toolchain.toml.
+      - name: Format
+        run: cargo fmt --all -- --check
 
       # The wxWidgets static libs (~450 MB) sit at the profile root of the target dir
       # and dominate cold-build time — cache the whole build tree.

@@ -714,7 +714,8 @@ shell** — the tiers, placed by §17:
   `nvda-drive.ps1` stays a measurement tool, never a CI gate (a deaf NVDA is indistinguishable
   from a regression; a flaky gate gets ignored). No UI automation (WinAppDriver dead, FlaUI drags
   .NET in).
-- **CI**: push CI (`cargo test` + clippy on every push/PR to `develop`); release CI per §16.
+- **CI**: push CI (`cargo test` + clippy + `cargo fmt --check` on every push/PR to `develop` — the
+  format gate added by impl ticket 09, after drift reached `develop` unnoticed); release CI per §16.
 - **Cadence**: exe size every release (automated); thresholds unit-tested every release, confirmed
   once against the real registry; cold start re-measured only when the startup path changes;
   clean-VM once per packaging change.
