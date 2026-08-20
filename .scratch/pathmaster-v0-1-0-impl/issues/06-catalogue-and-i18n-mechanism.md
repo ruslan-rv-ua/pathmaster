@@ -50,12 +50,18 @@ two seconds and links no wxWidgets.
 
 ### Three decisions a reviewer should see
 
-- **No `en.po` ships.** "English and Ukrainian catalogues" is satisfied by the msgid registry
-  plus `uk.po`: msgids **are** the English source text and English is the fallback, not a
-  catalogue of its own (§11, D5). An identity `en.po` would be a second source of English
-  needing a gate rule forbidding it from ever differing from the first. Nothing forbids one
-  either — D10's "drop `xx.po` in" stays true for `en`, and the gate was rewritten to stop
-  asserting its absence after review flagged that as invented policy.
+- **English ships a catalogue of its own, and it is the identity.** This ticket first shipped
+  `uk.po` alone, on the reading that msgids **are** the English source text and English is the
+  fallback (§11, D5) — the user's call was for the file, so `en.po` ships too and both
+  languages take one path through wx rather than English riding the miss-returns-the-msgid
+  fallback. The cost of the second source of English is paid off by the gate rather than by
+  discipline: `the_english_catalogue_repeats_the_msgids_it_is_made_of` requires every `en.po`
+  msgstr to equal its msgid, plural forms included, so an edit there that the msgid constant
+  does not share fails the build. The wx smoke test asks English the same question it asks
+  Ukrainian — `get_string(...).is_some()`, never a value comparison, which could not tell a
+  loaded English catalogue from a missing one. Verified by removing `en.po`: the smoke test
+  fails, which is also proof that `build.rs`'s enumeration is live. The fallback remains the
+  safety net it always was.
 - **The system language is read from Windows, not from wx.** §11 D3 specifies
   `Locale::get_system_language() == Ukrainian`; that comparison **can never be true** on this
   stack. wxdragon 0.9.18's `Language` enum mirrors wxWidgets **3.2** (it stops at
@@ -84,7 +90,8 @@ two seconds and links no wxWidgets.
 
 ### Scope, stated
 
-- **Strings seeded**: the five the shell shows (three tab labels, two column headers) and
+- **`i18n/` holds `en.po` and `uk.po`**, both gated identically by the same walk: adding a
+  third language is still dropping `xx.po` in. **Strings seeded**: the five the shell shows (three tab labels, two column headers) and
   Announcement 1 (spec §10.1) — the plural pair per Scope plus its own zero-case msgid. The
   plural entries were pulled forward from ticket 08 deliberately: `nplurals=3` and the gate's
   plural checks have nothing to measure without them, and the wx smoke test is where three

@@ -58,10 +58,13 @@ impl TranslationsLoader for Embedded {
 
 /// Installs the Catalogue for `language` as the global one.
 ///
-/// English loads no catalogue and needs none: the msgids *are* its text, so a
-/// lookup that finds nothing falls back to exactly the right string. That is
-/// also why `add_std_catalog()` is never called — wx's own "OK"/"Cancel" are
-/// not ours, and every dialog whose button text carries meaning builds its own.
+/// Both languages load a catalogue, English included: its own is the identity
+/// of the msgids, gated as such, so neither language rides the fallback and
+/// neither is a special case here. The fallback is still the safety net it was
+/// — a lookup that finds nothing returns the msgid, which is English.
+///
+/// `add_std_catalog()` is never called: wx's own "OK"/"Cancel" are not ours,
+/// and every dialog whose button text carries meaning builds its own.
 pub fn install(language: Language) {
     let translations = Translations::new();
     translations.set_loader(Embedded);
@@ -69,10 +72,9 @@ pub fn install(language: Language) {
     // wxWidgets 3.2's ordinals and the vendored 3.3.3 renumbered them, so the
     // enum names a different language than it says (see `platform::locale`).
     translations.set_language_str(language.code());
-    // `false` means neither a catalogue nor the msgid language matched. For
-    // English that is the designed path (there is no `en.mo` and none is
-    // wanted); for Ukrainian the completeness gate and the smoke test below
-    // make it unreachable, so there is nothing here for a run to report.
+    // `false` would mean neither a catalogue nor the msgid language matched.
+    // The completeness gate and the smoke test below make that unreachable for
+    // both shipped languages, so there is nothing here for a run to report.
     translations.add_catalog(DOMAIN);
     translations.set_global();
 }
@@ -107,16 +109,32 @@ mod tests {
     /// It is one test rather than several because it installs a global: wx is
     /// not thread-safe and cargo runs tests in threads.
     #[test]
-    fn every_registered_msgid_is_answered_by_the_embedded_ukrainian_catalogue() {
+    fn every_registered_msgid_is_answered_by_the_embedded_catalogues() {
+        // English first, and asked the same way as any other language. A value
+        // comparison could not tell a loaded English catalogue from a missing
+        // one — both answer with the msgid — so presence is the only question
+        // that means anything here.
+        install(Language::English);
+        let english = Translations::get().expect("the Catalogue is installed");
+        for entry in REGISTRY {
+            assert!(
+                english.get_string(entry.msgid, "").is_some(),
+                "the embedded English catalogue does not answer for {:?}",
+                entry.msgid
+            );
+        }
+
         install(Language::Ukrainian);
         let translations = Translations::get().expect("the Catalogue is installed");
 
-        assert!(
-            translations
-                .get_available_translations(DOMAIN)
-                .contains(&"uk".to_string()),
-            "the loader must offer uk before wx will ask for it"
-        );
+        for code in ["en", "uk"] {
+            assert!(
+                translations
+                    .get_available_translations(DOMAIN)
+                    .contains(&code.to_string()),
+                "the loader must offer {code} before wx will ask for it"
+            );
+        }
 
         for entry in REGISTRY {
             // Presence is asked of wx directly. Comparing a translation to its

@@ -1,0 +1,74 @@
+# English catalogue for PathMaster.
+#
+# msgids are English source text, so this file is the *identity* catalogue:
+# every msgstr repeats its msgid exactly, and the completeness gate enforces
+# that. Editing the English here without editing the msgid constant in
+# `pathmaster-core::msgids` is therefore a build failure, not a silent
+# divergence — there is one English text, named in the code and repeated here.
+#
+# It ships so that both languages take the same path through wxTranslations
+# rather than English riding the miss-returns-the-msgid fallback, and so that a
+# new translation starts from one file to copy rather than from the source.
+#
+# Two rules in every catalogue are load-bearing, not style (ADR-0004):
+#
+#   * A mnemonic keeps its Latin letter. In languages not written in Latin it
+#     goes in parentheses — "Файл(&F)", never "&Файл".
+#   * A tab character never appears in a translation. Accelerators such as
+#     Ctrl+Z are appended by the code; typing one here would delete the
+#     shortcut rather than misread it.
+#
+# Named braces — {n}, {operation} — are placeholders and must survive
+# translation exactly, name for name. Percent signs are data: %PATH% and
+# %SystemRoot% are the values this application edits.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PathMaster 0.1.0\n"
+"PO-Revision-Date: 2026-08-20 12:00+0300\n"
+"Language-Team: English\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: en\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#. Scope tab label.
+msgid "User PATH"
+msgstr "User PATH"
+
+#. Scope tab label.
+msgid "System PATH"
+msgstr "System PATH"
+
+#. Tab label: the list of saved Snapshots, not the act of taking one.
+msgid "Backups"
+msgstr "Backups"
+
+#. List column header: one PATH entry, exactly as stored.
+msgid "Path"
+msgstr "Path"
+
+#. List column header: the Issues found for that entry.
+msgid "Status"
+msgstr "Status"
+
+#. Announcement: spoken when the User tab is activated or refreshed.
+msgid "User PATH: {n} entry"
+msgid_plural "User PATH: {n} entries"
+msgstr[0] "User PATH: {n} entry"
+msgstr[1] "User PATH: {n} entries"
+
+#. Announcement: the zero case has its own string, never "0 entries".
+msgid "User PATH: no entries"
+msgstr "User PATH: no entries"
+
+#. Announcement: spoken when the System tab is activated or refreshed.
+msgid "System PATH: {n} entry"
+msgid_plural "System PATH: {n} entries"
+msgstr[0] "System PATH: {n} entry"
+msgstr[1] "System PATH: {n} entries"
+
+#. Announcement: the zero case has its own string, never "0 entries".
+msgid "System PATH: no entries"
+msgstr "System PATH: no entries"

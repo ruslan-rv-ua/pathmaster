@@ -9,6 +9,10 @@
 //! `.po` entry can exist that the build's filter and this file would read
 //! differently. The binary's smoke test closes the loop on the wx side.
 //!
+//! English ships a catalogue too, so both languages take one path through wx
+//! rather than English riding the miss-returns-the-msgid fallback; being the
+//! source language, its catalogue is gated as the identity of the registry.
+//!
 //! Reaching into `../pathmaster/i18n` is a test-time path, not a dependency
 //! edge: §17 puts the gate in core and the `.po` files with the binary that
 //! embeds them, and `cargo test -p pathmaster-core` still links no wx and still
@@ -25,6 +29,10 @@ use polib::message::MessageView;
 use pathmaster_core::msgids::{
     duplicate_mnemonic, mnemonic, placeholders, CatalogueEntry, REGISTRY,
 };
+
+/// The language the msgids are written in (ADR-0004). Its catalogue is the
+/// identity — see `the_english_catalogue_repeats_the_msgids_it_is_made_of`.
+const SOURCE_LANGUAGE: &str = "en";
 
 /// The catalogues live with the binary that embeds them (spec §17).
 fn i18n_dir() -> PathBuf {
@@ -83,14 +91,13 @@ fn each_message(mut check: impl FnMut(&str, &CatalogueEntry, &dyn MessageView)) 
 
 #[test]
 fn every_language_ships_a_catalogue_that_names_itself() {
-    // English ships no `.po` and needs none — the msgids are its text and a
-    // miss returns them. Nothing forbids one either: dropping `xx.po` in is the
-    // whole workflow for adding a language, English included.
     let catalogues = catalogues();
-    assert!(
-        catalogues.contains_key("uk"),
-        "Ukrainian is one of the two languages that ship"
-    );
+    for code in [SOURCE_LANGUAGE, "uk"] {
+        assert!(
+            catalogues.contains_key(code),
+            "{code} is one of the two languages that ship"
+        );
+    }
     for (code, catalog) in &catalogues {
         assert_eq!(
             &catalog.metadata.language, code,
@@ -99,6 +106,31 @@ fn every_language_ships_a_catalogue_that_names_itself() {
         assert!(
             catalog.metadata.content_type.contains("charset=UTF-8"),
             "{code}.po must declare charset=UTF-8"
+        );
+    }
+}
+
+#[test]
+fn the_english_catalogue_repeats_the_msgids_it_is_made_of() {
+    // English has no translation to hold: the msgid *is* its text. So this
+    // catalogue exists to be identical, and saying so here is what keeps it
+    // from becoming a second, quietly diverging source of the English — an
+    // edit here that the msgid constant does not share fails the build.
+    let catalogues = catalogues();
+    let english = catalogues.get(SOURCE_LANGUAGE).expect("en.po");
+    for entry in REGISTRY {
+        let Some(message) = english.find_message(None, entry.msgid, entry.plural) else {
+            continue; // presence is a separate test's report
+        };
+        let expected: Vec<&str> = match entry.plural {
+            Some(plural) => vec![entry.msgid, plural],
+            None => vec![entry.msgid],
+        };
+        assert_eq!(
+            translations_of(message),
+            expected,
+            "en.po says something the msgid {:?} does not",
+            entry.msgid
         );
     }
 }
