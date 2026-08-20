@@ -119,6 +119,20 @@ required field is present with the right shape — `timestamp` a string, `scope`
 makes the file **Corrupted** (`CONTEXT.md`). There is no partial-recovery attempt and no guessing a missing
 field's value: a Snapshot exists to be trusted completely or not used at all.
 
+> **Amended 2026-08-20 by impl ticket 10.** The field list above reads as though `valueType` were
+> required of every file. It is required of the `entries` shape only — the Absent schema above prints
+> none, and an Absent Scope has no value and therefore no Value Type, so requiring one would make this
+> ticket's own second example Corrupted. Two readings are added in the same pass, neither widening what
+> is written: a field this version does not *know* is ignored rather than fatal (Corrupted means a
+> required field missing or mistyped, never an unrecognised one, so a v0.2 addition cannot make today's
+> Snapshots unrestorable in the version that wrote them), and a UTF-8 BOM is stripped before parsing,
+> the same reading `settings.json` gets. Spec §8, ADR-0006 and `CONTEXT.md` amended to match.
+>
+> The **numeric suffix only ever climbs**: a suffix rotation has freed is never reissued. Within one
+> second the suffix *is* the age, so a reissued name would make the newest Snapshot of that second sort
+> as its oldest — and rotation, which runs straight after the write, would delete the backup that write
+> had just taken.
+
 **Corrupted surfaces as passive list text, never an Announcement.** Ticket 09 already closed the Announcement
 catalogue at seven items, none of which is "a Snapshot failed to load" — so `[Corrupted]` is shown in the
 Backups list the same way the Status column is: comctl32 reads it for free when the row gets focus, no

@@ -12,6 +12,8 @@ pub mod logfmt;
 pub mod msgids;
 pub mod normalize;
 pub mod path;
+pub mod rotation;
 pub mod session;
 pub mod settings;
+pub mod snapshot;
 pub mod thresholds;

@@ -355,6 +355,23 @@ Settled by ticket [14](issues/14-backup-restore-contract.md);
 > { "timestamp": "2026-08-19T14-32-07", "scope": "System", "absent": true }
 > ```
 
+**Amended by impl ticket 10** — four rules the implementation had to fix, none of them widening
+what is written, all of them about what is *accepted* when read back:
+
+- **`valueType` belongs to the `entries` shape**, as the two schemas print: an Absent Scope has no
+  value and so no Value Type, and requiring one would make the second schema's own file Corrupted.
+- **A field this version does not know is ignored on read, never Corrupted** — a v0.2 field must
+  not make today's Snapshots unrestorable in the version that wrote them.
+- **A UTF-8 BOM is stripped before parsing**, the same reading `settings.json` gets (§13): several
+  Windows editors add one, and a backup lost to an invisible character would be unexplainable.
+- **The Scope and the extension in a file name are matched case-insensitively.** Windows names one
+  file either way, so `…-SYSTEM.JSON` is that Snapshot, not a foreign file. The `scope` *field*
+  inside the file stays exact — that is JSON content, where `system` is simply a different string.
+
+Suffixes only climb: a suffix rotation has freed is never reissued, because within one second the
+suffix **is** the age, and handing a fresh Snapshot an old name would have the rotation that
+follows the write delete the backup that write just took.
+
 > **FR-backup-rotation** (must, rewritten) — `maxBackups` (default 50, valid domain **≥ 1** — §13)
 > is an **independent per-Scope budget**, identified from the filename alone; the oldest of that
 > Scope is deleted on overflow. Corrupted files count toward their Scope's budget and rotate like
@@ -362,8 +379,8 @@ Settled by ticket [14](issues/14-backup-restore-contract.md);
 
 > **FR-backup-ui** (must, rewritten) — the Backups tab lists Snapshots: date/time, Scope, entry
 > count; files failing two-layer validation (parse; then shape: `timestamp` string, `scope`
-> `System|User`, `valueType` `REG_SZ|REG_EXPAND_SZ`, exactly one of `entries` (string array) /
-> `absent: true`) show **`[Corrupted]`** as passive list text — never an Announcement — with
+> `System|User`, exactly one of `entries` (string array, with `valueType` `REG_SZ|REG_EXPAND_SZ`
+> beside it) / `absent: true`) show **`[Corrupted]`** as passive list text — never an Announcement — with
 > Restore disabled per-row. Foreign files (wrong name pattern, `.tmp`) are silently invisible.
 > **Restore loads the chosen Snapshot's Entries and Value Type into the target Scope's Working
 > Copy as one ordinary Checkpoint — it never writes the registry directly** and therefore inherits

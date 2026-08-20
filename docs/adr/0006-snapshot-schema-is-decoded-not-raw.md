@@ -20,7 +20,9 @@ buffer" encode the identical information — one of them is also readable.
 A Snapshot is a JSON file recording:
 
 - `timestamp`, `scope` — as already specified by the PRD.
-- `valueType` — `REG_SZ` or `REG_EXPAND_SZ`, carried alongside the entries rather than assumed.
+- `valueType` — `REG_SZ` or `REG_EXPAND_SZ`, carried alongside the entries rather than assumed. It
+  belongs to the `entries` shape and appears only with it: a Scope that was Absent held no value,
+  and so had no Value Type to record (impl ticket 10).
 - either `entries: [...]` (the Scope's Entries, decoded strings, in order) or `absent: true` — a Scope that did
   not exist is a distinct, representable state, not inferred from a missing file.
 

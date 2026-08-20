@@ -78,7 +78,8 @@ _Avoid_: Error, Warning, Problem (those name severity, not the finding), Diagnos
 
 **Snapshot**:
 One saved copy of a single Scope's value, written to a file before that Scope is applied and restorable
-later — a JSON file recording the Scope, its Value Type, and either its Entries or that it was Absent
+later — a JSON file recording the Scope and either its Entries with the Value Type they were stored under,
+or that it was Absent, which has neither
 ([ADR-0006](../docs/adr/0006-snapshot-schema-is-decoded-not-raw.md)). Restoring loads a Snapshot into the
 Working Copy rather than writing the registry directly, so a Restore is one ordinary Checkpoint and Apply is
 what actually writes it.
