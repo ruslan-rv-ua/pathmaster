@@ -6,7 +6,9 @@
 
 The run is a function in `pathmaster-platform`, not a method on the window — [ADR-0008](../../../docs/adr/0008-apply-sequence-lives-in-platform.md) records why, and its consequences are the seven checkboxes below the spec's own.
 
-**Blocked by:** 03 (registry adapter), 08 (Sessions in UI, announce), 09 (merged-length thresholds), 10 (Snapshot writing).
+**Blocked by:** 03 (registry adapter), 08 (Sessions in UI, announce), 09 (merged-length thresholds), 10 (Snapshot writing), [19](19-catalogue-lookup-seam.md) (the Catalogue seam).
+
+19 blocks this one by number order rather than by dependency: Apply could be written without it. But this ticket adds Announcements 2 and 3 and the five taxonomy texts, and until the seam exists every one of them composes in the crate ADR-0007 leaves untested — so doing 19 first is the difference between landing them tested and moving them by hand afterwards.
 
 **Status:** ready-for-agent
 
