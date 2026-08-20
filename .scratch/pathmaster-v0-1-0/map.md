@@ -413,6 +413,24 @@ In scope, but not yet sharp enough to ticket. Graduates as the frontier advances
 Ruled beyond this destination. Does not graduate.
 
 - **Building v0.1.0.** This map produces the spec; implementation is a separate effort.
+- **Collapsing `ScopeDiagnosis` into `Findings`** — raised by the 2026-08-20 architecture review and
+  deferred to v0.2.0. Three types describe one diagnostic pass, and `ScopeDiagnosis` is the shallow one:
+  its interface (`issues`, `len`, `is_empty`, `issue_count`) is nearly as wide as its `Vec<Vec<Issue>>`,
+  its only production caller is `Findings::of`, and `len`, `is_empty` and `Diagnosis::overlength` have no
+  caller at all. The pass would instead carry Entry identity across the worker thread and come back
+  already paired, making the staleness rule — the one that stops a stale `Missing` landing on a
+  just-corrected path — part of the module rather than a call the window must remember to make. The
+  deletion test passes: complexity concentrates into `Findings` rather than spreading. Deferred because
+  the current arrangement is correct and tested, and impl ticket 12 verified it live; this buys depth,
+  not behaviour.
+- **Making the UI's borrow discipline structural** — raised by the same review and deferred, the weakest
+  of its five candidates. "No borrow is ever held across a call that can run someone else's code" is
+  enforced by a doc comment on `App` listing the call sites checked by hand, and the hazard is real: the
+  diagnostic Timer ticks inside a modal dialog's own event loop, so a pass can take the Sessions' borrows
+  while a dialog is open. Impl tickets 13–17 each add dialogs. The project's standing preference is
+  structural over disciplinary (ADR-0007, ticket 11), and this is where it is not — but the rule has never
+  actually been broken, and copying Working Copy state out on every read would change how every command is
+  written. Revisit if it bites, or if the call-site list outgrows a comment.
 - **All 🟡 should features**, deferred to v0.2.0: Drag & Drop reorder, `%VAR%` expansion toggle, Search bar,
   Filter bar, Tree View browser, Fix Issues dialog, Ctrl+C copy entry.
 - **Similar-path / typo diagnostics** — cut at charting; a false-positive generator (`C:\Python312` vs

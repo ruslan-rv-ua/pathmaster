@@ -817,6 +817,10 @@ Nobody re-adds these by accident; each carries its reason.
 Drop), FR-var-expansion-toggle, FR-search, FR-tree-browser, FR-filter-bar, FR-fix-issues,
 FR-copy-entry — all 🟡, out of the must-only scope. Also parked: a `--data-dir` switch (survives
 the no-relocation principle); in-app deaf-state detection (§19); a network-path deadline prober.
+Plus two architectural deferrals from the 2026-08-20 review, neither blocking anything: **collapsing
+`ScopeDiagnosis` into `Findings`**, so a pass arrives already paired to the Working Copy it ran over
+instead of the window re-pairing it; and **making the UI's borrow discipline structural** rather than
+a doc comment listing hand-checked call sites. Reasons in the map's Out of scope.
 
 **Cut, not deferred**: similar-path/typo diagnostics (a false-positive generator —
 `C:\Python312` vs `C:\Python313` are both legitimate; trust in diagnostics beats breadth); the
