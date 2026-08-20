@@ -9,6 +9,7 @@
 //! that is focused in a control that is not is silent, which for this
 //! application is the same as not having happened.
 
+use pathmaster_core::diagnostics::{Findings, Issue};
 use pathmaster_core::msgids;
 use pathmaster_core::session::{EntryId, Session};
 use wxdragon::prelude::*;
@@ -92,7 +93,10 @@ impl ScopePage {
             list,
             buttons,
         };
-        page.render(session, None);
+        // No pass has run yet, so every Status column starts empty — which is
+        // also what a healthy Scope looks like, and stays so for one Timer
+        // tick (spec §7, FR-diag-async).
+        page.render(session, &Findings::default(), None);
         page
     }
 
@@ -109,15 +113,32 @@ impl ScopePage {
     ///
     /// The whole list is rebuilt rather than patched: one code path for every
     /// operation means the focus rules below are the only thing that decides
-    /// where the user lands. The Status column stays empty until diagnostics
-    /// land (ticket 12).
-    pub fn render(&self, session: &Session, row: Option<usize>) {
+    /// where the user lands.
+    pub fn render(&self, session: &Session, findings: &Findings, row: Option<usize>) {
         self.list.delete_all_items();
         for (index, entry) in session.entries().iter().enumerate() {
             self.list.insert_item(index as i64, entry.raw(), None);
         }
+        self.render_status(session, findings);
         if let Some(row) = row {
             self.focus_row(row);
+        }
+    }
+
+    /// Writes the Status column from a completed pass and touches nothing else.
+    ///
+    /// Separate from [`render`](Self::render) because a pass landing must not
+    /// move the user: rebuilding the list would clear the selected-and-focused
+    /// row, and a pass lands whenever it finishes, including in the middle of
+    /// someone arrowing through the list. It is also how a System edit reaches
+    /// the User tab, whose rows did not change but whose duplicates did.
+    pub fn render_status(&self, session: &Session, findings: &Findings) {
+        for (index, entry) in session.entries().iter().enumerate() {
+            self.list.set_item_text_by_column(
+                index as i64,
+                1,
+                &status_text(findings.issues(entry)),
+            );
         }
     }
 
@@ -200,4 +221,21 @@ fn from_dip(widget: &ListCtrl, dip: i32) -> i32 {
     } else {
         dip
     }
+}
+
+/// The Status column's text: the flagged types' words, comma-joined, in the
+/// order the rulebook hands them over — most severe first (spec §7,
+/// FR-diag-status).
+///
+/// A healthy Entry gets the empty string, and that empty column is the whole
+/// of the healthy state: never "OK", never a severity prefix, never an icon.
+/// NVDA then reads "{path}; Status: {types}" on a flagged row and the path
+/// alone on a clean one, for free, on every arrow key — which is why nothing
+/// is added here that a listener would have to hear past.
+fn status_text(issues: &[Issue]) -> String {
+    issues
+        .iter()
+        .map(|issue| translate(issue.catalogue_msgid()))
+        .collect::<Vec<String>>()
+        .join(", ")
 }

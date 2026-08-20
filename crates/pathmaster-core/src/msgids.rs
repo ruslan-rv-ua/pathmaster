@@ -90,6 +90,34 @@ pub const READONLY_REASON_NOT_WRITABLE: &str = "the data directory is not writab
 /// meaning of its own to lose.
 pub const DIALOG_SETTINGS_UNREADABLE: &str = "Settings could not be read — defaults are in use";
 
+/// The five Issue types' words, and the whole of what the Status column shows
+/// (spec §7, FR-diag-status). One word each, comma-joined most-severe-first —
+/// no severity prefix, no icons, and no word for a healthy Entry: an empty
+/// column is the only healthy state, so "OK" is a string this Catalogue must
+/// never be able to say.
+pub const ISSUE_MISSING: &str = "Missing";
+pub const ISSUE_RELATIVE: &str = "Relative";
+pub const ISSUE_QUOTED: &str = "Quoted";
+pub const ISSUE_DUPLICATE: &str = "Duplicate";
+pub const ISSUE_EMPTY: &str = "Empty";
+
+/// The issue half of StatusBar field 0 (spec §12). A **suffix** rather than one
+/// string carrying both numbers, because a gettext lookup selects its plural
+/// form on one number and this line has two — the shape Announcement 5's
+/// [`UNSAVED_CHANGES_SUFFIX`] already takes. Keep the leading space.
+pub const ISSUES_SUFFIX: &str = " ({m} issue)";
+pub const ISSUES_SUFFIX_PLURAL: &str = " ({m} issues)";
+
+/// StatusBar field 1, the passive merged-length field (spec §12,
+/// FR-diag-overlength): the length always, with the `cmd.exe` warning appended
+/// past 8,191. That threshold is literal text and not a placeholder — it is a
+/// measured constant of the OS, not a number this sentence is filled with, and
+/// the one fact the warning exists to carry must not be droppable by a
+/// translation. Over-length is never in the Status column and never spoken.
+pub const MERGED_LENGTH: &str = "Merged PATH: {n} char";
+pub const MERGED_LENGTH_PLURAL: &str = "Merged PATH: {n} chars";
+pub const MERGED_LENGTH_EXCEEDS: &str = " — exceeds 8,191 (cmd.exe limit)";
+
 /// The two mnemonic groups the menus so far form: the menu bar's own titles,
 /// and the Edit menu's items. A group is a set of siblings whose `&` letters
 /// must not repeat; the gate walks each one (spec §15).
@@ -215,6 +243,14 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::text(READONLY_REASON_CANNOT_CREATE),
     CatalogueEntry::text(READONLY_REASON_NOT_WRITABLE),
     CatalogueEntry::text(DIALOG_SETTINGS_UNREADABLE),
+    CatalogueEntry::text(ISSUE_MISSING),
+    CatalogueEntry::text(ISSUE_RELATIVE),
+    CatalogueEntry::text(ISSUE_QUOTED),
+    CatalogueEntry::text(ISSUE_DUPLICATE),
+    CatalogueEntry::text(ISSUE_EMPTY),
+    CatalogueEntry::plural(ISSUES_SUFFIX, ISSUES_SUFFIX_PLURAL),
+    CatalogueEntry::plural(MERGED_LENGTH, MERGED_LENGTH_PLURAL),
+    CatalogueEntry::text(MERGED_LENGTH_EXCEEDS),
     CatalogueEntry::menu_item(MENU_TITLE_EDIT, MENU_GROUP_BAR),
     CatalogueEntry::menu_item(MENU_ADD_ENTRY, MENU_GROUP_EDIT),
     CatalogueEntry::menu_item(MENU_EDIT_ENTRY, MENU_GROUP_EDIT),

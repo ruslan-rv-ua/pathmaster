@@ -6,10 +6,12 @@
 //! it computes is ever stored in a Working Copy or a Checkpoint.
 
 use std::cell::RefCell;
+use std::collections::BTreeSet;
 
-use pathmaster_core::diagnostics::{diagnose, Existence, Filesystem, Issue, RootKind};
+use pathmaster_core::diagnostics::{diagnose, Existence, Filesystem, Findings, Issue, RootKind};
+use pathmaster_core::msgids;
 use pathmaster_core::normalize::Environment;
-use pathmaster_core::session::Scope;
+use pathmaster_core::session::{Entry, Scope, ScopeValue, Session, ValueType};
 use pathmaster_core::thresholds::Overlength;
 
 // ---- The two injected adapters, faked ----
@@ -506,4 +508,101 @@ fn a_merged_length_past_the_cmd_limit_is_classified_but_never_flags_an_entry() {
     assert_eq!(diagnosis.overlength(), Overlength::CmdLimit);
     assert_eq!(diagnosis.scope(Scope::User).issues(0), &[] as &[Issue]);
     assert_eq!(diagnosis.scope(Scope::User).issue_count(), 0);
+}
+
+// ---- Findings: a pass held against a Working Copy that has moved on ----
+//
+// A pass is asynchronous (spec §7, FR-diag-async), so between an edit and the
+// next pass landing the screen shows Entries the last pass did not run over.
+// `Findings` is what the Status column reads in that window: it keys the pass
+// by Entry id, not by row, so an Entry that only moved keeps its findings and
+// an Entry whose text changed has none until the new pass lands.
+
+/// A Session over one Scope's raw value, the shape a Working Copy arrives in.
+fn session(raw: &str) -> Session {
+    Session::new(
+        Scope::User,
+        ScopeValue::Present {
+            value_type: ValueType::RegExpandSz,
+            raw: raw.to_string(),
+        },
+        true,
+    )
+}
+
+/// The findings of one pass over `session`'s Working Copy.
+fn findings_over(session: &Session, fs: &Fs) -> Findings {
+    let raws: Vec<&str> = session.entries().iter().map(Entry::raw).collect();
+    let diagnosis = diagnose(NONE, &raws, &ENV, fs);
+    Findings::of(session.entries(), diagnosis.scope(Scope::User))
+}
+
+#[test]
+fn findings_are_read_by_entry_not_by_row() {
+    let mut session = session(r"C:\tools;C:\gone");
+    let findings = findings_over(&session, &Fs::new().directory(r"C:\tools"));
+    let gone = session.entries()[1].id();
+
+    // The flagged Entry moves to the top; nothing about it changed.
+    assert!(session.move_up(gone));
+    assert_eq!(findings.issues(&session.entries()[0]), &[Issue::Missing]);
+    assert_eq!(findings.issues(&session.entries()[1]), &[] as &[Issue]);
+}
+
+#[test]
+fn an_entry_whose_text_changed_has_no_findings_until_the_next_pass() {
+    // The row NVDA reads after an edit must not be told what the *previous*
+    // text was: a stale "Missing" on a path the user has just corrected is
+    // worse than the empty column it will carry for one Timer tick.
+    let mut session = session(r"C:\gone");
+    let findings = findings_over(&session, &Fs::new());
+    let id = session.entries()[0].id();
+    assert_eq!(findings.issues(&session.entries()[0]), &[Issue::Missing]);
+
+    assert!(session.edit(id, r"C:\tools"));
+    assert_eq!(findings.issues(&session.entries()[0]), &[] as &[Issue]);
+}
+
+#[test]
+fn an_entry_the_pass_never_saw_has_no_findings() {
+    let mut session = session(r"C:\tools");
+    let findings = findings_over(&session, &Fs::new().directory(r"C:\tools"));
+    session.add(r"C:\gone");
+    assert_eq!(findings.issues(&session.entries()[1]), &[] as &[Issue]);
+}
+
+#[test]
+fn findings_hold_the_passs_own_issue_count() {
+    // StatusBar field 0 reports the last pass, not the screen: the count does
+    // not dip while an edited Entry waits for the next one (spec §12).
+    let mut session = session(r#""C:\gone";C:\also-gone"#);
+    let findings = findings_over(&session, &Fs::new());
+    assert_eq!(findings.issue_count(), 3);
+
+    let id = session.entries()[1].id();
+    assert!(session.edit(id, r"C:\tools"));
+    assert_eq!(findings.issue_count(), 3);
+}
+
+#[test]
+fn no_pass_yet_means_no_findings_anywhere() {
+    let session = session(r"C:\gone");
+    let findings = Findings::default();
+    assert_eq!(findings.issues(&session.entries()[0]), &[] as &[Issue]);
+    assert_eq!(findings.issue_count(), 0);
+}
+
+#[test]
+fn an_issue_type_is_a_catalogue_string() {
+    // The Status column carries translated words, so every type must name a
+    // msgid — and the five must not collide.
+    let msgids: BTreeSet<&str> = Issue::SEVERITY
+        .iter()
+        .map(|issue| issue.catalogue_msgid())
+        .collect();
+    assert_eq!(msgids.len(), 5, "each Issue type names a distinct msgid");
+    let registered: BTreeSet<&str> = msgids::REGISTRY.iter().map(|entry| entry.msgid).collect();
+    for msgid in msgids {
+        assert!(registered.contains(msgid), "{msgid:?} is in the Catalogue");
+    }
 }

@@ -16,14 +16,17 @@ windows-sys = { version = "0.61", features = [
     "Win32_Globalization",
     "Win32_Security",
     "Win32_Storage_FileSystem",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_System_Environment",
     "Win32_System_SystemInformation",
     "Win32_System_Threading",
     "Win32_System_Time",
+    "Win32_System_WindowsProgramming",
 ] }
 
 # The registry integration tests write degenerate values (double-NUL terminators,
-# REG_BINARY) directly, bypassing the adapter under test; the datadir tests
-# build junctions and deny-ACL'd directories in per-test temp dirs.
+# REG_BINARY) directly, bypassing the adapter under test; the datadir and
+# diagnostics tests build junctions and deny-ACL'd directories in per-test temp dirs.
 [target.'cfg(windows)'.dev-dependencies]
 winreg = "0.56"
 tempfile = "3.27"

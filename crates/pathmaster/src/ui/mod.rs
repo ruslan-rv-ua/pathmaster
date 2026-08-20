@@ -9,21 +9,29 @@
 //! Every editing command in the application arrives here, from a menu item, its
 //! accelerator, a button, or the list's own activation gesture, and leaves through
 //! one `run` — so "what is available" and "what happens" are each answered once.
+//!
+//! Diagnostics ride along behind that one door: every command that changes a
+//! Working Copy ends in `after_edit`, which asks the worker thread for a pass
+//! and starts the Timer that will collect it (spec §7, FR-diag-async).
 
 mod command;
 mod entry_dialog;
 mod question;
 mod scope_page;
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+use pathmaster_core::diagnostics::{Diagnosis, Findings};
 use pathmaster_core::msgids::{self, fill};
 use pathmaster_core::normalize::has_variable_reference;
 use pathmaster_core::session::{EntryId, Operation, Scope, Session, UndoOutcome, ValueType};
+use pathmaster_core::thresholds::{self, Overlength};
 use pathmaster_platform::datadir::ReadOnlyReason;
+use pathmaster_platform::diagnostics::Worker;
 use pathmaster_platform::registry::ScopeKey;
 use wxdragon::prelude::*;
+use wxdragon::timer::Timer;
 
 use crate::announce::Announcer;
 use crate::catalog::{translate, translate_plural};
@@ -36,6 +44,11 @@ use crate::ui::scope_page::ScopePage;
 const TAB_INDEX_USER: i32 = 0;
 const TAB_INDEX_SYSTEM: i32 = 1;
 
+/// How often the UI thread looks for a finished pass (spec §7, FR-diag-async).
+/// The Timer runs **only while a pass is outstanding** — an application at rest
+/// wakes the UI thread for nothing.
+const DIAGNOSTIC_POLL_MS: i32 = 100;
+
 /// One Scope, everything the application holds of it: which Scope it is, the
 /// Session being edited, and the tab showing it. They travel together through
 /// every command, so they are one thing rather than three arrays indexed alike.
@@ -43,9 +56,26 @@ struct ScopeTab {
     scope: Scope,
     session: Rc<RefCell<Session>>,
     page: ScopePage,
+    /// What the last completed pass found here — the Status column's whole
+    /// content, and the issue count StatusBar field 0 reports. A derived view,
+    /// held beside the Session and never inside it (ADR-0001).
+    findings: RefCell<Findings>,
 }
 
 impl ScopeTab {
+    /// This Scope's Working Copy as the worker takes it: the Entries' raw text,
+    /// in list order. Cloned because the pass runs on another thread and a
+    /// Session is `Rc<RefCell<…>>` — the pass diagnoses the state it was handed,
+    /// not whatever the user has reached by the time it finishes.
+    fn raw_entries(&self) -> Vec<String> {
+        self.session
+            .borrow()
+            .entries()
+            .iter()
+            .map(|entry| entry.raw().to_string())
+            .collect()
+    }
+
     /// The registry value behind this tab. Built where it is used rather than
     /// held: a `ScopeKey` is a key path and a value name, not a handle.
     fn key(&self) -> ScopeKey {
@@ -91,6 +121,17 @@ struct App {
     status: StatusBar,
     tabs: [ScopeTab; 2],
     readonly: Option<ReadOnlyReason>,
+    /// The diagnostic pass, running on its own thread. Asked for a pass by
+    /// `request_pass`, drained by `timer` — never called into from anywhere
+    /// else, because widgets may only be touched from the UI thread.
+    worker: RefCell<Worker>,
+    /// Drains the worker while a pass is outstanding, and stops as soon as
+    /// none is (spec §7, FR-diag-async).
+    timer: Timer<Frame>,
+    /// The merged length the last pass measured — StatusBar field 1, which
+    /// keeps showing it until the next pass replaces it. `None` only before
+    /// the first pass has landed.
+    merged_length: Cell<Option<usize>>,
 }
 
 /// Builds and shows the main window over the two loaded Sessions, and hands it
@@ -127,11 +168,13 @@ pub fn build_main_window(
             scope: Scope::User,
             session: user,
             page: user_page,
+            findings: RefCell::new(Findings::default()),
         },
         ScopeTab {
             scope: Scope::System,
             session: system,
             page: system_page,
+            findings: RefCell::new(Findings::default()),
         },
     ];
     // The Backups tab is not a Scope; its Snapshot list arrives with the backups ticket.
@@ -156,8 +199,8 @@ pub fn build_main_window(
     root.set_sizer(root_sizer, true);
 
     // Command-only (NVDA+End), absent from the Tab order: field 0 general status,
-    // field 1 the passive merged-length field (spec §12 D10) — text arrives with
-    // diagnostics. No field is ever styled: text carries everything.
+    // field 1 the passive merged-length field (spec §12 D10). No field is ever
+    // styled: text carries everything.
     let status = frame.create_status_bar(2, 0, ID_ANY as Id, "");
     status.set_status_widths(&[-3, -2]);
 
@@ -169,12 +212,21 @@ pub fn build_main_window(
         status,
         tabs,
         readonly,
+        worker: RefCell::new(Worker::spawn()),
+        timer: Timer::new(&frame),
+        merged_length: Cell::new(None),
     });
     app.bind();
     app.sync();
 
     frame.centre();
     frame.show(true);
+
+    // The pass at load (spec §7, FR-diag-async). Asked for after show, so the
+    // first results land in a window that exists to receive them; until they
+    // do, every Status column is empty and StatusBar field 1 is blank — one
+    // Timer tick, in a window no keystroke has reached yet.
+    app.request_pass();
 
     // Announcement 7 (spec §10.1), once at startup: a Read-only Data run names
     // its reason. Fired after show so the Banner's window exists to speak from.
@@ -229,6 +281,63 @@ impl App {
             app.sync_for(active);
             event.base.skip(true);
         });
+
+        // The one place a finished pass crosses onto the UI thread (spec §7,
+        // FR-diag-async). There is exactly one Timer, which matters: wxdragon
+        // binds a timer's tick on its *owner*, so a second one on this frame
+        // would fire this handler too.
+        let app = Rc::clone(self);
+        self.timer.on_tick(move |_| app.collect_pass());
+    }
+
+    /// Asks for a pass over both Working Copies and starts the Timer that will
+    /// collect it.
+    ///
+    /// One pass covers both Scopes because they are diagnosed together: a
+    /// System edit changes what a User Entry is a duplicate of, so there is no
+    /// such thing as re-diagnosing one Scope alone (spec §7, FR-diag-duplicate).
+    fn request_pass(&self) {
+        // Named rather than indexed: System goes first because that is the
+        // order Windows merges the two Scopes in, and reversing the pair would
+        // silently move every cross-scope duplicate flag onto the other Scope.
+        let system = self.tab_of(Scope::System).raw_entries();
+        let user = self.tab_of(Scope::User).raw_entries();
+        self.worker.borrow_mut().request(system, user);
+        if !self.timer.is_running() {
+            self.timer.start(DIAGNOSTIC_POLL_MS, false);
+        }
+    }
+
+    /// The Timer's tick: take a finished pass if one has landed, and stop the
+    /// Timer once nothing is outstanding — an application at rest does not
+    /// wake its UI thread ten times a second.
+    fn collect_pass(&self) {
+        let landed = self.worker.borrow_mut().take();
+        if let Some(diagnosis) = landed {
+            self.apply_pass(&diagnosis);
+        }
+        if !self.worker.borrow().outstanding() {
+            self.timer.stop();
+        }
+    }
+
+    /// Puts a completed pass on screen: both Status columns, then both
+    /// StatusBar fields.
+    ///
+    /// The lists are **not** rebuilt — only their Status column is written —
+    /// because a pass lands on its own schedule, and rebuilding would clear the
+    /// focused row out from under whoever is arrowing through it. Both tabs are
+    /// written, not just the active one: the tab the user is not looking at was
+    /// diagnosed by the same pass.
+    fn apply_pass(&self, diagnosis: &Diagnosis) {
+        for tab in &self.tabs {
+            let session = tab.session.borrow();
+            let findings = Findings::of(session.entries(), diagnosis.scope(tab.scope));
+            tab.page.render_status(&session, &findings);
+            *tab.findings.borrow_mut() = findings;
+        }
+        self.merged_length.set(Some(diagnosis.merged_length()));
+        self.sync();
     }
 
     /// The one door every command comes through.
@@ -430,20 +539,35 @@ impl App {
         )
     }
 
-    /// Redraws the Scope, lands focus, and points every control at the state
-    /// that now holds — the tail of every operation, so no screen can show one
-    /// Working Copy while a menu reads another.
+    /// Redraws the Scope, lands focus, points every control at the state that
+    /// now holds, and asks for a fresh pass — the tail of every operation, so
+    /// no screen can show one Working Copy while a menu reads another.
+    ///
+    /// The redraw carries the *last* pass's findings, read by Entry id: a row
+    /// that only moved keeps its Status words, and the one whose text just
+    /// changed shows none until the new pass lands (spec §7, FR-diag-async).
     fn after_edit(&self, tab: &ScopeTab, row: Option<usize>) {
         {
             let session = tab.session.borrow();
-            tab.page.render(&session, row);
+            tab.page.render(&session, &tab.findings.borrow(), row);
         }
         self.sync();
+        self.request_pass();
     }
 
     /// The Scope tab the notebook is showing; the Backups tab is not one.
     fn active_tab(&self) -> Option<&ScopeTab> {
         self.tab_at(Some(self.notebook.selection()))
+    }
+
+    /// The tab showing `scope`. Both Scopes have exactly one tab each, which
+    /// is what makes this total — and what lets the callers that care about
+    /// *which* Scope they mean say so by name rather than by array position.
+    fn tab_of(&self, scope: Scope) -> &ScopeTab {
+        self.tabs
+            .iter()
+            .find(|tab| tab.scope == scope)
+            .expect("every Scope has a tab")
     }
 
     /// The Scope tab at a notebook page index, if that page is a Scope at all.
@@ -469,10 +593,16 @@ impl App {
         for tab in &self.tabs {
             tab.page.sync_buttons(&tab.session.borrow());
         }
-        let user = self.tabs[0].session.borrow();
-        let system = self.tabs[1].session.borrow();
+        self.status.set_status_text(
+            &general_status(
+                self.tab_of(Scope::User),
+                self.tab_of(Scope::System),
+                self.readonly.as_ref(),
+            ),
+            0,
+        );
         self.status
-            .set_status_text(&general_status(&user, &system, self.readonly.as_ref()), 0);
+            .set_status_text(&merged_length_text(self.merged_length.get()), 1);
     }
 }
 
@@ -534,16 +664,68 @@ fn readonly_text(reason: &ReadOnlyReason) -> String {
     )
 }
 
-/// StatusBar field 0, the general status (spec §12): the two entry counts —
-/// issue counts join with the diagnostics ticket — or, in Read-only Data, the
-/// mode and its reason in their place.
-fn general_status(user: &Session, system: &Session, readonly: Option<&ReadOnlyReason>) -> String {
+/// StatusBar field 0, the general status (spec §12): each Scope's entry count
+/// and the issues the last pass found there — or, in Read-only Data, the mode
+/// and its reason in their place.
+///
+/// User first, then System: this field is read on demand as one sentence
+/// (`NVDA+End`), and the order is the one the tabs are in, not the runtime
+/// order a pass evaluates them in.
+fn general_status(user: &ScopeTab, system: &ScopeTab, readonly: Option<&ReadOnlyReason>) -> String {
     match readonly {
         Some(reason) => readonly_text(reason),
-        None => format!(
-            "{} | {}",
-            entry_count_text(user.scope(), user.entries().len()),
-            entry_count_text(system.scope(), system.entries().len()),
-        ),
+        None => format!("{} | {}", scope_status(user), scope_status(system)),
     }
+}
+
+/// One Scope's half of that field: how many Entries it holds now, and how many
+/// findings the last pass made. The two numbers answer to different clocks —
+/// the count is the screen's, the issues are the last pass's — and the second
+/// catches up one Timer tick later.
+fn scope_status(tab: &ScopeTab) -> String {
+    let entries = entry_count_text(tab.scope, tab.session.borrow().entries().len());
+    entries + &issue_count_text(tab.findings.borrow().issue_count())
+}
+
+/// The issue half, a suffix because one gettext lookup selects on one number
+/// and this line carries two. Zero is shown like any other count: the field is
+/// a fixed-shape readout spoken as one sentence, and the Status column — where
+/// "never OK" applies — is a different surface.
+fn issue_count_text(count: usize) -> String {
+    fill(
+        &translate_plural(
+            msgids::ISSUES_SUFFIX,
+            msgids::ISSUES_SUFFIX_PLURAL,
+            count as u32,
+        ),
+        &[("m", &count.to_string())],
+    )
+}
+
+/// StatusBar field 1 (spec §12, FR-diag-overlength): the merged length always,
+/// with the `cmd.exe` warning appended past 8,191.
+///
+/// Over-length lives here and nowhere else — never in the Status column, never
+/// an Announcement — because no Entry is at fault for a length that only exists
+/// once both Scopes are merged. Empty only before the first pass has landed:
+/// the length is measured by the pass, and inventing a second place to compute
+/// it would be a second answer to the same question.
+fn merged_length_text(length: Option<usize>) -> String {
+    let Some(length) = length else {
+        return String::new();
+    };
+    let mut text = fill(
+        &translate_plural(
+            msgids::MERGED_LENGTH,
+            msgids::MERGED_LENGTH_PLURAL,
+            length as u32,
+        ),
+        &[("n", &length.to_string())],
+    );
+    // Past the first threshold, which is the one this field names. The hard cap
+    // is past it too, and has nothing further to say here — it speaks at Apply.
+    if thresholds::classify(length) != Overlength::Within {
+        text.push_str(&translate(msgids::MERGED_LENGTH_EXCEEDS));
+    }
+    text
 }

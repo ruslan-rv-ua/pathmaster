@@ -89,6 +89,51 @@ msgstr "папка даних недоступна для запису"
 msgid "Settings could not be read — defaults are in use"
 msgstr "Не вдалося прочитати налаштування — використовуються типові значення"
 
+#. Status column word: the entry's path does not name an existing directory.
+#. One word, never a sentence — NVDA reads the column on every arrow key.
+msgid "Missing"
+msgstr "Відсутній"
+
+#. Status column word: the entry is not fully qualified, so what it names
+#. depends on the current directory.
+msgid "Relative"
+msgstr "Відносний"
+
+#. Status column word: the entry contains a double quote.
+msgid "Quoted"
+msgstr "У лапках"
+
+#. Status column word: an earlier entry, in this scope or in System, means the
+#. same path.
+msgid "Duplicate"
+msgstr "Дублікат"
+
+#. Status column word: the entry is zero-length or whitespace only.
+msgid "Empty"
+msgstr "Порожній"
+
+#. Status bar, appended to each scope's entry count: how many issues the last
+#. diagnostic pass found there. Keep the leading space and the parentheses.
+msgid " ({m} issue)"
+msgid_plural " ({m} issues)"
+msgstr[0] " ({m} проблема)"
+msgstr[1] " ({m} проблеми)"
+msgstr[2] " ({m} проблем)"
+
+#. Status bar, right field: the length of both scopes merged, as Windows will
+#. materialise it. Shown always, never spoken as an announcement.
+msgid "Merged PATH: {n} char"
+msgid_plural "Merged PATH: {n} chars"
+msgstr[0] "Об’єднаний PATH: {n} символ"
+msgstr[1] "Об’єднаний PATH: {n} символи"
+msgstr[2] "Об’єднаний PATH: {n} символів"
+
+#. Status bar, appended to the length above once it passes 8,191. The number is
+#. a measured Windows limit and must survive translation; localise its digit
+#. grouping if your language groups differently.
+msgid " — exceeds 8,191 (cmd.exe limit)"
+msgstr " — перевищує 8 191 (ліміт cmd.exe)"
+
 #. Menu bar title. The mnemonic letter is Latin in every language.
 msgid "&Edit"
 msgstr "Редагування(&E)"

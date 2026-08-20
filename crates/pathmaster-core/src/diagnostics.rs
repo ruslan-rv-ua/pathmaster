@@ -27,7 +27,7 @@ use std::collections::HashSet;
 
 use crate::normalize::{expand, strip_quotes, Environment, Normalised};
 use crate::path::join;
-use crate::session::Scope;
+use crate::session::{Entry, EntryId, Scope};
 use crate::thresholds::{self, Overlength};
 
 /// One diagnostic finding about one Entry (spec §7) — five of the six types.
@@ -62,6 +62,18 @@ impl Issue {
         Issue::Duplicate,
         Issue::Empty,
     ];
+
+    /// The Catalogue string the Status column shows for this type. One word,
+    /// and never a severity prefix or an icon (spec §7, FR-diag-status).
+    pub fn catalogue_msgid(&self) -> &'static str {
+        match self {
+            Issue::Missing => crate::msgids::ISSUE_MISSING,
+            Issue::Relative => crate::msgids::ISSUE_RELATIVE,
+            Issue::Quoted => crate::msgids::ISSUE_QUOTED,
+            Issue::Duplicate => crate::msgids::ISSUE_DUPLICATE,
+            Issue::Empty => crate::msgids::ISSUE_EMPTY,
+        }
+    }
 }
 
 /// Where a path's root lives.
@@ -131,6 +143,77 @@ impl ScopeDiagnosis {
     /// Every finding in this Scope — three on one Entry counts three.
     pub fn issue_count(&self) -> usize {
         self.entries.iter().map(Vec::len).sum()
+    }
+}
+
+/// One Scope's completed pass, held against a Working Copy that may already
+/// have moved on — what the Status column reads between an edit and the next
+/// pass landing (spec §7, FR-diag-async).
+///
+/// A [`ScopeDiagnosis`] is indexed by row, and a row is exactly what an edit
+/// changes. So the pass is kept **by Entry id, beside the text it ran over**,
+/// and both must match before a finding is shown: an Entry that only moved
+/// keeps its Issues, and an Entry whose text has changed carries none until
+/// the new pass lands. The alternative — reading the old pass by row — would
+/// put a stale "Missing" on the path the user has just corrected, in the one
+/// window where focus is landing on it and NVDA is reading it aloud.
+///
+/// Nothing here is ever written back into a Working Copy or a Checkpoint: this
+/// is the derived view, held for the length of one Timer tick (ADR-0001).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Findings {
+    entries: Vec<Finding>,
+}
+
+/// What the pass found about one Entry, and the two facts that say whether it
+/// still describes it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Finding {
+    id: EntryId,
+    raw: String,
+    issues: Vec<Issue>,
+}
+
+impl Findings {
+    /// Pairs a completed pass with the Entries it ran over, in the order it ran
+    /// over them. A pass and a Working Copy of different lengths can only be a
+    /// pass that has already been overtaken; the shorter of the two wins, and
+    /// the Entries past it read as unseen.
+    pub fn of(entries: &[Entry], diagnosis: &ScopeDiagnosis) -> Findings {
+        Findings {
+            entries: entries
+                .iter()
+                .take(diagnosis.len())
+                .enumerate()
+                .map(|(index, entry)| Finding {
+                    id: entry.id(),
+                    raw: entry.raw().to_string(),
+                    issues: diagnosis.issues(index).to_vec(),
+                })
+                .collect(),
+        }
+    }
+
+    /// What the last pass found about `entry` — and nothing at all for an Entry
+    /// it never saw, or one whose text has changed since it ran.
+    pub fn issues(&self, entry: &Entry) -> &[Issue] {
+        self.entries
+            .iter()
+            .find(|finding| finding.id == entry.id())
+            .filter(|finding| finding.raw == entry.raw())
+            .map_or(&[], |finding| &finding.issues)
+    }
+
+    /// Every finding the last pass made — three on one Entry counts three.
+    ///
+    /// This is the pass's own count, not the screen's: StatusBar field 0 is
+    /// updated after every pass (spec §12), so an Entry edited since still
+    /// counts here while its column waits for the next one.
+    pub fn issue_count(&self) -> usize {
+        self.entries
+            .iter()
+            .map(|finding| finding.issues.len())
+            .sum()
     }
 }
 
