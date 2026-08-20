@@ -42,9 +42,13 @@ exactly as a failure does: to the close-confirm the consequence is identical, an
 
 ## Consequences
 
-- **The window gains state it did not have**: the last-read `RawValue` per Scope, the `Logger`, the
-  backup budget, and the Data Directory. They arrive as one struct of the run's facts, built in `main`,
-  rather than as four more positional parameters — tickets 15 and 17 add two more.
+- **The window gains state it did not have**: the last-read `RawValue` per Scope, the `Logger`, the Data
+  Directory, and the current `SettingsFile`. The first three arrive as one struct of the Run's facts,
+  built in `main`, rather than as positional parameters — tickets 15 and 17 add two more. The backup
+  budget is deliberately *not* among the Run's facts, though an earlier draft of this ADR listed it
+  there: `maxBackups` changes while the application runs (impl ticket 16), so an Apply Run reads it from
+  the `SettingsFile` the window holds
+  ([ADR-0010](0010-run-properties-decided-in-one-place.md)).
 - **The last-read `RawValue` cannot live in the Session.** External change is detected by comparing
   `(vtype, bytes)` (spec §4); decoding stops at the first NUL, so a decoded comparison would miss a real
   change. `RawValue` is a `pathmaster-platform` type that `Session` may not reach without reversing the

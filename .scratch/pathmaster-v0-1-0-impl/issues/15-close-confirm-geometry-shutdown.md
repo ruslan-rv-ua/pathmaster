@@ -4,7 +4,7 @@
 
 **What to build:** Closing the application is safe and remembered: dirty Sessions raise one dialog naming them, Save routes through the full Apply path with partial failure aborting the close, and a clean shutdown persists window geometry and leaves its log line. Reopening restores the window where it was, clamped to real monitors.
 
-**Blocked by:** 07 (settings write path), 13 (Save goes through Apply).
+**Blocked by:** 07 (settings write path), 13 (Save goes through Apply), [20](20-startup-decisions-module.md) (so geometry clamping lands in a tested module).
 
 **Status:** ready-for-agent
 

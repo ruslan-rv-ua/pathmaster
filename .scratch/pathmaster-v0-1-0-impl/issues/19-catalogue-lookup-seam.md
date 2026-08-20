@@ -23,6 +23,7 @@
 - [ ] The wx smoke test runs **through** the wx adapter rather than past it, and asserts one composed Announcement in real Ukrainian — the undo line with its suffix. It remains the only test that links wxWidgets
 - [ ] No new dependency: `gettext-ng`, `gettext-rs` and a hand-rolled plural evaluator were all considered and rejected ([ADR-0009](../../../docs/adr/0009-catalogue-lookup-is-injected.md))
 - [ ] No Catalogue text changes and no `.po` changes; the completeness gate passes unchanged. This ticket moves code, not strings
+- [ ] Spec §17's `pathmaster-core` module list gains this ticket's Catalogue module
 - [ ] Deferred, not built here: `Command::menu_label` (which appends the accelerator, so it *is* composition) and `Command::enabled` (pure logic over a core type, in the untested crate) both stay in the binary — moving them means moving `Command`, which is separate work
 
 ## Comments

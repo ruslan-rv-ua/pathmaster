@@ -31,7 +31,8 @@ The spec's own requirements end there. These seven are [ADR-0008](../../../docs/
 - [ ] Announcements 2–3 and the taxonomy's texts enter the Catalogue with Ukrainian; the completeness gate passes
 - [ ] §9's fifth row is implemented: a re-read that fails takes the registry-write row's text
 - [ ] `Command::Apply` with a menu home and Ctrl+S (ADR-0004: a shortcut can only live on a menu item's label), disabled while clean
-- [ ] The window holds what the run needs: the run's facts — `Logger`, Data Directory, backup budget — as one struct built in `main`, and the last-read `RawValue` per Scope in `ScopeTab`, replaced from what each run hands back
+- [ ] The window holds what the run needs: the Run's facts — `Logger` and Data Directory — as one struct built in `main`, and the last-read `RawValue` per Scope in `ScopeTab`, replaced from what each run hands back. The **backup budget is not one of them**: `maxBackups` changes while the application runs (ticket 16), so the window holds the current `SettingsFile` and each Apply Run reads the budget from it ([ADR-0010](../../../docs/adr/0010-run-properties-decided-in-one-place.md))
+- [ ] Spec §17's `pathmaster-platform` module list gains this ticket's Snapshot-files module
 - [ ] The over-length gate reads a length the run computes itself, from both Working Copies by spec §7's formula through the `Environment` port — never the last `Diagnosis`, which lags by a Timer tick and would be a second definition of the number the StatusBar already speaks
 - [ ] Noted, not built here: once §9's fifth row exists, `refresh` moves onto it and stops failing silently (spec §5, FR-refresh)
 

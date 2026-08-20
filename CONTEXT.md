@@ -6,6 +6,18 @@ concepts *are*, not how they are implemented.
 
 ## Language
 
+### The run
+
+**Run**:
+One execution of the application, from launch to exit. A handful of things are decided once at its start
+and never change while it lasts — where the Data Directory is and whether it can be written, whether the
+process is elevated, and the Interface Language — and those are properties of the Run rather than of a
+Scope or of anything the user is editing. A setting the user can change while the application is running
+is not one of them, however much it reads like configuration
+([ADR-0010](docs/adr/0010-run-properties-decided-in-one-place.md)).
+_Avoid_: Session (that is one Scope's editing state), Startup (that is when a Run's properties are
+decided, not the Run itself), Launch
+
 ### The values being edited
 
 **Scope**:
