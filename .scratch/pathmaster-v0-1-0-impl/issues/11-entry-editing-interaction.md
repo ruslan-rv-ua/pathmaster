@@ -17,7 +17,7 @@
 - [x] Undo/Redo (Ctrl+Z / Ctrl+Y) restore the Checkpoint, move focus to the hinted Entry, and fire Announcement 4 ("Undone: {operation}" / "Redone: {operation}") with the fixed operation names, distinct from button labels; the ", unsaved changes" suffix rides an undo across the Apply barrier
 - [x] Cancel: confirmation ("Discard changes?" [Yes] [No]) only while dirty, disabled while clean, is itself a Checkpoint, announces "Changes discarded"
 - [x] Refresh (F5): active Scope only, confirmation while dirty, clears that Session's stacks, announces the entry count; focus same id / nearest neighbour / list
-- [x] Edit menu per §15 with accelerators appended in code; per-Scope buttons Add, Edit, Delete, Move Up, Move Down; every control and menu item disabled (and reading as disabled) on a non-writable Session; Apply/Cancel disabled while clean
+- [x] Edit menu per §15 with accelerators appended in code; per-Scope buttons Add, Edit, Delete, Move Up, Move Down; every control and menu item disabled (and reading as disabled) on a non-writable Session; Apply/Cancel disabled while clean — **with one exception settled in review: Refresh stays live, because it re-reads rather than edits (see Comments)**
 - [x] All new strings in the Catalogue with Ukrainian translations; the completeness gate passes
 
 ## Comments
@@ -39,10 +39,12 @@ correctly. Nothing writes the registry; Apply is ticket 13.
 - `session::Operation` — a Checkpoint now carries the name of what it stands for, which is the one
   thing focus landing on a row cannot say. `catalogue_msgid()` names each one's string, and a test
   holds the seven to seven distinct registered msgids.
-- `UndoOutcome::crossed_apply` — the ", unsaved changes" suffix, computed the way dirtiness itself
-  is: a comparison of before and after, never a record that an Apply happened. `Session::refresh`
-  likewise now answers where focus lands, because the index it needs is gone by the time the
-  caller could ask.
+- `UndoOutcome::crossed_apply` — the ", unsaved changes" suffix. A Checkpoint records how many
+  Applies its Session had seen when it was taken, and the suffix asks two questions: did this
+  Checkpoint predate the last Apply, and are there unsaved changes now. (The first draft compared
+  dirtiness before and after; see the review section — that fires without an Apply.)
+  `Session::refresh` likewise now answers where focus lands, because the index it needs is gone by
+  the time the caller could ask.
 
 `Session::batch` changed shape while it was here: it takes the operation name, and its closure
 *returns* the focus hint rather than the caller predicting it — an Add's new Entry does not exist
@@ -74,10 +76,8 @@ twice needs a Tab back; the charter says keyboard first.
    змін»). Spec §10.1 and §15 amended to say so. "Add entry" and "Edit entry" *do* double as the §6
    dialog titles — identical English for one meaning is what ADR-0004 asks for, and the capital
    they keep for the title costs nothing audibly.
-2. **A non-writable Session disables the whole Edit menu, Refresh included.** §5 says "disables
-   every editing action" and Refresh is not one; the ticket says "every control and menu item".
-   Taken literally, so an unelevated System tab reads as uneditable throughout rather than offering
-   one live item. Recorded in §15.
+2. **A non-writable Session disables every Edit menu item except Refresh** — see the review
+   section below, which reversed this: Refresh re-reads rather than edits. Recorded in §15.
 3. **A re-read that fails at Refresh changes nothing and says nothing.** An unreadable value is not
    an Absent one (§4), and blanking a Scope over a transient failure is the one unrecoverable thing
    this screen can do. The Announcement catalogue is closed at seven, so there is nothing to speak;
@@ -85,8 +85,9 @@ twice needs a Tab back; the charter says keyboard first.
    arrives with Apply along with the logger the UI does not yet hold.
 4. **The negative button holds the default, the initial focus and Escape** — in the confirmations
    and in convert-or-keep alike. Found by measurement, not by reasoning: with only the default set,
-   Windows still gave Enter to the *focused* button, which was [Yes]. Now Enter and Escape agree,
-   and both land on the outcome that changes least.
+   Windows still gave Enter to the *focused* button, which was [Yes]. Now Enter and Escape agree.
+   In the confirmations that button changes nothing; in convert-or-keep *both* outcomes commit by
+   design, so it is the one that at least leaves the Value Type alone.
 5. **Browse seeds literally.** `%JAVA_HOME%\bin` names no directory to `is_dir`, so the picker
    opens at the system default. Expanding it would start a second pass over the process environment
    in a folder picker, where diagnostics owns the first (§7).
@@ -98,5 +99,45 @@ comments, and the completeness gate passes. `wxDirDialog` gets a title of ours (
 left unset it speaks wx's built-in English in a Ukrainian run.
 
 Release Checklist gains B4 and B5 for the two dialogs this ticket added that had no step. The GUI
-itself stays Release-Checklist territory (ADR-0007): 299 automated tests hold the rules, and none
+itself stays Release-Checklist territory (ADR-0007): 300 automated tests hold the rules, and none
 of them links wx.
+
+### Code review, and what it changed
+
+Reviewed on both axes (standards and spec) before the ticket closed. **Two real bugs, both found by
+reading rather than by running, and neither of which any test would have caught:**
+
+1. **`focus_row` could never see an empty list, and left the user in silence when it was.**
+   `ListCtrl::get_item_count()` answers an `i32`, so `0 - 1` is `Some(-1)`, not `None` — the guard
+   was unreachable and the clamp handed comctl32 `-1`, its index for *every* row. Harmless only
+   because the count was zero. The real cost was the branch underneath it: deleting the last Entry,
+   or refreshing a Scope to none, left keyboard focus on the button that did it, and this
+   application says nothing except by putting focus on a row. **The list now takes the focus whether
+   or not a row survives to land on** — which is where FR-refresh's "else the list" ends. Verified
+   live: after deleting every Entry, `GetGUIThreadInfo` reports `SysListView32` focused.
+
+2. **The ", unsaved changes" suffix fired without an Apply.** It compared dirtiness before and after
+   — but dirtiness is a comparison of *content*, so an Add and its Delete leave a clean Session with
+   two Checkpoints behind it, and undoing one of those re-dirties a Session no Apply has ever
+   touched. A Checkpoint now records how many Applies its Session had seen when it was taken, and
+   the suffix asks two questions: did this Checkpoint predate the last Apply, and are there unsaved
+   changes now. That is a count of Applies, not a dirty flag — the thing ADR-0001 rules out is a
+   *flag standing in for the comparison*, and this stands in for nothing.
+
+**One decision reversed, and it was the reviewer's to win.** F5 was disabled on a non-writable
+Session, on the ticket's "every control and menu item disabled". §5 disables "every editing action"
+and Refresh is not one; `CONTEXT.md` promises that Read-only Data "still reads, diagnoses and
+lists"; and an unelevated System tab would otherwise never see an external change without a restart.
+**Refresh now stays live on every Scope**, and §15's amendment says so. Verified live: on the
+unelevated System tab every Edit item is greyed except «Оновити(F)».
+
+Three shape fixes in the same pass, all from the standards axis: `scope: usize` threaded through
+fourteen methods into two parallel arrays became one `ScopeTab { scope, session, page }` — which
+also retired a `scope_key()` whose `else` branch meant "System" without checking; the flag arguments
+(`move_entry(scope, true)`) now carry the `Command` that already distinguished them; and the
+four-line "borrow, ask for the focused Entry, drop the borrow" preamble became one method, because
+that preamble *is* the rule that keeps the modal dialogs from panicking and it should live in one
+place. Two naming corrections: `MENU_BAR`/`MENU_EDIT` are mnemonic group keys, never translated, so
+they are `MENU_GROUP_*` now and say so; and «Відновлення з резервної копії» became «Відновлення
+знімка», because the glossary reserves «резервна копія» for the act and the directory, never the
+file.

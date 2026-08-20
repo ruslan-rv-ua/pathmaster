@@ -261,6 +261,8 @@ msgstr "Відхилення змін"
 msgid "Change value type"
 msgstr "Зміна типу значення"
 
-#. Operation name: a saved Snapshot was loaded into the working copy.
+#. Operation name: a saved Snapshot was loaded into the working copy. "Знімок",
+#. not "резервна копія" — the glossary reserves the latter for the act of
+#. taking one and for the directory they live in, never for the file.
 msgid "Restore snapshot"
-msgstr "Відновлення з резервної копії"
+msgstr "Відновлення знімка"

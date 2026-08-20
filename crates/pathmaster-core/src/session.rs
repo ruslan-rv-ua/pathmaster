@@ -98,6 +98,10 @@ struct Checkpoint {
     value_type: ValueType,
     focus: Option<EntryId>,
     operation: Operation,
+    /// How many Applies this Session had seen when the Checkpoint was taken.
+    /// Restoring one whose count is behind the Session's *is* the crossing of
+    /// the Apply barrier — see [`UndoOutcome::crossed_apply`].
+    applied: u64,
 }
 
 /// What an undo or redo did: where focus should go, what to call what just
@@ -108,11 +112,17 @@ pub struct UndoOutcome {
     pub focus: Option<EntryId>,
     /// The operation the restored Checkpoint stands for.
     pub operation: Operation,
-    /// Whether this step re-dirtied a Session that was clean — Apply is a
-    /// barrier, not a flush, so undoing past one moves the Working Copy alone
-    /// and the Announcement gains its ", unsaved changes" suffix (spec §10.1
-    /// item 5). Like dirtiness itself this is a comparison of before and
-    /// after, never a record that an Apply happened.
+    /// Whether this step took the Working Copy back across an Apply and left
+    /// unsaved changes behind it — the ", unsaved changes" suffix (spec §10.1
+    /// item 5). Apply is a barrier, not a flush, so undoing past one moves the
+    /// Working Copy alone.
+    ///
+    /// Two questions, both of which must answer yes: was the restored
+    /// Checkpoint taken before the last Apply, and is the Session dirty now.
+    /// The first cannot be a comparison of dirtiness before and after —
+    /// dirtiness is a comparison of content, so an Add and its Delete leave a
+    /// clean Session with two Checkpoints behind it, and undoing one of those
+    /// re-dirties a Session no Apply has ever touched.
     pub crossed_apply: bool,
 }
 
@@ -130,6 +140,10 @@ pub struct Session {
     undo: Vec<Checkpoint>,
     redo: Vec<Checkpoint>,
     next_id: u64,
+    /// How many Applies this Session has recorded. Not a dirty flag and never
+    /// asked whether anything changed: it is the count that tells a Checkpoint
+    /// taken before the last Apply from one taken after it.
+    applied: u64,
 }
 
 impl Session {
@@ -153,6 +167,7 @@ impl Session {
             undo: Vec::new(),
             redo: Vec::new(),
             next_id,
+            applied: 0,
         }
     }
 
@@ -273,6 +288,7 @@ impl Session {
     pub fn mark_applied(&mut self) {
         self.baseline = self.entries.clone();
         self.baseline_value_type = self.value_type;
+        self.applied += 1;
     }
 
     /// Discards unsaved changes, returning the Working Copy to the Baseline.
@@ -404,6 +420,7 @@ impl Session {
             value_type: self.value_type,
             focus,
             operation,
+            applied: self.applied,
         }
     }
 
@@ -441,15 +458,15 @@ impl Session {
     }
 
     fn restore_checkpoint(&mut self, checkpoint: Checkpoint) -> Option<UndoOutcome> {
-        let was_dirty = self.is_dirty();
         let focus = self.landing_focus(&checkpoint);
         let operation = checkpoint.operation;
+        let predates_last_apply = checkpoint.applied < self.applied;
         self.entries = checkpoint.entries;
         self.value_type = checkpoint.value_type;
         Some(UndoOutcome {
             focus,
             operation,
-            crossed_apply: !was_dirty && self.is_dirty(),
+            crossed_apply: predates_last_apply && self.is_dirty(),
         })
     }
 

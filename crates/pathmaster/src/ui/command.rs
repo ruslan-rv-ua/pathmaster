@@ -124,16 +124,18 @@ impl Command {
     /// Whether this command is available over `session` — `None` being the
     /// Backups tab, which is not a Scope and offers no editing at all.
     ///
-    /// A non-writable Session closes the whole menu, not merely the commands
-    /// that write: a Scope the user cannot edit reads as one, and a disabled
-    /// item is how a screen reader is told so (spec §5, §15).
+    /// A non-writable Session closes every command that edits, and a disabled
+    /// item is how a screen reader is told so (spec §5, §15). **Refresh is not
+    /// one of them**: it re-reads, and a Scope the user cannot edit is still
+    /// one they can look at — Read-only Data "still reads, diagnoses and
+    /// lists", and an unelevated System tab would otherwise never see an
+    /// external change without a restart.
     pub fn enabled(self, session: Option<&Session>) -> bool {
         let Some(session) = session else { return false };
-        if !session.writable() {
-            return false;
-        }
         match self {
-            Command::Add | Command::Refresh => true,
+            Command::Refresh => true,
+            _ if !session.writable() => false,
+            Command::Add => true,
             Command::Edit | Command::Delete | Command::MoveUp | Command::MoveDown => {
                 !session.entries().is_empty()
             }

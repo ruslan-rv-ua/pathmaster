@@ -36,23 +36,60 @@ use crate::ui::scope_page::ScopePage;
 const TAB_INDEX_USER: i32 = 0;
 const TAB_INDEX_SYSTEM: i32 = 1;
 
-/// The window and everything an editing command needs to reach: the two
-/// Sessions, the two tabs that show them, the menu whose enabled states
-/// follow the active one, and the single voice.
+/// One Scope, everything the application holds of it: which Scope it is, the
+/// Session being edited, and the tab showing it. They travel together through
+/// every command, so they are one thing rather than three arrays indexed alike.
+struct ScopeTab {
+    scope: Scope,
+    session: Rc<RefCell<Session>>,
+    page: ScopePage,
+}
+
+impl ScopeTab {
+    /// The registry value behind this tab. Built where it is used rather than
+    /// held: a `ScopeKey` is a key path and a value name, not a handle.
+    fn key(&self) -> ScopeKey {
+        match self.scope {
+            Scope::User => ScopeKey::user(),
+            Scope::System => ScopeKey::system(),
+        }
+    }
+
+    /// The Entry the user is on: its row and its id.
+    ///
+    /// The borrow is taken and dropped inside this one function on purpose.
+    /// Every command asks this question immediately before opening a modal
+    /// dialog, and a dialog runs its own event loop — a handler firing inside
+    /// it would find the Session still borrowed and panic. Having one place to
+    /// ask is what keeps that rule from being four places to remember.
+    fn focused_entry(&self) -> Option<(usize, EntryId)> {
+        self.page.focused_entry(&self.session.borrow())
+    }
+
+    /// The row `id` now stands at.
+    fn row_of(&self, id: EntryId) -> Option<usize> {
+        ScopePage::row_of(&self.session.borrow(), id)
+    }
+}
+
+/// The window and everything an editing command needs to reach: the two Scope
+/// tabs, the menu whose enabled states follow the active one, and the single
+/// voice.
 ///
-/// It rides an `Rc` into every event handler, which is why every command
-/// takes `&self`: the Sessions' interior mutability is the `RefCell`'s, and
-/// no borrow is ever held across a modal dialog — a dialog runs its own event
-/// loop, and a handler firing inside it would find the Session already
-/// borrowed.
+/// It rides an `Rc` into every event handler, which is why every command takes
+/// `&self`: the Sessions' interior mutability is the `RefCell`'s, and **no
+/// borrow is ever held across a call that can run someone else's code** — a
+/// modal dialog runs its own event loop, and `ScopePage::render` fires the
+/// list's own events synchronously. Only `on_item_activated` is bound to a
+/// list, so `render` cannot re-enter today; the rule is written down because
+/// the next binding is what would break it.
 struct App {
     frame: Frame,
     notebook: Notebook,
     menu: MenuBar,
     announcer: Announcer,
     status: StatusBar,
-    pages: [ScopePage; 2],
-    sessions: [Rc<RefCell<Session>>; 2],
+    tabs: [ScopeTab; 2],
     readonly: Option<ReadOnlyReason>,
 }
 
@@ -83,14 +120,34 @@ pub fn build_main_window(
     banner.set_min_size(Size::new(-1, banner.get_char_height()));
 
     let notebook = Notebook::builder(&root).build();
-    let pages = [
-        ScopePage::build(&notebook, &user.borrow()),
-        ScopePage::build(&notebook, &system.borrow()),
+    let user_page = ScopePage::build(&notebook, &user.borrow());
+    let system_page = ScopePage::build(&notebook, &system.borrow());
+    let tabs = [
+        ScopeTab {
+            scope: Scope::User,
+            session: user,
+            page: user_page,
+        },
+        ScopeTab {
+            scope: Scope::System,
+            session: system,
+            page: system_page,
+        },
     ];
     // The Backups tab is not a Scope; its Snapshot list arrives with the backups ticket.
     let backups_page = Panel::builder(&notebook).build();
-    notebook.add_page(&pages[0].panel, &translate(msgids::TAB_USER), true, None);
-    notebook.add_page(&pages[1].panel, &translate(msgids::TAB_SYSTEM), false, None);
+    notebook.add_page(
+        &tabs[0].page.panel,
+        &translate(msgids::TAB_USER),
+        true,
+        None,
+    );
+    notebook.add_page(
+        &tabs[1].page.panel,
+        &translate(msgids::TAB_SYSTEM),
+        false,
+        None,
+    );
     notebook.add_page(&backups_page, &translate(msgids::TAB_BACKUPS), false, None);
 
     let root_sizer = BoxSizer::builder(Orientation::Vertical).build();
@@ -110,8 +167,7 @@ pub fn build_main_window(
         menu: frame.get_menu_bar().expect("the menu bar was just set"),
         announcer: Announcer::new(banner),
         status,
-        pages,
-        sessions: [user, system],
+        tabs,
         readonly,
     });
     app.bind();
@@ -143,12 +199,14 @@ impl App {
             }
         });
 
-        for page in &self.pages {
+        for tab in &self.tabs {
             // Enter and double-click on a row: the list's own gesture for
             // "open this", which is the Edit dialog (spec §6, FR-edit-f2).
             let app = Rc::clone(self);
-            page.list.on_item_activated(move |_| app.run(Command::Edit));
-            for (command, button) in page.buttons() {
+            tab.page
+                .list
+                .on_item_activated(move |_| app.run(Command::Edit));
+            for (command, button) in tab.page.buttons() {
                 let app = Rc::clone(self);
                 let command = *command;
                 button.on_click(move |_| app.run(command));
@@ -162,12 +220,13 @@ impl App {
         self.notebook.on_page_changed(move |event| {
             // The selection the event carries, not the notebook's: on Windows
             // the widget has not caught up when this fires.
-            if let Some(scope) = scope_of(event.get_selection()) {
-                let session = app.sessions[scope].borrow();
+            let active = app.tab_at(event.get_selection());
+            if let Some(tab) = active {
+                let session = tab.session.borrow();
                 app.announcer
-                    .announce(&entry_count_text(session.scope(), session.entries().len()));
+                    .announce(&entry_count_text(tab.scope, session.entries().len()));
             }
-            app.sync_for(scope_of(event.get_selection()));
+            app.sync_for(active);
             event.base.skip(true);
         });
     }
@@ -178,23 +237,21 @@ impl App {
     /// fire against an enabled state set before the last operation, and the
     /// answer must be the same one the menu is showing.
     fn run(&self, command: Command) {
-        let Some(scope) = self.active_scope() else {
-            return;
-        };
-        let available = command.enabled(Some(&self.sessions[scope].borrow()));
+        let Some(tab) = self.active_tab() else { return };
+        let available = command.enabled(Some(&tab.session.borrow()));
         if !available {
             return;
         }
         match command {
-            Command::Add => self.add(scope),
-            Command::Edit => self.edit(scope),
-            Command::Delete => self.delete(scope),
-            Command::MoveUp => self.move_entry(scope, true),
-            Command::MoveDown => self.move_entry(scope, false),
-            Command::Undo => self.undo_redo(scope, false),
-            Command::Redo => self.undo_redo(scope, true),
-            Command::Cancel => self.cancel(scope),
-            Command::Refresh => self.refresh(scope),
+            Command::Add => self.add(tab),
+            Command::Edit => self.edit(tab),
+            Command::Delete => self.delete(tab),
+            // The direction is the command, so it travels as the command: a
+            // bare `true` at this call site would say nothing.
+            Command::MoveUp | Command::MoveDown => self.move_entry(tab, command),
+            Command::Undo | Command::Redo => self.undo_redo(tab, command),
+            Command::Cancel => self.cancel(tab),
+            Command::Refresh => self.refresh(tab),
         }
     }
 
@@ -202,15 +259,15 @@ impl App {
     /// — the lowest search precedence, which is the safe place for a path the
     /// user has not ranked (spec §6, FR-add-delete). Abandoning it leaves no
     /// Entry, no Checkpoint and no Issue behind.
-    fn add(&self, scope: usize) {
+    fn add(&self, tab: &ScopeTab) {
         let title = translate(msgids::DIALOG_ADD_ENTRY);
         let Some(text) = entry_dialog::ask_for_entry(&self.frame, &title, "") else {
             return;
         };
-        let convert = self.convert_or_keep(scope, &text);
+        let convert = self.convert_or_keep(tab, &text);
         let mut added = None;
         {
-            let mut session = self.sessions[scope].borrow_mut();
+            let mut session = tab.session.borrow_mut();
             if convert {
                 session.batch(Operation::ChangeValueType, |working| {
                     working.set_value_type(ValueType::RegExpandSz);
@@ -221,26 +278,22 @@ impl App {
                 added = session.add(&text);
             }
         }
-        self.after_edit(scope, added.and_then(|id| self.row_of(scope, id)));
+        self.after_edit(tab, added.and_then(|id| tab.row_of(id)));
     }
 
     /// Edit opens the same dialog over the focused Entry's raw text. Focus
     /// lands back on the edited row whatever the outcome (spec §6 D7).
-    fn edit(&self, scope: usize) {
-        let focused = {
-            let session = self.sessions[scope].borrow();
-            self.pages[scope]
-                .focused_entry(&session)
-                .map(|(row, id)| (id, session.entries()[row].raw().to_string()))
-        };
-        let Some((id, raw)) = focused else { return };
+    fn edit(&self, tab: &ScopeTab) {
+        let focused = tab.focused_entry();
+        let Some((row, id)) = focused else { return };
+        let raw = tab.session.borrow().entries()[row].raw().to_string();
         let title = translate(msgids::DIALOG_EDIT_ENTRY);
         let Some(text) = entry_dialog::ask_for_entry(&self.frame, &title, &raw) else {
             return;
         };
-        let convert = self.convert_or_keep(scope, &text);
+        let convert = self.convert_or_keep(tab, &text);
         {
-            let mut session = self.sessions[scope].borrow_mut();
+            let mut session = tab.session.borrow_mut();
             if convert {
                 session.batch(Operation::ChangeValueType, |working| {
                     working.set_value_type(ValueType::RegExpandSz);
@@ -251,54 +304,50 @@ impl App {
                 session.edit(id, &text);
             }
         }
-        self.after_edit(scope, self.row_of(scope, id));
+        self.after_edit(tab, tab.row_of(id));
     }
 
     /// Delete has no confirmation — undo is the safety net (spec §6 D4).
     /// Focus stays at the same index, clamped to the new last row, and the row
     /// NVDA reads there is the whole of the feedback.
-    fn delete(&self, scope: usize) {
-        let focused = {
-            let session = self.sessions[scope].borrow();
-            self.pages[scope].focused_entry(&session)
+    fn delete(&self, tab: &ScopeTab) {
+        let Some((row, id)) = tab.focused_entry() else {
+            return;
         };
-        let Some((row, id)) = focused else { return };
-        if !self.sessions[scope].borrow_mut().delete(id) {
+        if !tab.session.borrow_mut().delete(id) {
             return;
         }
-        self.after_edit(scope, Some(row));
+        self.after_edit(tab, Some(row));
     }
 
     /// One Move Up or Move Down, one Checkpoint. Moving the first Entry up is
     /// not an operation and changes nothing, including focus.
-    fn move_entry(&self, scope: usize, up: bool) {
-        let focused = {
-            let session = self.sessions[scope].borrow();
-            self.pages[scope].focused_entry(&session)
+    fn move_entry(&self, tab: &ScopeTab, command: Command) {
+        let Some((_, id)) = tab.focused_entry() else {
+            return;
         };
-        let Some((_, id)) = focused else { return };
         let moved = {
-            let mut session = self.sessions[scope].borrow_mut();
-            if up {
-                session.move_up(id)
-            } else {
-                session.move_down(id)
+            let mut session = tab.session.borrow_mut();
+            match command {
+                Command::MoveUp => session.move_up(id),
+                _ => session.move_down(id),
             }
         };
         if !moved {
             return;
         }
-        self.after_edit(scope, self.row_of(scope, id));
+        self.after_edit(tab, tab.row_of(id));
     }
 
     /// Undo and Redo restore a Checkpoint, move focus to the Entry it hints,
-    /// and speak Announcement 4 — or 5, when the step re-dirtied a Session
-    /// that had just been applied (spec §10.1). The operation name is the one
-    /// thing focus cannot say.
-    fn undo_redo(&self, scope: usize, redo: bool) {
-        let previous_row = self.pages[scope].focused_row();
+    /// and speak Announcement 4 — or 5, when the step took the Working Copy
+    /// back across an Apply (spec §10.1). The operation name is the one thing
+    /// focus cannot say.
+    fn undo_redo(&self, tab: &ScopeTab, command: Command) {
+        let redo = command == Command::Redo;
+        let previous_row = tab.page.focused_row();
         let outcome = {
-            let mut session = self.sessions[scope].borrow_mut();
+            let mut session = tab.session.borrow_mut();
             if redo {
                 session.redo()
             } else {
@@ -306,26 +355,23 @@ impl App {
             }
         };
         let Some(outcome) = outcome else { return };
-        let row = outcome
-            .focus
-            .and_then(|id| self.row_of(scope, id))
-            .or(previous_row);
-        self.after_edit(scope, row);
+        let row = outcome.focus.and_then(|id| tab.row_of(id)).or(previous_row);
+        self.after_edit(tab, row);
         self.announcer.announce(&undo_text(redo, outcome));
     }
 
     /// Cancel discards the Working Copy back to the Baseline. It is itself a
     /// Checkpoint, so Ctrl+Z restores the discarded work — which is why its
     /// confirmation says no more than "Discard changes?" (spec §5, FR-cancel).
-    fn cancel(&self, scope: usize) {
+    fn cancel(&self, tab: &ScopeTab) {
         if !self.confirm(msgids::DIALOG_DISCARD_CHANGES) {
             return;
         }
-        let previous_row = self.pages[scope].focused_row();
-        if !self.sessions[scope].borrow_mut().cancel() {
+        let previous_row = tab.page.focused_row();
+        if !tab.session.borrow_mut().cancel() {
             return;
         }
-        self.after_edit(scope, previous_row);
+        self.after_edit(tab, previous_row);
         self.announcer
             .announce(&translate(msgids::CHANGES_DISCARDED));
     }
@@ -340,38 +386,30 @@ impl App {
     /// transient failure would be the one unrecoverable thing this screen can
     /// do. The Announcement catalogue is closed at seven, so nothing is
     /// spoken; the §9 taxonomy that will name it arrives with Apply.
-    fn refresh(&self, scope: usize) {
-        let dirty = self.sessions[scope].borrow().is_dirty();
+    fn refresh(&self, tab: &ScopeTab) {
+        let dirty = tab.session.borrow().is_dirty();
         if dirty && !self.confirm(msgids::DIALOG_REFRESH_DISCARDS) {
             return;
         }
-        let Ok(raw) = scope_key(scope).read() else {
-            return;
-        };
-        let previous_row = self.pages[scope].focused_row();
-        let focused = {
-            let session = self.sessions[scope].borrow();
-            self.pages[scope].focused_entry(&session).map(|(_, id)| id)
-        };
-        let landing = self.sessions[scope]
-            .borrow_mut()
-            .refresh(raw.decode(), focused);
-        let row = landing
-            .and_then(|id| self.row_of(scope, id))
-            .or(previous_row);
-        self.after_edit(scope, row);
-        let session = self.sessions[scope].borrow();
-        self.announcer
-            .announce(&entry_count_text(session.scope(), session.entries().len()));
+        let Ok(raw) = tab.key().read() else { return };
+        let previous_row = tab.page.focused_row();
+        let focused = tab.focused_entry().map(|(_, id)| id);
+        let landing = tab.session.borrow_mut().refresh(raw.decode(), focused);
+        let row = landing.and_then(|id| tab.row_of(id)).or(previous_row);
+        self.after_edit(tab, row);
+        let count = tab.session.borrow().entries().len();
+        self.announcer.announce(&entry_count_text(tab.scope, count));
     }
 
     /// The `%VAR%`-into-`REG_SZ` question, asked between validation and the
     /// commit and only by a text that raises it (spec §6). `true` means the
     /// user chose to convert the Scope, which then commits with the edit as
-    /// one Checkpoint. Both answers are legal and both are undoable.
-    fn convert_or_keep(&self, scope: usize, text: &str) -> bool {
+    /// one Checkpoint. Both answers are legal and both are undoable — the
+    /// negative button is the one that leaves the Value Type alone, which is
+    /// the only half of the outcome it can spare.
+    fn convert_or_keep(&self, tab: &ScopeTab, text: &str) -> bool {
         let asks = {
-            let session = self.sessions[scope].borrow();
+            let session = tab.session.borrow();
             session.value_type() == ValueType::RegSz && has_variable_reference(text)
         };
         asks && question::ask(
@@ -395,40 +433,44 @@ impl App {
     /// Redraws the Scope, lands focus, and points every control at the state
     /// that now holds — the tail of every operation, so no screen can show one
     /// Working Copy while a menu reads another.
-    fn after_edit(&self, scope: usize, row: Option<usize>) {
+    fn after_edit(&self, tab: &ScopeTab, row: Option<usize>) {
         {
-            let session = self.sessions[scope].borrow();
-            self.pages[scope].render(&session, row);
+            let session = tab.session.borrow();
+            tab.page.render(&session, row);
         }
         self.sync();
     }
 
-    /// The two Scope pages of the notebook; the Backups tab is not one.
-    fn active_scope(&self) -> Option<usize> {
-        scope_of(Some(self.notebook.selection()))
+    /// The Scope tab the notebook is showing; the Backups tab is not one.
+    fn active_tab(&self) -> Option<&ScopeTab> {
+        self.tab_at(Some(self.notebook.selection()))
     }
 
-    fn row_of(&self, scope: usize, id: EntryId) -> Option<usize> {
-        ScopePage::row_of(&self.sessions[scope].borrow(), id)
+    /// The Scope tab at a notebook page index, if that page is a Scope at all.
+    fn tab_at(&self, selection: Option<i32>) -> Option<&ScopeTab> {
+        match selection {
+            Some(TAB_INDEX_USER) => self.tabs.first(),
+            Some(TAB_INDEX_SYSTEM) => self.tabs.get(1),
+            _ => None,
+        }
     }
 
     fn sync(&self) {
-        self.sync_for(self.active_scope());
+        self.sync_for(self.active_tab());
     }
 
-    /// Points the menu, the buttons and the status bar at `scope`'s Session.
+    /// Points the menu, the buttons and the status bar at `active`'s Session.
     /// Taken as an argument rather than read back, because the notebook's own
     /// selection lags the page-changed event that carries it.
-    fn sync_for(&self, scope: Option<usize>) {
-        let active = scope.map(|index| self.sessions[index].borrow());
-        command::sync_menu_bar(&self.menu, active.as_deref());
-        drop(active);
-        for index in [0, 1] {
-            let session = self.sessions[index].borrow();
-            self.pages[index].sync_buttons(&session);
+    fn sync_for(&self, active: Option<&ScopeTab>) {
+        let session = active.map(|tab| tab.session.borrow());
+        command::sync_menu_bar(&self.menu, session.as_deref());
+        drop(session);
+        for tab in &self.tabs {
+            tab.page.sync_buttons(&tab.session.borrow());
         }
-        let user = self.sessions[0].borrow();
-        let system = self.sessions[1].borrow();
+        let user = self.tabs[0].session.borrow();
+        let system = self.tabs[1].session.borrow();
         self.status
             .set_status_text(&general_status(&user, &system, self.readonly.as_ref()), 0);
     }
@@ -441,25 +483,6 @@ impl App {
 /// leaves focus in the window the user came for.
 pub fn show_settings_unreadable(parent: &Frame) {
     question::tell(parent, &translate(msgids::DIALOG_SETTINGS_UNREADABLE));
-}
-
-/// Which Session a notebook page belongs to, if it is a Scope at all.
-fn scope_of(selection: Option<i32>) -> Option<usize> {
-    match selection {
-        Some(TAB_INDEX_USER) => Some(0),
-        Some(TAB_INDEX_SYSTEM) => Some(1),
-        _ => None,
-    }
-}
-
-/// The registry value behind a Scope page. Built where it is used rather than
-/// held: a `ScopeKey` is a key path and a value name, not a handle.
-fn scope_key(scope: usize) -> ScopeKey {
-    if scope == 0 {
-        ScopeKey::user()
-    } else {
-        ScopeKey::system()
-    }
 }
 
 /// Announcements 4 and 5 (spec §10.1): what was undone or redone, and — when

@@ -93,8 +93,13 @@ pub const DIALOG_SETTINGS_UNREADABLE: &str = "Settings could not be read — def
 /// The two mnemonic groups the menus so far form: the menu bar's own titles,
 /// and the Edit menu's items. A group is a set of siblings whose `&` letters
 /// must not repeat; the gate walks each one (spec §15).
-pub const MENU_BAR: &str = "menu bar";
-pub const MENU_EDIT: &str = "Edit";
+///
+/// These are **not** Catalogue strings and are never translated — they are
+/// group keys, and the only thing that reads them is the gate. Nothing here
+/// reaches a user, which is why they are the two `MENU_` constants absent
+/// from [`REGISTRY`].
+pub const MENU_GROUP_BAR: &str = "menu bar";
+pub const MENU_GROUP_EDIT: &str = "Edit";
 
 /// The menu bar's titles. The Edit menu is the first to land; File, Tools and
 /// Help arrive with the tickets that fill them (spec §15).
@@ -210,16 +215,16 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::text(READONLY_REASON_CANNOT_CREATE),
     CatalogueEntry::text(READONLY_REASON_NOT_WRITABLE),
     CatalogueEntry::text(DIALOG_SETTINGS_UNREADABLE),
-    CatalogueEntry::menu_item(MENU_TITLE_EDIT, MENU_BAR),
-    CatalogueEntry::menu_item(MENU_ADD_ENTRY, MENU_EDIT),
-    CatalogueEntry::menu_item(MENU_EDIT_ENTRY, MENU_EDIT),
-    CatalogueEntry::menu_item(MENU_DELETE_ENTRY, MENU_EDIT),
-    CatalogueEntry::menu_item(MENU_MOVE_UP, MENU_EDIT),
-    CatalogueEntry::menu_item(MENU_MOVE_DOWN, MENU_EDIT),
-    CatalogueEntry::menu_item(MENU_UNDO, MENU_EDIT),
-    CatalogueEntry::menu_item(MENU_REDO, MENU_EDIT),
-    CatalogueEntry::menu_item(MENU_CANCEL, MENU_EDIT),
-    CatalogueEntry::menu_item(MENU_REFRESH, MENU_EDIT),
+    CatalogueEntry::menu_item(MENU_TITLE_EDIT, MENU_GROUP_BAR),
+    CatalogueEntry::menu_item(MENU_ADD_ENTRY, MENU_GROUP_EDIT),
+    CatalogueEntry::menu_item(MENU_EDIT_ENTRY, MENU_GROUP_EDIT),
+    CatalogueEntry::menu_item(MENU_DELETE_ENTRY, MENU_GROUP_EDIT),
+    CatalogueEntry::menu_item(MENU_MOVE_UP, MENU_GROUP_EDIT),
+    CatalogueEntry::menu_item(MENU_MOVE_DOWN, MENU_GROUP_EDIT),
+    CatalogueEntry::menu_item(MENU_UNDO, MENU_GROUP_EDIT),
+    CatalogueEntry::menu_item(MENU_REDO, MENU_GROUP_EDIT),
+    CatalogueEntry::menu_item(MENU_CANCEL, MENU_GROUP_EDIT),
+    CatalogueEntry::menu_item(MENU_REFRESH, MENU_GROUP_EDIT),
     CatalogueEntry::text(BUTTON_ADD),
     CatalogueEntry::text(BUTTON_EDIT),
     CatalogueEntry::text(BUTTON_DELETE),

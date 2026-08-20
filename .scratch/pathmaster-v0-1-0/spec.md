@@ -285,9 +285,12 @@ column header — one label for one thing — and its buttons are **[Browse…] 
 rather than stock, because `add_std_catalog()` is never called (§11). The **length-zero** rejection
 has its own title, "The entry cannot be empty"; `wxDirDialog` is given a title of ours,
 **"Choose a folder"**, or it would speak wx's built-in English in a Ukrainian run. Every two-button
-dialog in the application — convert-or-keep included — gives the **negative button the default,
-the initial focus and Escape**: Windows hands Enter to the focused button, so a default the focus
-does not sit on is not the answer Enter gives. Browse seeds from the field text **literally**: a
+dialog in the application gives the **negative button the default, the initial focus and Escape**:
+Windows hands Enter to the focused button, so a default the focus does not sit on is not the answer
+Enter gives. In the confirmations that button is the one that changes nothing; in convert-or-keep
+*both* outcomes commit by design ("each outcome one Checkpoint"), so Escape means [Keep as literal
+text] — the answer that at least leaves the Value Type alone. Browse seeds from the field text
+**literally**: a
 `%VAR%` is not expanded to find a seed, because expansion is diagnostics' pass over the process
 environment (§7) and a folder picker is not the place to start a second one.
 
@@ -674,9 +677,10 @@ commands, not msgids; the shipped labels differ where ADR-0004 requires it. Menu
 mnemonic ("&Add Entry…"), buttons carry none — the Tab order is the map and a button's `&` would
 race the menu bar — and a `…` marks the two that open a dialog ("Add…", "Edit…"). The Cancel
 command is **"Cancel Changes"** in both places, leaving "Cancel" to the dialog button that means
-"do not commit". **A non-writable Session disables the whole Edit menu**, Refresh included: §5's
-"disables every editing action" is read as the ticket's "every control and menu item", so a Scope
-the user cannot edit reads as one throughout rather than offering a single live item.
+"do not commit". **A non-writable Session disables every Edit menu item except Refresh**, which
+re-reads rather than edits: §5 disables "every editing action" and Refresh is not one, Read-only
+Data "still reads, diagnoses and lists" (`CONTEXT.md`), and an unelevated System tab would
+otherwise never see an external change without a restart.
 
 ## 16. Build, packaging, release
 

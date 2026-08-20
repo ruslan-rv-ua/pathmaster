@@ -102,8 +102,10 @@ impl ScopePage {
     }
 
     /// Redraws the list from the Working Copy and puts focus on `row`, clamped
-    /// to the new last row. `None` focuses no row — the list itself, which is
-    /// all there is to focus in an emptied Scope.
+    /// to the new last row — or, over an emptied Scope, on the list itself.
+    /// `None` leaves focus exactly where it was: it means the operation had no
+    /// row to point at *and* the user was on none, which is not an occasion to
+    /// move them.
     ///
     /// The whole list is rebuilt rather than patched: one code path for every
     /// operation means the focus rules below are the only thing that decides
@@ -121,19 +123,33 @@ impl ScopePage {
 
     /// Puts one row into the selected-and-focused state, clamps it to the last
     /// row, scrolls it into view, and gives the list the keyboard focus so
-    /// NVDA reads it. Silently does nothing over an empty list.
+    /// NVDA reads it.
+    ///
+    /// **The list takes the keyboard focus whether or not a row survives to
+    /// land on**: an emptied Scope has nothing to speak but the list itself,
+    /// which is where FR-refresh's "else the list" ends, and leaving focus on
+    /// the button that emptied it would say nothing at all.
     pub fn focus_row(&self, row: usize) {
-        let Some(last) = self.list.get_item_count().checked_sub(1) else {
-            return;
-        };
-        let row = (row as i64).min(last as i64);
+        self.list.set_focus();
+        let Some(last) = self.last_row() else { return };
+        let row = row.min(last) as i64;
         self.list.set_item_state(
             row,
             ListItemState::Selected | ListItemState::Focused,
             ListItemState::Selected | ListItemState::Focused,
         );
         self.list.ensure_visible(row);
-        self.list.set_focus();
+    }
+
+    /// The index of the last row, or `None` over an empty list.
+    ///
+    /// The count is asked for as an `i32`, so the empty case has to be caught
+    /// before the subtraction rather than after: `0 - 1` is `-1`, and `-1` is
+    /// comctl32's index for *every* row.
+    fn last_row(&self) -> Option<usize> {
+        usize::try_from(self.list.get_item_count())
+            .ok()?
+            .checked_sub(1)
     }
 
     /// The row the user is on, if any: the focused one, or the selected one

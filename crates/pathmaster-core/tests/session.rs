@@ -494,6 +494,23 @@ fn an_undo_that_re_dirties_a_clean_session_crossed_the_apply_barrier() {
 }
 
 #[test]
+fn an_undo_that_re_dirties_a_session_no_apply_has_touched_crosses_nothing() {
+    // Dirty is a comparison, so an Add and its Delete leave a *clean* Session
+    // with two Checkpoints standing behind it. Undoing one re-dirties the
+    // Session — but there was never an Apply, so there is no barrier to have
+    // crossed, and "unsaved changes" would be news of nothing.
+    let mut session = user_session(r"C:\one");
+    let added = session
+        .add(r"C:\two")
+        .expect("writable session accepts Add");
+    session.delete(added);
+    assert!(!session.is_dirty(), "the pair cancelled out");
+    let outcome = session.undo().expect("one step to undo");
+    assert!(session.is_dirty(), "the undo brought the Entry back");
+    assert!(!outcome.crossed_apply);
+}
+
+#[test]
 fn an_undo_inside_a_dirty_session_crosses_nothing() {
     let mut session = user_session(r"C:\one");
     let id = session.entries()[0].id();
