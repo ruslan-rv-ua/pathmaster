@@ -141,3 +141,15 @@ place. Two naming corrections: `MENU_BAR`/`MENU_EDIT` are mnemonic group keys, n
 they are `MENU_GROUP_*` now and say so; and «Відновлення з резервної копії» became «Відновлення
 знімка», because the glossary reserves «резервна копія» for the act and the directory, never the
 file.
+
+### Heard, not only seen
+
+The Release Checklist's dialog steps were run on real NVDA by the user on 2026-08-20 and reported
+as passing. That closes the gap this ticket's own verification could not: everything above was
+*measured* — window titles, the accessibility tree, which control holds the keyboard focus — but a
+tree that looks right and a screen reader that speaks are different claims, and only the second one
+matters here.
+
+This is history, not a substitute for the release pass. §10.2 wants a filled copy naming the NVDA
+used, produced before every release; that copy is ticket 18's, and it will run these steps again
+against the shipped binary.
