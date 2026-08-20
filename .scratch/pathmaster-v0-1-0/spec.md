@@ -29,9 +29,17 @@ environment variable, built for a screen-reader (NVDA) user first. Single `.exe`
 data in `data\` beside the executable.
 
 - **Stack (fixed, not reconsiderable):** Rust + [wxdragon](https://github.com/AllenDang/wxdragon)
-  **≥ 0.9.17** (earlier `AccRole` discriminants are mis-ordered — ticket 01), decided against
-  0.9.18 over wxWidgets 3.3.3, compiled from pinned source, statically, `crt-static` propagating
+  **≥ 0.9.17** (earlier `AccRole` discriminants are mis-ordered — ticket 01), decided **on**
+  0.9.18 for its wxWidgets 3.3.3, compiled from pinned source, statically, `crt-static` propagating
   into the C++ build. There are no prebuilt wxWidgets binaries.
+  *Amended by impl ticket 12: this read "decided against 0.9.18 over wxWidgets 3.3.3", which says
+  the opposite of what was decided. research/01 researched 0.9.18 and found it the version that
+  fetches wxWidgets 3.3.3 from pinned, SHA256-verified source; research/04's pin list says
+  "wxdragon 0.9.18 — pin exactly and commit `Cargo.lock`"; every measured number in this document
+  was taken on it; the manifest floor is `"0.9.17"` and `Cargo.lock` resolves 0.9.18. Impl ticket
+  01 spotted the garble and recorded the correction in its own Comments, but left the sentence
+  standing — where it went on to mislead ticket 12's reviewer into reporting the resolved version
+  as a spec violation. Fixed at the source this time.*
 - **Target OS:** Windows 10 21H2+ and Windows 11, x64 only. 32-bit is unsupported.
   **[assembly]** winget `MinimumOSVersion` is pinned to `10.0.19044.0` (= Windows 10 21H2,
   matching NFR-compatibility; ticket 15 left the floor unpinned).

@@ -197,3 +197,20 @@ before the first pass lands, which is the honest reading of a field whose only s
 and a zero-entry Scope reads "no entries (0 issues)" rather than §12's "{n} entries" shape, because
 §10.1 already gives the zero case its own msgid and the suffix keeps the field one shape to parse
 aurally.
+
+### Heard, not only seen
+
+The Release Checklist's diagnostics steps — A2 (a healthy Entry reads as path only), A3 and A4 (the
+Issue words, comma-joined most-severe-first) and A16 (`NVDA+End` speaks both StatusBar fields) —
+were run on real NVDA by the user on 2026-08-20 and reported as passing.
+
+That closes the gap this ticket's own verification could not. Everything above was *measured* —
+`SB_GETTEXTLENGTH` on the status bar, the list control's column text, window titles, which control
+holds the keyboard focus — but a control that holds the right string and a screen reader that speaks
+it are different claims, and only the second one is what this application is for. It also settles
+the one open question the measurements raised: field 1's text is wider than field 1 at the default
+window size and its tail clips visually, and `NVDA+End` speaks the whole sentence regardless.
+
+This is history, not a substitute for the release pass. §10.2 wants a filled copy naming the NVDA
+used, produced before every release; that copy is ticket 18's, and it will run these steps again
+against the shipped binary.

@@ -124,3 +124,33 @@ true. Noted, not changed: the gate reads `../pathmaster/i18n` across a crate bou
 test-time path the §17 split requires, not a dependency edge) and repeats `build.rs`'s `.po`
 glob (sharing it would mean giving the pure core a filesystem). Rustfmt churn from
 `cargo fmt --all` in ticket 02's core tests was reverted again to keep the commit scoped.
+
+### Follow-up (impl ticket 12): the locale test's oracle was measuring the wrong thing
+
+`the_system_language_matches_the_ui_culture_windows_reports` failed on the developer's own machine
+and passed in CI — the worst way round, since a test nobody can run locally stops being read.
+
+The cause was the oracle, not the code under test. It shelled out to
+`powershell -NoProfile -Command "(Get-UICulture).Name"`, which is the *host process's* thread UI
+culture: Windows PowerShell 5.1 runs on .NET Framework, which falls back to `en-US` for a console
+application whose code page cannot render the OS language. Measured on the Ukrainian machine
+(2026-08-20), every other reading of the setting agreed with the code and only that one dissented:
+
+| source | answer |
+|---|---|
+| `GetUserDefaultUILanguage` (under test) | `0x0422` |
+| `Get-WinUILanguageOverride` | `uk` |
+| `InstalledUICulture` | `uk-UA` |
+| `HKCU\Control Panel\Desktop\PreferredUILanguages` | `uk-UA` |
+| `powershell 5.1 (Get-UICulture).Name` | **`en-US`** |
+
+The oracle now asks for the display language Windows itself is set to — the user's override when
+there is one, the installed culture when there is not, which is the pair `GetUserDefaultUILanguage`
+answers from. The override lookup is wrapped in `try`/`catch`: an image without the International
+module raises a *terminating* `CommandNotFoundException`, and falling back is the same branch as
+"no override exists". Both branches were exercised on the machine that used to fail. The test is
+renamed to say what it now compares.
+
+The module's doc comment was already right — it says the two readings "can only differ for a user
+whose preferred list leads with a language Windows is not displaying" — and this machine was that
+user. Nothing in `locale.rs` changed.
