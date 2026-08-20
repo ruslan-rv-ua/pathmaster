@@ -29,6 +29,17 @@ fn entries_are_raw_substrings_byte_for_byte() {
     );
 }
 
+#[test]
+fn quotes_never_protect_a_separator() {
+    // Splitting is naive, as the OS's own `CreateProcessW`/`SearchPathW`,
+    // PowerShell and Python are (spec §7, FR-diag-split): a quoted `;` shows
+    // as the two odd Entries those consumers also see.
+    assert_eq!(
+        split(r#""C:\semi;colon";C:\Windows"#),
+        vec![r#""C:\semi"#, r#"colon""#, r"C:\Windows"],
+    );
+}
+
 proptest::proptest! {
     #[test]
     fn split_then_join_is_byte_identity_for_any_value(value in ".*") {

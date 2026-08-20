@@ -698,9 +698,12 @@ shell** — the tiers, placed by §17:
   the Session model (dirty-as-comparison, Checkpoint semantics, the Apply barrier), Snapshot
   schema + two-layer Corrupted validation, per-Scope rotation, the 8,191/32,767 threshold logic,
   settings parse + per-field fallback, the log line format, the msgid registry gate (polib half).
-- **Property tests**: exactly three, `core/tests/properties.rs` (`proptest`, dev-dependency of
-  core alone): split→join byte-identity; Snapshot round-trip of `(valueType, entries|absent)`;
-  Normalisation idempotence.
+- **Property tests**: exactly three (`proptest`, dev-dependency of core alone), each in the test
+  file of the module it constrains — split→join byte-identity in `core/tests/path.rs`;
+  Normalisation idempotence in `core/tests/normalize.rs`; Snapshot round-trip of
+  `(valueType, entries|absent)` in `core/tests/snapshot.rs` (ticket 23, amended by impl tickets
+  02/09: a shared `properties.rs` separates each property from the rules it is about and from the
+  examples that share its fixtures; the cap of three is untouched).
 - **Registry integration tests (platform)**: plain `#[cfg(windows)]`, no opt-in gate, against a
   temporary key under `HKCU\Software\PathMasterTest` on the **live** registry (mocks rejected —
   ticket 05's hazards are about real API behaviour): `(vtype, bytes)` preservation, type

@@ -76,15 +76,23 @@ CI keeps gating on the artifact's imports, never the build config.
   `i18n/` with the `.po` files. `[[bin]] name = "PathMaster"` so cargo emits `PathMaster.exe` and the
   release workflow has no rename step.
 
-**Tests.** Unit tests in-module throughout. The three proptest properties live in
-`crates/pathmaster-core/tests/properties.rs` — they deliberately exercise the core's *public*
-surface, and `proptest` stays a dev-dependency of core alone. Registry integration tests are plain
+**Tests.** Unit tests in-module throughout. The three proptest properties each live in the test
+file of the module they constrain — they deliberately exercise the core's *public* surface, and
+`proptest` stays a dev-dependency of core alone. Registry integration tests are plain
 `#[cfg(windows)]` modules against a temporary key on the live `HKCU` — no opt-in feature gate (a
 gate nobody enables is a test nobody runs); on non-Windows they do not exist, which *is* the ticket's
 "skips gracefully". **Ticket 11's msgid gate is split**: `.po` integrity (placeholders, mnemonic
 uniqueness, fuzzy-exclusion, self-sensitivity) is checked wx-free in core via polib; one smoke test
 (`get_string(…).is_some()` over a few keys through real wxTranslations) lives in the binary and runs
 in CI, where wx is built anyway.
+
+> **Amended 2026-08-20 by impl tickets 02 and 09.** The property sentence originally read "The
+> three proptest properties live in `crates/pathmaster-core/tests/properties.rs`". A shared file
+> was the one thing about the layout that separated a rule from the tests that constrain it: the
+> split→join property reads with the split examples it generalises, and Normalisation idempotence
+> reads with the five pipeline steps it holds — both need the same fixtures (ticket 02 landed the
+> first this way; ticket 09 the second). Everything else this paragraph fixes is unchanged, the
+> cap of exactly three included, and spec §18 now names the three files.
 
 **Tooling promotion.** `nvda-drive.ps1` moves from `.scratch/` to a permanent repo-root `tools/`,
 and the ticket-24 `WM_GETOBJECT` watcher joins it there when built — the Release Checklist is a
