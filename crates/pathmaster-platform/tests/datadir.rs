@@ -115,6 +115,46 @@ fn no_locate_answer_is_readonly_data_with_the_own_location_unknown_reason() {
     );
 }
 
+/// Which states name a directory is a property of the state, and the file
+/// consumers ask it rather than re-deriving it: settings may still be readable
+/// where nothing can be written, while an unknown own location has no
+/// directory at all.
+#[test]
+fn every_state_but_an_unknown_own_location_names_a_directory_to_read_from() {
+    let data = Path::new(r"C:\Tools\PathMaster\data");
+
+    for state in [
+        DataDirState::Writable(data.to_path_buf()),
+        DataDirState::ReadOnly(ReadOnlyReason::CannotCreate(data.to_path_buf())),
+        DataDirState::ReadOnly(ReadOnlyReason::NotWritable(data.to_path_buf())),
+    ] {
+        assert_eq!(state.dir(), Some(data), "{state:?}");
+    }
+    assert_eq!(
+        DataDirState::ReadOnly(ReadOnlyReason::OwnLocationUnknown).dir(),
+        None,
+    );
+}
+
+/// Read-only Data closes *every* write path, renames and rotations included —
+/// so exactly one state answers yes.
+#[test]
+fn only_writable_data_has_a_write_path() {
+    let data = Path::new(r"C:\Tools\PathMaster\data");
+
+    assert!(DataDirState::Writable(data.to_path_buf()).is_writable());
+    for reason in [
+        ReadOnlyReason::OwnLocationUnknown,
+        ReadOnlyReason::CannotCreate(data.to_path_buf()),
+        ReadOnlyReason::NotWritable(data.to_path_buf()),
+    ] {
+        assert!(
+            !DataDirState::ReadOnly(reason.clone()).is_writable(),
+            "{reason:?}"
+        );
+    }
+}
+
 #[test]
 fn a_creatable_directory_establishes_writable_data_and_leaves_no_probe_behind() {
     let dir = tempfile::tempdir().unwrap();

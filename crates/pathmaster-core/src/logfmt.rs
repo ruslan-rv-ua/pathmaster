@@ -159,6 +159,26 @@ impl Record {
         }
     }
 
+    /// The unreadable-`settings.json` line (spec §13). The user is told by a
+    /// startup dialog; this is the developer's half — which of the two failure
+    /// layers bit, and whether the file was set aside or is still where they
+    /// left it. The two file names are names, not locations, so PII
+    /// prohibition #2 is untouched.
+    pub fn settings_unreadable(set_aside: bool) -> Self {
+        Record {
+            level: Level::Warn,
+            area: "settings",
+            message: format!(
+                "settings.json could not be read, {}, using defaults",
+                if set_aside {
+                    "set aside as settings.json.bad"
+                } else {
+                    "left in place"
+                },
+            ),
+        }
+    }
+
     /// The per-field settings fallback line — the log is the *only* witness
     /// of a rejected value (spec §13), so the raw value is carried, but
     /// truncated to 100 characters with a marker: a pathological file must

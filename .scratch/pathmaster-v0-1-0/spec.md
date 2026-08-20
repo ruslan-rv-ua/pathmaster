@@ -559,6 +559,23 @@ Settled by tickets [20](issues/20-failure-taxonomy-remainder.md) and [11](issues
 >   Announcement.
 > - **Unknown fields are ignored and preserved** through every rewrite.
 
+**Amended by impl ticket 07** — three rules the implementation had to fix and the requirement above
+does not state:
+
+- **The set-aside answers bad *contents*, never a file this run could not open.** A lock held by the
+  other instance (two instances are a designed state, §3) or a denied ACL leaves the run on
+  defaults and still shows the dialog, but the file is not renamed: moving a good `settings.json`
+  onto the single `.bad` copy would destroy exactly what the set-aside exists to preserve. Bytes in
+  hand that are not UTF-8 *are* bad contents, and are set aside like unparsable JSON.
+- **One `WARN settings:` line records an unreadable file** — whether it was set aside or left in
+  place. The dialog is the user's witness; without this line the log, which is the only diagnostic
+  artifact a developer ever sees (§14), is silent about a file that moved on disk.
+- **Geometry is one field.** `window` is a record of five members (`x`, `y`, `width`, `height`,
+  `maximised`) and falls back as a unit under that one name, because half a position is not a place
+  to put a window and the members have no individual defaults to fall back to. A non-positive
+  `width`/`height` is invalid like any other out-of-domain value — and, like any other, is not
+  clamped.
+
 **[assembly]** The Settings dialog (Tools → Settings…) holds the language selector (label
 "Language (takes effect after restart)", endonym items, disabled in Read-only Data) and the
 `maxBackups` field; our own OK/Cancel buttons.
@@ -662,7 +679,8 @@ ever links wxWidgets.
 - **`crates/pathmaster-platform`** — imperative shell, no wx: `registry` (adapter, **key path as a
   constructor parameter**), `datadir`, `elevation`, `locale` (the system language, §11),
   `logwriter`, `panic_hook` (writes past the logger; core supplies only the line format),
-  `broadcast`.
+  `settings` (the file in the Data Directory: read in both modes, set aside and written only in
+  Writable Data — core owns the parse), `broadcast`.
 - **`crates/pathmaster`** — **bin-only, no lib target**: `ui/*`, `announce`, `pump` (Timer drain),
   `catalog` (TranslationsLoader), `main.rs` (panic hook → settings → language → window),
   `build.rs` (polib → `.mo`; llvm-rc → icon/VERSIONINFO), `i18n/*.po`.

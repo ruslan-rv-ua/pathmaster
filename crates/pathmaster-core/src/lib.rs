@@ -11,3 +11,4 @@ pub mod logfmt;
 pub mod msgids;
 pub mod path;
 pub mod session;
+pub mod settings;

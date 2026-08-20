@@ -24,7 +24,9 @@ fn from_dip(widget: &ListCtrl, dip: i32) -> i32 {
     }
 }
 
-pub fn build_main_window() {
+/// Builds and shows the main window, and hands it back so a startup dialog has
+/// a parent to sit on and a window to hand focus back to.
+pub fn build_main_window() -> Frame {
     let frame = Frame::builder()
         .with_title("PathMaster")
         // Crosses the FFI boundary through the implicit FromDIP → 900×650 DIP (spec §12 D2).
@@ -62,6 +64,26 @@ pub fn build_main_window() {
 
     frame.centre();
     frame.show(true);
+    frame
+}
+
+/// The one startup dialog `settings.json` can earn: it could not be read, so
+/// this run is on defaults (spec §13).
+///
+/// Everything it says is in the title, because NVDA speaks a `MessageDialog`'s
+/// title and buttons and never its body (spec §10, D6) — the body repeats the
+/// title for the eyes rather than carrying anything of its own. The stock [OK]
+/// is left stock: it is the one button in the application whose text carries no
+/// meaning we would have to own (spec §11).
+///
+/// Shown after the main window rather than before it, so that dismissing it
+/// leaves focus in the window the user came for.
+pub fn show_settings_unreadable(parent: &Frame) {
+    let title = translate(msgids::DIALOG_SETTINGS_UNREADABLE);
+    MessageDialog::builder(parent, &title, &title)
+        .with_style(MessageDialogStyle::OK | MessageDialogStyle::IconWarning)
+        .build()
+        .show_modal();
 }
 
 /// One Scope tab: a report-mode list with exactly two columns, Path and Status —

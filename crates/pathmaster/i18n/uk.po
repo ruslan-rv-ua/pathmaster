@@ -65,3 +65,8 @@ msgstr[2] "PATH системи: {n} записів"
 #. Announcement: the zero case has its own string, never "0 entries".
 msgid "System PATH: no entries"
 msgstr "PATH системи: немає записів"
+
+#. Startup dialog title: `settings.json` could not be parsed and has been
+#. set aside. The whole message is the title — a dialog body is never spoken.
+msgid "Settings could not be read — defaults are in use"
+msgstr "Не вдалося прочитати налаштування — використовуються типові значення"

@@ -72,3 +72,8 @@ msgstr[1] "System PATH: {n} entries"
 #. Announcement: the zero case has its own string, never "0 entries".
 msgid "System PATH: no entries"
 msgstr "System PATH: no entries"
+
+#. Startup dialog title: `settings.json` could not be parsed and has been
+#. set aside. The whole message is the title — a dialog body is never spoken.
+msgid "Settings could not be read — defaults are in use"
+msgstr "Settings could not be read — defaults are in use"

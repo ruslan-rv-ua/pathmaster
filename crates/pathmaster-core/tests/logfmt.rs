@@ -81,6 +81,23 @@ fn all_three_levels_pad_to_five_chars_so_columns_align() {
 }
 
 #[test]
+fn an_unreadable_settings_file_says_in_the_log_where_it_went() {
+    // The dialog tells the user their edit did not take; this line tells a
+    // developer reading the log which file to go and look at. File names are
+    // not paths — PII prohibition #2 is about locations, and there is none here.
+    assert_eq!(
+        line(&spec_timestamp(), &Record::settings_unreadable(true)),
+        "2026-08-19T15:36:31+03:00 WARN  settings: \
+         settings.json could not be read, set aside as settings.json.bad, using defaults\n",
+    );
+    assert_eq!(
+        line(&spec_timestamp(), &Record::settings_unreadable(false)),
+        "2026-08-19T15:36:31+03:00 WARN  settings: \
+         settings.json could not be read, left in place, using defaults\n",
+    );
+}
+
+#[test]
 fn rejected_settings_value_is_logged_verbatim_when_short() {
     let record = Record::settings_field_invalid("maxBackups", "0", "50");
     assert_eq!(

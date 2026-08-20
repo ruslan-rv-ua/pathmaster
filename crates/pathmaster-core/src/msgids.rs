@@ -73,6 +73,13 @@ pub const ENTRIES_SYSTEM: &str = "System PATH: {n} entry";
 pub const ENTRIES_SYSTEM_PLURAL: &str = "System PATH: {n} entries";
 pub const ENTRIES_SYSTEM_NONE: &str = "System PATH: no entries";
 
+/// The startup dialog an unreadable `settings.json` earns (spec §13). All of
+/// it is the title: NVDA never speaks a `MessageDialog`'s body, so a dialog's
+/// critical information lives in its title and buttons (spec §10, D6). One
+/// dialog, one string — the [OK] button is the stock one, which carries no
+/// meaning of its own to lose.
+pub const DIALOG_SETTINGS_UNREADABLE: &str = "Settings could not be read — defaults are in use";
+
 /// Every msgid the application looks up. Later tickets append their strings;
 /// nothing is looked up that is not named here.
 pub const REGISTRY: &[CatalogueEntry] = &[
@@ -85,6 +92,7 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::text(ENTRIES_USER_NONE),
     CatalogueEntry::plural(ENTRIES_SYSTEM, ENTRIES_SYSTEM_PLURAL),
     CatalogueEntry::text(ENTRIES_SYSTEM_NONE),
+    CatalogueEntry::text(DIALOG_SETTINGS_UNREADABLE),
 ];
 
 /// The placeholder names in `text`, in order of appearance.

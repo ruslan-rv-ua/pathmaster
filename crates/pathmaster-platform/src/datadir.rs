@@ -38,6 +38,28 @@ pub enum DataDirState {
 }
 
 impl DataDirState {
+    /// The directory this run's files live in, if it has one at all.
+    ///
+    /// Two of the three Read-only reasons still name a directory, and one of
+    /// those — a directory that exists but cannot be written — is exactly where
+    /// a readable `settings.json` is most likely to be sitting. Only an unknown
+    /// own location has no answer, because there is no directory to have one.
+    pub fn dir(&self) -> Option<&Path> {
+        match self {
+            DataDirState::Writable(dir) => Some(dir),
+            DataDirState::ReadOnly(ReadOnlyReason::CannotCreate(dir)) => Some(dir),
+            DataDirState::ReadOnly(ReadOnlyReason::NotWritable(dir)) => Some(dir),
+            DataDirState::ReadOnly(ReadOnlyReason::OwnLocationUnknown) => None,
+        }
+    }
+
+    /// Whether this run has a write path at all. Read-only Data closes every
+    /// one of them — which includes the renames and rotations that are writes
+    /// without being new content.
+    pub fn is_writable(&self) -> bool {
+        matches!(self, DataDirState::Writable(_))
+    }
+
     /// The path-free fact the startup log line carries: the state, and when
     /// read-only the named reason — never the location (spec §14's PII
     /// prohibition on absolute paths in any record).
@@ -115,12 +137,16 @@ pub fn write_replace(target: &Path, contents: &[u8]) -> io::Result<()> {
     temp_name.push(format!(".{}.tmp", std::process::id()));
     let temp = target.with_file_name(temp_name);
     fs::write(&temp, contents)?;
-    move_replacing(&temp, target).inspect_err(|_| {
+    rename_replacing(&temp, target).inspect_err(|_| {
         let _ = fs::remove_file(&temp);
     })
 }
 
-fn move_replacing(from: &Path, to: &Path) -> io::Result<()> {
+/// The rename half of [`write_replace`], for the callers that already have the
+/// file they want to move — setting `settings.json` aside as `settings.json.bad`
+/// is a rename, not a copy, so the bad file is never read twice and never half
+/// present. Replacing is what keeps that copy single (spec §13).
+pub fn rename_replacing(from: &Path, to: &Path) -> io::Result<()> {
     let from_wide = nul_terminated_wide(from);
     let to_wide = nul_terminated_wide(to);
     // SAFETY: both pointers are NUL-terminated UTF-16 buffers that outlive the call.

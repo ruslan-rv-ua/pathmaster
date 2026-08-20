@@ -6,7 +6,12 @@ license.workspace = true
 description = "PathMaster's pure rules: no I/O, no OS calls, buildable on any OS"
 publish = false
 
+# The only dependency the pure core takes, and it reaches the shipped binary:
+# `settings.json` and the Snapshot files are JSON a user hand-edits, so the
+# parser must be a correct one. `preserve_order` keeps a hand-written file's key
+# order through the rewrites that preserve its unknown fields (spec §13).
 [dependencies]
+serde_json = { version = "1.0.151", features = ["preserve_order"] }
 
 # Dev-dependency of core alone (ticket impl-02) — never reaches the shipped binary.
 [dev-dependencies]
