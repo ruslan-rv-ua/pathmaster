@@ -67,7 +67,9 @@ fn an_edit_and_its_exact_reversal_leave_the_session_clean() {
 #[test]
 fn add_then_delete_leaves_the_session_clean() {
     let mut session = user_session(r"C:\one");
-    let id = session.add(r"C:\new").expect("writable session accepts Add");
+    let id = session
+        .add(r"C:\new")
+        .expect("writable session accepts Add");
     assert!(session.is_dirty());
     assert!(session.delete(id));
     assert!(!session.is_dirty());
@@ -199,7 +201,10 @@ fn a_batch_is_one_checkpoint_however_much_it_touches() {
     assert_eq!(session.undo().expect("one step to undo").focus, Some(id));
     assert_eq!(raws(&session), vec![r"C:\one", r"C:\two"]);
     assert_eq!(session.value_type(), ValueType::RegExpandSz);
-    assert!(!session.can_undo(), "the whole batch was a single Checkpoint");
+    assert!(
+        !session.can_undo(),
+        "the whole batch was a single Checkpoint"
+    );
 
     assert!(session.redo().is_some());
     assert_eq!(raws(&session), vec![r"C:\%VAR%", r"C:\two"]);
@@ -225,7 +230,10 @@ fn undoing_an_add_hints_the_nearest_surviving_neighbour() {
     session.add(r"C:\added");
     // The added Entry does not exist in the restored copy; the hint falls
     // back to the Entry at the same clamped index.
-    assert_eq!(session.undo().expect("one step to undo").focus, Some(survivor));
+    assert_eq!(
+        session.undo().expect("one step to undo").focus,
+        Some(survivor)
+    );
 }
 
 #[test]
@@ -255,7 +263,10 @@ fn undo_past_apply_moves_the_working_copy_only_and_re_dirties() {
     session.mark_applied();
     assert!(session.undo().is_some());
     assert_eq!(raws(&session), vec![r"C:\one"]);
-    assert!(session.is_dirty(), "the Baseline stayed at the applied value");
+    assert!(
+        session.is_dirty(),
+        "the Baseline stayed at the applied value"
+    );
     session.redo();
     assert!(!session.is_dirty());
 }
@@ -305,13 +316,13 @@ fn undo_after_cancel_restores_the_discarded_work() {
 #[test]
 fn restore_loads_a_snapshot_as_one_undoable_checkpoint() {
     let mut session = user_session(r"C:\one;C:\two");
-    assert!(session.restore(
-        vec![r"D:\restored".to_string()],
-        ValueType::RegSz,
-    ));
+    assert!(session.restore(vec![r"D:\restored".to_string()], ValueType::RegSz,));
     assert_eq!(raws(&session), vec![r"D:\restored"]);
     assert_eq!(session.value_type(), ValueType::RegSz);
-    assert!(session.is_dirty(), "Restore edits the Working Copy, never the registry");
+    assert!(
+        session.is_dirty(),
+        "Restore edits the Working Copy, never the registry"
+    );
     session.undo();
     assert_eq!(raws(&session), vec![r"C:\one", r"C:\two"]);
     assert!(!session.is_dirty());
