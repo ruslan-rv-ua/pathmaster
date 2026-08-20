@@ -157,6 +157,37 @@ fn offsets_format_negative_zero_and_half_hour() {
 }
 
 #[test]
+fn a_scope_that_could_not_be_read_logs_the_raw_cause_and_what_the_run_did() {
+    // Startup reads a Scope it cannot decode into a Session; the run survives
+    // (empty, non-writable) and this line is the developer's only witness.
+    use pathmaster_core::logfmt::ScopeReadCause;
+    assert_eq!(
+        line(
+            &spec_timestamp(),
+            &Record::scope_read_failed(Scope::System, ScopeReadCause::Io { os_error: Some(5) }),
+        ),
+        "2026-08-19T15:36:31+03:00 WARN  registry: \
+         System scope could not be read (os error 5), treated as empty and non-writable\n",
+    );
+    assert_eq!(
+        line(
+            &spec_timestamp(),
+            &Record::scope_read_failed(Scope::User, ScopeReadCause::Io { os_error: None }),
+        ),
+        "2026-08-19T15:36:31+03:00 WARN  registry: \
+         User scope could not be read (io error), treated as empty and non-writable\n",
+    );
+    assert_eq!(
+        line(
+            &spec_timestamp(),
+            &Record::scope_read_failed(Scope::User, ScopeReadCause::UnsupportedType { vtype: 3 }),
+        ),
+        "2026-08-19T15:36:31+03:00 WARN  registry: \
+         User scope could not be read (unsupported registry type 3), treated as empty and non-writable\n",
+    );
+}
+
+#[test]
 fn read_only_startup_lines_name_the_reason_never_a_location() {
     for (state, expected) in [
         (

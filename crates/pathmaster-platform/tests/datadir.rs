@@ -314,3 +314,34 @@ fn the_startup_log_state_names_the_reason_and_drops_the_location() {
         assert_eq!(state.log_state(), expected, "{state:?}");
     }
 }
+
+#[test]
+fn each_read_only_reason_names_a_registered_catalogue_string() {
+    // The UI fills Announcement 7 ("Read-only: {reason}") with this msgid's
+    // translation; the mapping lives beside the enum so a fourth reason cannot
+    // appear without naming its string.
+    use pathmaster_core::msgids;
+    let dir = std::path::PathBuf::from(r"C:\somewhere\data");
+    for (reason, expected) in [
+        (
+            ReadOnlyReason::OwnLocationUnknown,
+            msgids::READONLY_REASON_OWN_LOCATION_UNKNOWN,
+        ),
+        (
+            ReadOnlyReason::CannotCreate(dir.clone()),
+            msgids::READONLY_REASON_CANNOT_CREATE,
+        ),
+        (
+            ReadOnlyReason::NotWritable(dir.clone()),
+            msgids::READONLY_REASON_NOT_WRITABLE,
+        ),
+    ] {
+        assert_eq!(reason.catalogue_msgid(), expected, "{reason:?}");
+        assert!(
+            msgids::REGISTRY
+                .iter()
+                .any(|entry| entry.msgid == reason.catalogue_msgid()),
+            "{reason:?} names a msgid the Catalogue does not hold"
+        );
+    }
+}

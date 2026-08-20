@@ -73,6 +73,16 @@ pub const ENTRIES_SYSTEM: &str = "System PATH: {n} entry";
 pub const ENTRIES_SYSTEM_PLURAL: &str = "System PATH: {n} entries";
 pub const ENTRIES_SYSTEM_NONE: &str = "System PATH: no entries";
 
+/// Announcement 7 (spec §10.1): a Read-only Data run names its reason once at
+/// startup. `{reason}` is itself Catalogue text — one of the three §3 reasons
+/// below — translated before it is filled in. The same assembled string is
+/// StatusBar field 0 in that state (spec §12): the mode and its reason, where
+/// the entry counts would otherwise stand.
+pub const READONLY: &str = "Read-only: {reason}";
+pub const READONLY_REASON_OWN_LOCATION_UNKNOWN: &str = "the application's own location is unknown";
+pub const READONLY_REASON_CANNOT_CREATE: &str = "the data directory cannot be created";
+pub const READONLY_REASON_NOT_WRITABLE: &str = "the data directory is not writable";
+
 /// The startup dialog an unreadable `settings.json` earns (spec §13). All of
 /// it is the title: NVDA never speaks a `MessageDialog`'s body, so a dialog's
 /// critical information lives in its title and buttons (spec §10, D6). One
@@ -92,6 +102,10 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::text(ENTRIES_USER_NONE),
     CatalogueEntry::plural(ENTRIES_SYSTEM, ENTRIES_SYSTEM_PLURAL),
     CatalogueEntry::text(ENTRIES_SYSTEM_NONE),
+    CatalogueEntry::text(READONLY),
+    CatalogueEntry::text(READONLY_REASON_OWN_LOCATION_UNKNOWN),
+    CatalogueEntry::text(READONLY_REASON_CANNOT_CREATE),
+    CatalogueEntry::text(READONLY_REASON_NOT_WRITABLE),
     CatalogueEntry::text(DIALOG_SETTINGS_UNREADABLE),
 ];
 

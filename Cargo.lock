@@ -804,6 +804,7 @@ dependencies = [
  "pathmaster-core",
  "pathmaster-platform",
  "polib",
+ "windows-sys",
  "wxdragon",
 ]
 

@@ -6,16 +6,22 @@
 
 #![windows_subsystem = "windows"]
 
+mod announce;
 mod catalog;
 mod ui;
 
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use pathmaster_core::language;
 use pathmaster_core::logfmt::Record;
+use pathmaster_core::session::{Scope, ScopeValue, Session};
 use pathmaster_platform::datadir::{self, DataDirState};
 use pathmaster_platform::elevation;
 use pathmaster_platform::locale;
 use pathmaster_platform::logwriter::Logger;
 use pathmaster_platform::panic_hook;
+use pathmaster_platform::registry::ScopeKey;
 use pathmaster_platform::settings::{self, Source};
 
 fn main() -> std::process::ExitCode {
@@ -70,16 +76,52 @@ fn main() -> std::process::ExitCode {
         }
     };
 
+    // The two Editing Sessions, one per Scope (spec §5), loaded from raw
+    // registry reads through the adapter. Writability is decided here, from
+    // the run's startup facts: User writes with the run, System also needs
+    // elevation, and Read-only Data closes both (spec §3, §9).
+    let data_writable = data.is_writable();
+    let user_session = load_session(Scope::User, &ScopeKey::user(), data_writable, &mut logger);
+    let system_session = load_session(
+        Scope::System,
+        &ScopeKey::system(),
+        data_writable && elevated,
+        &mut logger,
+    );
+    // The reason survives into the UI: Announcement 7 and StatusBar field 0
+    // name it (spec §10.1 item 7, §12).
+    let readonly = match data {
+        DataDirState::Writable(_) => None,
+        DataDirState::ReadOnly(reason) => Some(reason),
+    };
+
     // No console to print to (windows subsystem) — a failed toolkit init can
     // only surface as a nonzero exit code (and the panic line, if it panics).
     match wxdragon::main(move |_| {
         catalog::install(language);
-        let frame = ui::build_main_window();
+        let user = Rc::new(RefCell::new(user_session));
+        let system = Rc::new(RefCell::new(system_session));
+        let frame = ui::build_main_window(user, system, readonly);
         if settings_unreadable {
             ui::show_settings_unreadable(&frame);
         }
     }) {
         Ok(()) => std::process::ExitCode::SUCCESS,
         Err(_) => std::process::ExitCode::FAILURE,
+    }
+}
+
+/// One Scope's startup read, decoded into its Session with the Baseline set —
+/// Absent decodes to zero Entries (spec §5). The spec never names a failed
+/// startup read, so it takes the degraded road: an empty, *non-writable*
+/// Session — nothing may be written over a value that was never read — with
+/// the log line as the developer's only witness.
+fn load_session(scope: Scope, key: &ScopeKey, writable: bool, logger: &mut Logger) -> Session {
+    match key.read() {
+        Ok(raw) => Session::new(scope, raw.decode(), writable),
+        Err(err) => {
+            logger.log(&Record::scope_read_failed(scope, err.log_cause()));
+            Session::new(scope, ScopeValue::Absent, false)
+        }
     }
 }

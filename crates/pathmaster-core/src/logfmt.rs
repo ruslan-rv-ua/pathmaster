@@ -94,6 +94,31 @@ impl DataState {
     }
 }
 
+/// Why a Scope's startup read returned no value to build a Session over —
+/// the raw fact for the log line, never a free-form message. The platform's
+/// registry error maps onto this; core stays ignorant of `io::Error`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScopeReadCause {
+    /// The read itself failed; the OS error code when the OS gave one.
+    Io { os_error: Option<i32> },
+    /// The value exists but is neither `REG_SZ` nor `REG_EXPAND_SZ`.
+    UnsupportedType { vtype: u32 },
+}
+
+impl ScopeReadCause {
+    fn describe(self) -> String {
+        match self {
+            ScopeReadCause::Io {
+                os_error: Some(code),
+            } => format!("os error {code}"),
+            ScopeReadCause::Io { os_error: None } => "io error".to_string(),
+            ScopeReadCause::UnsupportedType { vtype } => {
+                format!("unsupported registry type {vtype}")
+            }
+        }
+    }
+}
+
 /// One log record: a level, an area, and a message built from derived facts.
 /// Fields are private on purpose — these constructors are the whole way in,
 /// which is what makes the PII prohibitions enforceable rather than advisory.
@@ -193,6 +218,22 @@ impl Record {
             level: Level::Warn,
             area: "settings",
             message: format!("field \"{field}\" invalid (raw: {shown}), using default {default}"),
+        }
+    }
+
+    /// A Scope whose startup read failed (spec never names this state, so the
+    /// run takes the degraded road: an empty, non-writable Session — nothing
+    /// can be written over a value that was never read). This line is the
+    /// developer's only witness; the UI shows the consequence, not the cause.
+    pub fn scope_read_failed(scope: Scope, cause: ScopeReadCause) -> Self {
+        Record {
+            level: Level::Warn,
+            area: "registry",
+            message: format!(
+                "{} scope could not be read ({}), treated as empty and non-writable",
+                scope_name(scope),
+                cause.describe(),
+            ),
         }
     }
 

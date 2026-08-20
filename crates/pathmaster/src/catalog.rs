@@ -89,9 +89,6 @@ pub fn translate(msgid: &str) -> String {
 /// The one lookup for a string whose wording depends on a count. `singular` is
 /// the msgid both forms are found by; the catalogue's own `Plural-Forms` rule
 /// picks between them, so Ukrainian's three forms need nothing here.
-// No caller until the first counting Announcement lands (spec §10.1 item 1) —
-// the plural path is proven below by the smoke test instead.
-#[allow(dead_code)]
 pub fn translate_plural(singular: &str, plural: &str, n: u32) -> String {
     wx_translate_plural(singular, plural, n)
 }

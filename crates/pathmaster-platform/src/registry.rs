@@ -9,6 +9,7 @@
 
 use std::io;
 
+use pathmaster_core::logfmt;
 use pathmaster_core::session::{ScopeValue, ValueType};
 use winreg::enums::{
     HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_READ, KEY_SET_VALUE, REG_EXPAND_SZ, REG_SZ,
@@ -67,6 +68,22 @@ pub enum RegistryError {
     Io(io::Error),
     /// The value exists but is neither `REG_SZ` nor `REG_EXPAND_SZ`.
     UnsupportedType(u32),
+}
+
+impl RegistryError {
+    /// The derived fact the startup log line carries — the raw OS error code
+    /// or the raw vtype, never this error's display text (spec §14: records
+    /// are built from derived facts, not free-form messages).
+    pub fn log_cause(&self) -> logfmt::ScopeReadCause {
+        match self {
+            RegistryError::Io(err) => logfmt::ScopeReadCause::Io {
+                os_error: err.raw_os_error(),
+            },
+            RegistryError::UnsupportedType(vtype) => {
+                logfmt::ScopeReadCause::UnsupportedType { vtype: *vtype }
+            }
+        }
+    }
 }
 
 impl std::fmt::Display for RegistryError {

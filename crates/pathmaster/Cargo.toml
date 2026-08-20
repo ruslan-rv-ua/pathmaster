@@ -20,5 +20,13 @@ pathmaster-platform = { path = "../pathmaster-platform" }
 # from source, statically, with crt-static propagating into the C++ build.
 wxdragon = "0.9.17"
 
+# announce() only (ADR-0003): NotifyWinEvent and the constants it takes.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_UI_Accessibility",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
 [build-dependencies]
 polib = "0.3"

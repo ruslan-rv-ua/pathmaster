@@ -66,6 +66,24 @@ msgstr[2] "PATH системи: {n} записів"
 msgid "System PATH: no entries"
 msgstr "PATH системи: немає записів"
 
+#. Announcement: a Read-only Data run names its reason once at startup, and
+#. the same text stands in StatusBar field 0. {reason} is one of the three
+#. reason strings below, translated before it is filled in.
+msgid "Read-only: {reason}"
+msgstr "Лише читання: {reason}"
+
+#. Read-only reason: the executable's own location could not be determined.
+msgid "the application's own location is unknown"
+msgstr "власне розташування застосунку невідоме"
+
+#. Read-only reason: `data\` beside the executable could not be created.
+msgid "the data directory cannot be created"
+msgstr "не вдалося створити папку даних"
+
+#. Read-only reason: `data\` exists but the startup write probe failed.
+msgid "the data directory is not writable"
+msgstr "папка даних недоступна для запису"
+
 #. Startup dialog title: `settings.json` could not be parsed and has been
 #. set aside. The whole message is the title — a dialog body is never spoken.
 msgid "Settings could not be read — defaults are in use"

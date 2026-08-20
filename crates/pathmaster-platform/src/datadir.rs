@@ -8,6 +8,7 @@ use std::os::windows::ffi::OsStrExt;
 use std::path::{Component, Path, PathBuf, Prefix, PrefixComponent};
 
 use pathmaster_core::logfmt;
+use pathmaster_core::msgids;
 use windows_sys::Win32::Storage::FileSystem::{MoveFileExW, MOVEFILE_REPLACE_EXISTING};
 
 /// Why a run is in Read-only Data — exactly these three (spec §3). Each maps
@@ -25,6 +26,19 @@ pub enum ReadOnlyReason {
     CannotCreate(PathBuf),
     /// `data\` exists but the write probe failed.
     NotWritable(PathBuf),
+}
+
+impl ReadOnlyReason {
+    /// The Catalogue string naming this reason (spec §10.1 item 7): what the
+    /// UI translates and fills into "Read-only: {reason}". Living beside the
+    /// enum, a fourth reason cannot appear without naming its string.
+    pub fn catalogue_msgid(&self) -> &'static str {
+        match self {
+            ReadOnlyReason::OwnLocationUnknown => msgids::READONLY_REASON_OWN_LOCATION_UNKNOWN,
+            ReadOnlyReason::CannotCreate(_) => msgids::READONLY_REASON_CANNOT_CREATE,
+            ReadOnlyReason::NotWritable(_) => msgids::READONLY_REASON_NOT_WRITABLE,
+        }
+    }
 }
 
 /// The Data Directory decision, made once at startup — a property of the run

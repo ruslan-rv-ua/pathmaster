@@ -213,3 +213,19 @@ fn first_write_over_absent_creates_the_value_as_written() {
         }
     );
 }
+
+/// The startup log line's cause is derived from the error, never free text:
+/// an I/O failure carries its raw OS error code, an unsupported type its raw
+/// vtype (spec §14 — records are built from derived facts).
+#[test]
+fn a_registry_error_maps_to_the_log_cause_that_carries_its_raw_code() {
+    use pathmaster_core::logfmt::ScopeReadCause;
+    let denied = RegistryError::Io(std::io::Error::from_raw_os_error(5));
+    assert_eq!(denied.log_cause(), ScopeReadCause::Io { os_error: Some(5) });
+    let codeless = RegistryError::Io(std::io::Error::other("no os code"));
+    assert_eq!(codeless.log_cause(), ScopeReadCause::Io { os_error: None });
+    assert_eq!(
+        RegistryError::UnsupportedType(3).log_cause(),
+        ScopeReadCause::UnsupportedType { vtype: 3 }
+    );
+}
