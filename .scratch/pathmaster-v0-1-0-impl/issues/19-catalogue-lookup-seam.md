@@ -62,20 +62,26 @@ rule that used to be pinned to the wx-linking crate. The three UI files are 97 l
 `ui/mod.rs` alone loses 89 — and core gains a 318-line module with 22 tests behind it, none of which
 link wxWidgets.
 
-**The property the enum was built for is real now.** `Announcer::announce` takes an `Announcement`,
-and there is no longer a string in the program that *can* be announced from outside the Catalogue:
-every announcement site hands over a value, and the text is composed inside the one voice. The
-closed-set test is a `match` rather than a count — an eighth Announcement fails to compile before it
-fails an assertion, which is the only gate memory was ever going to lose to.
+**The property the enum was built for is real now, with one edge named.** `Announcer::announce`
+takes an `Announcement`: every announcement site hands over a value of a closed type, and the
+sentence is composed inside the one voice, so no *composed text* can reach the Banner from outside
+the Catalogue. The closed-set test is a `match` rather than a count — an eighth Announcement fails
+to compile before it fails an assertion, which is the only gate memory was ever going to lose to.
+What the compiler does not yet check is the msgid three variants carry: `announce(ApplyFailed {
+msgid: "anything" })` compiles, and a lookup miss returns that string verbatim. Every msgid in play
+is registered and gated, and closing the gap properly means a msgid type, which is nobody's ticket
+yet — ADR-0009's headline is true of the message, not yet of the string.
 
 **Announcement 2 carries a msgid, exactly as 3 does, and that is the one shape the ticket left
 open.** §10.1 item 2 is two per-Scope strings ("User PATH applied" / "System PATH applied") and
 neither is registered yet; a `Applied { scope }` variant could not compose without adding them, and
 this ticket adds no Catalogue text. So both Apply Announcements carry the msgid their caller chose,
 which is also what keeps ticket 13's typed failure — a `pathmaster-platform` type core cannot name —
-out of the enum. When ticket 13 registers the two strings it may narrow the variant to a `Scope`;
-what is fixed here is that both exist, that they are Announcements, and that neither can smuggle a
-platform type into core.
+out of the enum. **Read it as a deferral rather than as the shape ADR-0009 specified**: the ADR's
+msgid rule covers the two announcements whose cause is a platform type, and item 2's cause is a
+`Scope`, which is core's own. When ticket 13 registers the two strings it may narrow the variant to
+`Applied { scope }`; what is fixed here is that both exist, that they are Announcements, and that
+neither can smuggle a platform type into core.
 
 **Three smaller choices, each with a reason a reviewer would otherwise have to reconstruct:**
 
@@ -106,3 +112,39 @@ its across-the-barrier suffix, «Скасовано: Видалення запи
 template, a translated operation name filled into it, and a translated suffix appended, all through
 `Installed`. That is the assertion core's identity adapter cannot make, and it is the one line of
 production glue that no pure test can cover. It remains the only test that links wxWidgets.
+
+### The review
+
+Both axes ran against `develop`. **Standards** found one documented breach and three judgement
+calls; **Spec** confirmed the pure-move check clean — all eight moved functions are logic-identical
+to their pre-move versions, and the only shape change is `general_status`, which now reaches
+Announcement 7's text through `announcement()` instead of duplicating it.
+
+Four findings applied:
+
+- **`UndoStep` was on CONTEXT.md's `_Avoid_` list.** The **Checkpoint** entry keeps "Undo step" off
+  the vocabulary, and the type's own doc made exactly the conflation the list guards against. It is
+  `UndoDirection { Undo, Redo }` now, named for the walk rather than for the Checkpoint it lands on
+  — which is also more honest: the direction is Undo, the sentence it earns is "Undone".
+- **Repeated Switches in `undo_redo`.** Two cascades over one distinction, ten lines apart: one
+  chose the direction, the other chose `undo()` or `redo()`. They are one `match command` now, so
+  the history cannot be walked one way and announced the other.
+- **`general_status`'s order was load-bearing but unenforced.** The pre-move signature named `user`
+  and `system`; an array does not, and `[system, user]` compiled and read backwards — which is not
+  hypothetical, because a *pass* evaluates System first and a caller reaching for that order would
+  have reversed the sentence. §12's "User first" is the Catalogue's rule now, applied to whatever
+  order arrives, with a test that hands it the pass's order and gets the tabs' order back. Each
+  `ScopeCounts` still carries its own Scope, so ordering can never mispair a count with a name.
+- **Two undocumented test helpers**, now documented like their siblings.
+
+**One finding declined.** The Standards axis read `catalog::Installed` as a Mysterious Name against
+neighbours like `Announcer` and `ScopePage`. Its actual neighbour is in the same file: `Embedded`,
+the loader that serves the catalogues out of the executable's bytes. `Embedded` and `Installed` are
+a deliberate pair — where the catalogues come from, and how the installed one is asked — and the
+alternatives read worse at the one call site that matters (`Catalogue::new(catalog::Installed)`).
+
+**Two non-findings the Standards axis raised and answered itself**, worth keeping because they will
+be raised again: `Applied`/`ApplyFailed` are constructed nowhere in production (Speculative
+Generality) and `Installed` is pure delegation (Middle Man). ADR-0009 asks for both on purpose —
+all seven Announcements exist before two are wired, so a test can say "the catalogue is the spec's
+seven", and the adapter delegates because wrapping the single lookup is what keeps it single.

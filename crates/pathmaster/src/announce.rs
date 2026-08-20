@@ -42,9 +42,16 @@ impl Announcer {
     /// Speaks and shows one Announcement.
     ///
     /// It takes an [`Announcement`] and not a `&str`, which is what closes
-    /// ADR-0003's catalogue: the text is composed here, from the Catalogue, so
-    /// there is no longer a string in the program that *can* be announced from
-    /// outside it.
+    /// ADR-0003's catalogue: what may be spoken is a value of a closed type,
+    /// and the sentence is composed here, from the Catalogue, so no composed
+    /// text can reach the Banner from outside it.
+    ///
+    /// Three variants still carry a msgid — the two Apply Announcements impl
+    /// ticket 13 wires, and the Read-only reason a platform type contributes
+    /// — so the *string* a caller hands over is not yet checked by the
+    /// compiler, only the message it belongs to. Every one of those msgids is
+    /// registered and gated; closing that last gap would mean a msgid type,
+    /// which is not this ticket's.
     pub fn announce(&self, announcement: Announcement) {
         let text = self.catalogue.announcement(announcement);
         self.banner.set_label(&text);

@@ -122,7 +122,7 @@ impl Lookup for Installed {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pathmaster_core::catalogue::{Announcement, Catalogue, UndoStep};
+    use pathmaster_core::catalogue::{Announcement, Catalogue, UndoDirection};
     use pathmaster_core::msgids::{REGISTRY, TAB_USER};
     use pathmaster_core::session::{Operation, Scope, UndoOutcome};
 
@@ -216,7 +216,7 @@ mod tests {
         // sentence — the assertion core's identity adapter cannot make.
         assert_eq!(
             catalogue.announcement(Announcement::UndoRedo {
-                step: UndoStep::Undone,
+                direction: UndoDirection::Undo,
                 outcome: UndoOutcome {
                     focus: None,
                     operation: Operation::Delete,

@@ -22,7 +22,7 @@ mod scope_page;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use pathmaster_core::catalogue::{Announcement, Catalogue, ScopeCounts, UndoStep};
+use pathmaster_core::catalogue::{Announcement, Catalogue, ScopeCounts, UndoDirection};
 use pathmaster_core::diagnostics::{Diagnosis, Findings};
 use pathmaster_core::msgids;
 use pathmaster_core::normalize::has_variable_reference;
@@ -471,23 +471,22 @@ impl App {
     /// back across an Apply (spec §10.1). The operation name is the one thing
     /// focus cannot say.
     fn undo_redo(&self, tab: &ScopeTab, command: Command) {
-        let step = match command {
-            Command::Redo => UndoStep::Redone,
-            _ => UndoStep::Undone,
-        };
         let previous_row = tab.page.focused_row();
-        let outcome = {
+        // One match, because the command decides two things that must not be
+        // allowed to disagree: which way the history is walked, and which of
+        // Announcement 4's two sentences says so.
+        let (direction, outcome) = {
             let mut session = tab.session.borrow_mut();
-            match step {
-                UndoStep::Redone => session.redo(),
-                UndoStep::Undone => session.undo(),
+            match command {
+                Command::Redo => (UndoDirection::Redo, session.redo()),
+                _ => (UndoDirection::Undo, session.undo()),
             }
         };
         let Some(outcome) = outcome else { return };
         let row = outcome.focus.and_then(|id| tab.row_of(id)).or(previous_row);
         self.after_edit(tab, row);
         self.announcer
-            .announce(Announcement::UndoRedo { step, outcome });
+            .announce(Announcement::UndoRedo { direction, outcome });
     }
 
     /// Cancel discards the Working Copy back to the Baseline. It is itself a

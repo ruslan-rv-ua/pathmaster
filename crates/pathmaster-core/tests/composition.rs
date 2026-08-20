@@ -13,7 +13,7 @@
 //! (`tests/catalogue.rs` is the completeness gate, which is about the strings
 //! themselves; this file is about what is built out of them.)
 
-use pathmaster_core::catalogue::{Announcement, Catalogue, Lookup, ScopeCounts, UndoStep};
+use pathmaster_core::catalogue::{Announcement, Catalogue, Lookup, ScopeCounts, UndoDirection};
 use pathmaster_core::diagnostics::Issue;
 use pathmaster_core::msgids;
 use pathmaster_core::path::Rejection;
@@ -40,6 +40,7 @@ impl Lookup for Untranslated {
     }
 }
 
+/// The one Catalogue every test here composes through.
 fn the_catalogue() -> Catalogue {
     Catalogue::new(Untranslated)
 }
@@ -118,7 +119,7 @@ fn an_undo_names_the_operation_it_took_back() {
     // translated before it is filled in (spec §10.1 item 4).
     assert_eq!(
         the_catalogue().announcement(Announcement::UndoRedo {
-            step: UndoStep::Undone,
+            direction: UndoDirection::Undo,
             outcome: outcome(Operation::Delete, false),
         }),
         "Undone: Delete entry"
@@ -129,7 +130,7 @@ fn an_undo_names_the_operation_it_took_back() {
 fn a_redo_names_the_same_operation_in_its_own_sentence() {
     assert_eq!(
         the_catalogue().announcement(Announcement::UndoRedo {
-            step: UndoStep::Redone,
+            direction: UndoDirection::Redo,
             outcome: outcome(Operation::Move, false),
         }),
         "Redone: Move entry"
@@ -142,21 +143,21 @@ fn the_unsaved_changes_suffix_is_appended_only_across_the_apply_barrier() {
     // a variant of its own: `crossed_apply` is the whole of the difference.
     assert_eq!(
         the_catalogue().announcement(Announcement::UndoRedo {
-            step: UndoStep::Undone,
+            direction: UndoDirection::Undo,
             outcome: outcome(Operation::Add, true),
         }),
         "Undone: Add entry, unsaved changes"
     );
     assert_eq!(
         the_catalogue().announcement(Announcement::UndoRedo {
-            step: UndoStep::Redone,
+            direction: UndoDirection::Redo,
             outcome: outcome(Operation::Add, true),
         }),
         "Redone: Add entry, unsaved changes"
     );
     assert!(!the_catalogue()
         .announcement(Announcement::UndoRedo {
-            step: UndoStep::Undone,
+            direction: UndoDirection::Undo,
             outcome: outcome(Operation::Add, false),
         })
         .contains("unsaved"));
@@ -177,7 +178,7 @@ fn every_operation_name_reaches_the_sentence_that_undoes_it() {
         Operation::Restore,
     ] {
         let spoken = the_catalogue().announcement(Announcement::UndoRedo {
-            step: UndoStep::Undone,
+            direction: UndoDirection::Undo,
             outcome: outcome(operation, false),
         });
         assert_eq!(
@@ -250,7 +251,7 @@ fn the_announcement_catalogue_is_the_specs_seven_and_nothing_else() {
     // the count above would be hiding a message rather than sharing one.
     assert!(the_catalogue()
         .announcement(Announcement::UndoRedo {
-            step: UndoStep::Undone,
+            direction: UndoDirection::Undo,
             outcome: outcome(Operation::Delete, true),
         })
         .ends_with(", unsaved changes"));
@@ -288,7 +289,7 @@ fn every_announcement() -> Vec<(u8, Announcement)> {
         (
             4,
             Announcement::UndoRedo {
-                step: UndoStep::Undone,
+                direction: UndoDirection::Undo,
                 outcome: outcome(Operation::Delete, false),
             },
         ),
@@ -339,6 +340,8 @@ fn a_healthy_entry_gets_an_empty_column_and_never_a_word_for_it() {
 
 // ---- StatusBar field 0: the general status (spec §12) ----
 
+/// One Scope's numbers as the window reports them: `issues` is `None` until a
+/// pass has looked.
 fn counts(scope: Scope, entries: usize, issues: Option<usize>) -> ScopeCounts {
     ScopeCounts {
         scope,
@@ -356,6 +359,25 @@ fn field_zero_reads_user_first_then_system() {
             [
                 counts(Scope::User, 2, Some(1)),
                 counts(Scope::System, 9, Some(0)),
+            ],
+            None
+        ),
+        "User PATH: 2 entries (1 issue) | System PATH: 9 entries (0 issues)"
+    );
+}
+
+#[test]
+fn field_zero_reads_user_first_whichever_order_it_is_handed() {
+    // A pass evaluates System first, because that is the order Windows merges
+    // the two Scopes in — and this field is not a pass, it is the tab order
+    // read aloud as one sentence. So the ordering is the Catalogue's rule, not
+    // the caller's, and a caller reaching for a pass's own order cannot
+    // reverse the sentence.
+    assert_eq!(
+        the_catalogue().general_status(
+            [
+                counts(Scope::System, 9, Some(0)),
+                counts(Scope::User, 2, Some(1)),
             ],
             None
         ),

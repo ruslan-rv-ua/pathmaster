@@ -79,7 +79,7 @@ pub enum Announcement {
     /// Apply: what was undone or redone. No path text — focus lands on the row
     /// and NVDA reads it for free.
     UndoRedo {
-        step: UndoStep,
+        direction: UndoDirection,
         outcome: UndoOutcome,
     },
     /// **6** — the Cancel command discarded a Working Copy back to its
@@ -91,15 +91,18 @@ pub enum Announcement {
     ReadOnly { reason: &'static str },
 }
 
-/// Which of Announcement 4's two sentences a restored Checkpoint earns.
+/// Which way the undo history was walked, and so which of Announcement 4's two
+/// sentences is spoken.
 ///
-/// The direction travels as a named value rather than a `bool`, for the reason
-/// every other command in this application does: a bare `true` at the call
-/// site says nothing about which way it went.
+/// It travels as a named value rather than a `bool`, for the reason every
+/// command in this application does: a bare `true` at the call site says
+/// nothing about which way it went. It is named for the walk and not for the
+/// Checkpoint it lands on — CONTEXT.md's **Checkpoint** keeps "undo step" on
+/// its `_Avoid_` list, and this is not one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum UndoStep {
-    Undone,
-    Redone,
+pub enum UndoDirection {
+    Undo,
+    Redo,
 }
 
 /// What StatusBar field 0 reports about one Scope: how many Entries it holds
@@ -141,7 +144,7 @@ impl Catalogue {
             Announcement::Applied { msgid } | Announcement::ApplyFailed { msgid } => {
                 self.lookup.translate(msgid)
             }
-            Announcement::UndoRedo { step, outcome } => self.undo_redo(step, outcome),
+            Announcement::UndoRedo { direction, outcome } => self.undo_redo(direction, outcome),
             Announcement::ChangesDiscarded => self.lookup.translate(msgids::CHANGES_DISCARDED),
             Announcement::ReadOnly { reason } => self.read_only(reason),
         }
@@ -163,9 +166,13 @@ impl Catalogue {
     /// count and the issues the last pass found there — or, in a Read-only
     /// Data run, the mode and its reason in their place.
     ///
-    /// The Scopes are composed in the order they are given, which is the order
-    /// the tabs are in and not the runtime order a pass evaluates them in:
-    /// this field is read on demand as one sentence (`NVDA+End`).
+    /// **User first, then System**, whichever order the two arrive in: this
+    /// field is read on demand as one sentence (`NVDA+End`), and the order is
+    /// the one the tabs are in — deliberately not the runtime order a pass
+    /// evaluates the Scopes in, which is System first and would silently
+    /// reverse the sentence if a caller passed a pass's own order. Each
+    /// [`ScopeCounts`] carries the Scope its numbers belong to, so ordering
+    /// here cannot mispair a count with a name.
     ///
     /// The read-only substitution is Announcement 7's own text, composed
     /// through it rather than beside it — the mode and its reason are one
@@ -178,11 +185,18 @@ impl Catalogue {
     ) -> String {
         match readonly {
             Some(reason) => self.announcement(Announcement::ReadOnly { reason }),
-            None => scopes
-                .iter()
-                .map(|counts| self.counts(counts))
-                .collect::<Vec<String>>()
-                .join(" | "),
+            None => {
+                let mut ordered = scopes;
+                ordered.sort_by_key(|counts| match counts.scope {
+                    Scope::User => 0,
+                    Scope::System => 1,
+                });
+                ordered
+                    .iter()
+                    .map(|counts| self.counts(counts))
+                    .collect::<Vec<String>>()
+                    .join(" | ")
+            }
         }
     }
 
@@ -293,10 +307,13 @@ impl Catalogue {
     /// The operation name is the one thing focus landing on a row cannot say,
     /// and it is Catalogue text of its own: translated first, then filled in,
     /// so the Ukrainian composes («Скасовано: додавання запису»).
-    fn undo_redo(&self, step: UndoStep, outcome: UndoOutcome) -> String {
-        let template = self.lookup.translate(match step {
-            UndoStep::Undone => msgids::UNDONE,
-            UndoStep::Redone => msgids::REDONE,
+    fn undo_redo(&self, direction: UndoDirection, outcome: UndoOutcome) -> String {
+        // The direction is Undo or Redo; the sentence it earns is "Undone" or
+        // "Redone" — a verbal noun follows in the Ukrainian, which is why the
+        // two are separate msgids rather than one with a filled-in word.
+        let template = self.lookup.translate(match direction {
+            UndoDirection::Undo => msgids::UNDONE,
+            UndoDirection::Redo => msgids::REDONE,
         });
         let operation = self.lookup.translate(outcome.operation.catalogue_msgid());
         let mut text = fill(&template, &[("operation", &operation)]);
