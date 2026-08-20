@@ -1,10 +1,13 @@
 //! PathMaster's pure core: no I/O, no OS calls, any-OS (spec §17, ADR-0007).
 //!
 //! Modules land with their tickets: `path` (split/join), `normalize`, `diagnostics`,
-//! `session`, `snapshot`, `rotation`, `thresholds`, `settings`, `logfmt`, `msgids`.
+//! `session`, `snapshot`, `rotation`, `thresholds`, `settings`, `logfmt`, `language`,
+//! `msgids`.
 
 #![forbid(unsafe_code)]
 
+pub mod language;
 pub mod logfmt;
+pub mod msgids;
 pub mod path;
 pub mod session;

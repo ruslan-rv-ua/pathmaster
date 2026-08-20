@@ -19,3 +19,6 @@ pathmaster-platform = { path = "../pathmaster-platform" }
 # exact resolved version; wxWidgets 3.3.3 is SHA256-pinned inside wxdragon-sys and compiled
 # from source, statically, with crt-static propagating into the C++ build.
 wxdragon = "0.9.17"
+
+[build-dependencies]
+polib = "0.3"

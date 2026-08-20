@@ -6,11 +6,14 @@
 
 #![windows_subsystem = "windows"]
 
+mod catalog;
 mod ui;
 
+use pathmaster_core::language::{self, LanguageChoice};
 use pathmaster_core::logfmt::Record;
 use pathmaster_platform::datadir::{self, DataDirState};
 use pathmaster_platform::elevation;
+use pathmaster_platform::locale;
 use pathmaster_platform::logwriter::Logger;
 use pathmaster_platform::panic_hook;
 
@@ -30,18 +33,22 @@ fn main() -> std::process::ExitCode {
     if let Some(log_path) = logger.path() {
         panic_hook::install(log_path.to_path_buf());
     }
-    // Interface Language is decided by the settings ticket; until it exists
-    // every run speaks the default.
+    // Interface Language, decided once per run and never again (spec §11).
+    // The stored choice arrives with the settings ticket; until it exists every
+    // run follows the system, which is what `auto` means.
+    let language = language::resolve(LanguageChoice::Auto, locale::system_language());
     logger.log(&Record::startup(
         env!("CARGO_PKG_VERSION"),
         elevated,
         data.log_state(),
-        "en",
+        language.code(),
     ));
 
     // No console to print to (windows subsystem) — a failed toolkit init can
     // only surface as a nonzero exit code (and the panic line, if it panics).
-    match wxdragon::main(|_| {
+    // Startup order (spec §11): Data Directory, settings, translations, UI.
+    match wxdragon::main(move |_| {
+        catalog::install(language);
         ui::build_main_window();
     }) {
         Ok(()) => std::process::ExitCode::SUCCESS,

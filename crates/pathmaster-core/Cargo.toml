@@ -10,4 +10,5 @@ publish = false
 
 # Dev-dependency of core alone (ticket impl-02) — never reaches the shipped binary.
 [dev-dependencies]
+polib = "0.3"
 proptest = "1"

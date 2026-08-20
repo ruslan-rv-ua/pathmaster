@@ -1,7 +1,10 @@
 //! The main window shell (spec §12): one vertical sizer — Banner above the notebook —
 //! with the native status bar attached to the frame outside the sizer.
 
+use pathmaster_core::msgids;
 use wxdragon::prelude::*;
+
+use crate::catalog::translate;
 
 /// Status column width in DIP — the app's single deliberate pixel constant (spec §12 D2).
 /// Status text is of predictable length (comma-joined one-word Issue types) while paths
@@ -43,9 +46,9 @@ pub fn build_main_window() {
     let system_page = build_scope_page(&notebook);
     // The Backups tab is not a Scope; its Snapshot list arrives with the backups ticket.
     let backups_page = Panel::builder(&notebook).build();
-    notebook.add_page(&user_page, "User PATH", true, None);
-    notebook.add_page(&system_page, "System PATH", false, None);
-    notebook.add_page(&backups_page, "Backups", false, None);
+    notebook.add_page(&user_page, &translate(msgids::TAB_USER), true, None);
+    notebook.add_page(&system_page, &translate(msgids::TAB_SYSTEM), false, None);
+    notebook.add_page(&backups_page, &translate(msgids::TAB_BACKUPS), false, None);
 
     let root_sizer = BoxSizer::builder(Orientation::Vertical).build();
     root_sizer.add(&banner, 0, SizerFlag::Expand | SizerFlag::All, 4);
@@ -73,8 +76,18 @@ fn build_scope_page(notebook: &Notebook) -> Panel {
     let status_width = from_dip(&list, STATUS_COLUMN_DIP);
     // Path's width is never a constant: the fit below sets it on the initial layout and
     // on every resize, so it is inserted at zero.
-    list.insert_column(0, "Path", ListColumnFormat::Left, 0);
-    list.insert_column(1, "Status", ListColumnFormat::Left, status_width);
+    list.insert_column(
+        0,
+        &translate(msgids::COLUMN_PATH),
+        ListColumnFormat::Left,
+        0,
+    );
+    list.insert_column(
+        1,
+        &translate(msgids::COLUMN_STATUS),
+        ListColumnFormat::Left,
+        status_width,
+    );
 
     let sizer = BoxSizer::builder(Orientation::Vertical).build();
     sizer.add(&list, 1, SizerFlag::Expand | SizerFlag::All, 4);
