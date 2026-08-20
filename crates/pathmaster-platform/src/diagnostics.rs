@@ -29,9 +29,7 @@ use windows_sys::Win32::Foundation::ERROR_ACCESS_DENIED;
 use windows_sys::Win32::Storage::FileSystem::{
     GetDriveTypeW, GetFileAttributesW, FILE_ATTRIBUTE_DIRECTORY, INVALID_FILE_ATTRIBUTES,
 };
-use windows_sys::Win32::System::Diagnostics::Debug::{
-    SetThreadErrorMode, SEM_FAILCRITICALERRORS, SEM_NOOPENFILEERRORBOX,
-};
+use windows_sys::Win32::System::Diagnostics::Debug::{SetThreadErrorMode, SEM_FAILCRITICALERRORS};
 use windows_sys::Win32::System::Environment::GetEnvironmentVariableW;
 use windows_sys::Win32::System::WindowsProgramming::DRIVE_REMOTE;
 
@@ -177,14 +175,16 @@ fn run(
     }
 }
 
+/// `SEM_FAILCRITICALERRORS` alone: it is the flag that suppresses the "There is
+/// no disk in the drive" box a removable root raises. Its usual travelling
+/// companion `SEM_NOOPENFILEERRORBOX` governs the legacy `OpenFile` API, which
+/// nothing here calls, so setting it would be decoration.
 fn silence_device_errors() {
     let mut previous = 0;
-    // SAFETY: a thread-local mode flag; the out parameter is a live local.
+    // SAFETY: a thread-local mode flag; the out parameter is a live local that
+    // outlives the call.
     unsafe {
-        SetThreadErrorMode(
-            SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX,
-            &mut previous,
-        );
+        SetThreadErrorMode(SEM_FAILCRITICALERRORS, &mut previous);
     }
 }
 
@@ -246,13 +246,16 @@ impl Filesystem for LocalFilesystem {
     /// is how an undefined reference flags Missing (spec §7, D10).
     fn root_kind(&self, path: &str) -> RootKind {
         let mut chars = path.chars();
-        match (chars.next(), chars.next(), chars.next()) {
-            (Some(first), Some(second), _) if is_separator(first) && is_separator(second) => {
+        match (chars.next(), chars.next()) {
+            (Some(first), Some(second)) if is_separator(first) && is_separator(second) => {
                 RootKind::Network
             }
-            (Some(drive), Some(':'), _) if drive.is_ascii_alphabetic() => {
-                // SAFETY: reads the NUL-terminated root path and nothing else.
-                let kind = unsafe { GetDriveTypeW(wide(&format!("{drive}:\\")).as_ptr()) };
+            (Some(drive), Some(':')) if drive.is_ascii_alphabetic() => {
+                let root = wide(&format!("{drive}:\\"));
+                // SAFETY: `root` is a NUL-terminated UTF-16 buffer bound above,
+                // so it outlives the call; the call reads it and returns a
+                // scalar.
+                let kind = unsafe { GetDriveTypeW(root.as_ptr()) };
                 if kind == DRIVE_REMOTE {
                     RootKind::Network
                 } else {
@@ -272,10 +275,18 @@ impl Filesystem for LocalFilesystem {
     /// A directory is the only healthy answer: a `PATH` search appends
     /// `\name.exe` to the Entry, so an Entry naming a file finds nothing.
     /// Access denied is emphatically **not** not-found — the path is there,
-    /// and the rules do not tell the user to delete it.
+    /// and the rules do not tell the user to delete it. That branch is a good
+    /// deal harder to reach than it looks: `GetFileAttributesW` needs only
+    /// `FILE_READ_ATTRIBUTES`, which Windows grants implicitly to anyone who
+    /// may traverse the parent, so a deny-ACL'd directory still reads its
+    /// attributes back and so does `C:\System Volume Information` on an
+    /// ordinary account (both measured). It survives for the hardened tokens
+    /// without that implicit grant.
     fn probe(&self, path: &str) -> Existence {
-        // SAFETY: reads the NUL-terminated path and returns a scalar.
-        let attributes = unsafe { GetFileAttributesW(wide(path).as_ptr()) };
+        let path = wide(path);
+        // SAFETY: `path` is a NUL-terminated UTF-16 buffer bound above, so it
+        // outlives the call; the call reads it and returns a scalar.
+        let attributes = unsafe { GetFileAttributesW(path.as_ptr()) };
         if attributes != INVALID_FILE_ATTRIBUTES {
             return if attributes & FILE_ATTRIBUTE_DIRECTORY != 0 {
                 Existence::Directory

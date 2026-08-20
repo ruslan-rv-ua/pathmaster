@@ -96,7 +96,7 @@ impl ScopePage {
         // No pass has run yet, so every Status column starts empty — which is
         // also what a healthy Scope looks like, and stays so for one Timer
         // tick (spec §7, FR-diag-async).
-        page.render(session, &Findings::default(), None);
+        page.render(session, None, None);
         page
     }
 
@@ -114,7 +114,7 @@ impl ScopePage {
     /// The whole list is rebuilt rather than patched: one code path for every
     /// operation means the focus rules below are the only thing that decides
     /// where the user lands.
-    pub fn render(&self, session: &Session, findings: &Findings, row: Option<usize>) {
+    pub fn render(&self, session: &Session, findings: Option<&Findings>, row: Option<usize>) {
         self.list.delete_all_items();
         for (index, entry) in session.entries().iter().enumerate() {
             self.list.insert_item(index as i64, entry.raw(), None);
@@ -132,13 +132,15 @@ impl ScopePage {
     /// row, and a pass lands whenever it finishes, including in the middle of
     /// someone arrowing through the list. It is also how a System edit reaches
     /// the User tab, whose rows did not change but whose duplicates did.
-    pub fn render_status(&self, session: &Session, findings: &Findings) {
+    ///
+    /// `None` is "no pass has run yet", which this column shows exactly as it
+    /// shows a healthy Scope — as nothing. The distinction matters only to the
+    /// StatusBar, which must not report a count nothing has measured.
+    pub fn render_status(&self, session: &Session, findings: Option<&Findings>) {
         for (index, entry) in session.entries().iter().enumerate() {
-            self.list.set_item_text_by_column(
-                index as i64,
-                1,
-                &status_text(findings.issues(entry)),
-            );
+            let issues = findings.map_or(&[][..], |findings| findings.issues(entry));
+            self.list
+                .set_item_text_by_column(index as i64, 1, &status_text(issues));
         }
     }
 

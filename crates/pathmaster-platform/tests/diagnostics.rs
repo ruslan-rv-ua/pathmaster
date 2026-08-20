@@ -4,9 +4,19 @@
 //!
 //! The adapters are measured against the real filesystem and the real process
 //! environment, for the same reason the registry tests use the live registry:
-//! every hazard they exist for — an access-denied directory that is *not*
-//! missing, a quoted path Win32 rejects outright — is real API behaviour, and
-//! a mock would only repeat what the adapter already assumes.
+//! every hazard they exist for — a quoted path Win32 rejects outright, a
+//! forward-slashed one it resolves anyway — is real API behaviour, and a mock
+//! would only repeat what the adapter already assumes.
+//!
+//! One branch is deliberately **not** tested here: `Existence::AccessDenied`.
+//! Measured, this machine will not produce it — `GetFileAttributesW` needs
+//! only `FILE_READ_ATTRIBUTES`, which rides the parent's traverse right, so a
+//! deny-ACL'd directory and `C:\System Volume Information` both read their
+//! attributes back on an ordinary account. A test that denied read and then
+//! asserted the answer would pass identically with the deny removed, which is
+//! no test at all. The rule that branch feeds — access denied is never
+//! Missing — is held in `core/tests/diagnostics.rs`, where a fake filesystem
+//! can simply say so.
 //!
 //! The worker is driven through a filesystem the test can hold open mid-pass,
 //! so "a pass the screen has outrun never reaches the UI" is asserted rather
@@ -132,58 +142,6 @@ fn a_quoted_path_is_not_found_rather_than_stripped_by_win32() {
     let dir = tempfile::tempdir().unwrap();
     let quoted = format!("\"{}\"", dir.path().display());
     assert_eq!(LocalFilesystem.probe(&quoted), Existence::NotFound);
-}
-
-#[test]
-fn a_directory_the_user_cannot_read_is_still_a_directory() {
-    // Calling this missing is the long-standing `File.Exists` mistake: the
-    // path is there, `PATH` search works through it, and telling the user to
-    // delete it would be wrong.
-    //
-    // It answers `Directory` rather than `AccessDenied`, and that is measured,
-    // not assumed: `GetFileAttributesW` needs only `FILE_READ_ATTRIBUTES`,
-    // which Windows grants implicitly to anyone who may traverse the parent —
-    // `C:\System Volume Information` reads its attributes back on an ordinary
-    // account too. `ERROR_ACCESS_DENIED` survives for the hardened tokens
-    // where that implicit grant is absent, and the rule it feeds (access
-    // denied is never Missing) is held in `core/tests/diagnostics.rs`, where a
-    // fake filesystem can say so. Both answers reach the rules as "not
-    // missing", which is what this test is really pinning.
-    let dir = tempfile::tempdir().unwrap();
-    let closed = dir.path().join("closed");
-    fs::create_dir(&closed).unwrap();
-    let _deny = DenyRead::new(&closed);
-    assert_ne!(probe(&closed), Existence::NotFound);
-    assert_ne!(probe(&closed), Existence::File);
-}
-
-/// Denies Everyone (`*S-1-1-0`) read access to a directory for the test's
-/// duration, restoring the DACL on drop so the temp dir can delete.
-struct DenyRead {
-    dir: std::path::PathBuf,
-}
-
-impl DenyRead {
-    fn new(dir: &Path) -> Self {
-        let status = std::process::Command::new("icacls")
-            .arg(dir)
-            .args(["/deny", "*S-1-1-0:(RX)"])
-            .status()
-            .unwrap();
-        assert!(status.success(), "icacls /deny failed");
-        DenyRead {
-            dir: dir.to_path_buf(),
-        }
-    }
-}
-
-impl Drop for DenyRead {
-    fn drop(&mut self) {
-        let _ = std::process::Command::new("icacls")
-            .arg(&self.dir)
-            .args(["/remove:d", "*S-1-1-0"])
-            .status();
-    }
 }
 
 fn probe(path: &Path) -> Existence {

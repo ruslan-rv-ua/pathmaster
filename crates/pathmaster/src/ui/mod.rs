@@ -11,8 +11,8 @@
 //! one `run` — so "what is available" and "what happens" are each answered once.
 //!
 //! Diagnostics ride along behind that one door: every command that changes a
-//! Working Copy ends in `after_edit`, which asks the worker thread for a pass
-//! and starts the Timer that will collect it (spec §7, FR-diag-async).
+//! Working Copy ends in `after_edit`, which asks the [`Pump`] for a pass over
+//! both Scopes (spec §7, FR-diag-async).
 
 mod command;
 mod entry_dialog;
@@ -28,13 +28,12 @@ use pathmaster_core::normalize::has_variable_reference;
 use pathmaster_core::session::{EntryId, Operation, Scope, Session, UndoOutcome, ValueType};
 use pathmaster_core::thresholds::{self, Overlength};
 use pathmaster_platform::datadir::ReadOnlyReason;
-use pathmaster_platform::diagnostics::Worker;
 use pathmaster_platform::registry::ScopeKey;
 use wxdragon::prelude::*;
-use wxdragon::timer::Timer;
 
 use crate::announce::Announcer;
 use crate::catalog::{translate, translate_plural};
+use crate::pump::Pump;
 use crate::ui::command::Command;
 use crate::ui::scope_page::ScopePage;
 
@@ -43,11 +42,6 @@ use crate::ui::scope_page::ScopePage;
 /// editing at all.
 const TAB_INDEX_USER: i32 = 0;
 const TAB_INDEX_SYSTEM: i32 = 1;
-
-/// How often the UI thread looks for a finished pass (spec §7, FR-diag-async).
-/// The Timer runs **only while a pass is outstanding** — an application at rest
-/// wakes the UI thread for nothing.
-const DIAGNOSTIC_POLL_MS: i32 = 100;
 
 /// One Scope, everything the application holds of it: which Scope it is, the
 /// Session being edited, and the tab showing it. They travel together through
@@ -59,7 +53,11 @@ struct ScopeTab {
     /// What the last completed pass found here — the Status column's whole
     /// content, and the issue count StatusBar field 0 reports. A derived view,
     /// held beside the Session and never inside it (ADR-0001).
-    findings: RefCell<Findings>,
+    ///
+    /// `None` until the first pass lands, and that is not the same as a pass
+    /// that found nothing: the column reads both as empty, but the StatusBar
+    /// must not claim "0 issues" about a Scope no pass has yet looked at.
+    findings: RefCell<Option<Findings>>,
 }
 
 impl ScopeTab {
@@ -74,6 +72,22 @@ impl ScopeTab {
             .iter()
             .map(|entry| entry.raw().to_string())
             .collect()
+    }
+
+    /// This Scope's half of StatusBar field 0: how many Entries it holds now,
+    /// and how many findings the last pass made here.
+    ///
+    /// The two numbers answer to different clocks on purpose — the count is
+    /// the screen's and updates with the edit, the issues are the last pass's
+    /// and catch up one Timer tick later, which is what §12's "updated after
+    /// every diagnostic pass" means. Before any pass there is no issue half at
+    /// all: "(0 issues)" would be a claim about a Scope nothing has read.
+    fn counts_text(&self) -> String {
+        let entries = entry_count_text(self.scope, self.session.borrow().entries().len());
+        match self.findings.borrow().as_ref() {
+            Some(findings) => entries + &issue_count_text(findings.issue_count()),
+            None => entries,
+        }
     }
 
     /// The registry value behind this tab. Built where it is used rather than
@@ -108,11 +122,20 @@ impl ScopeTab {
 ///
 /// It rides an `Rc` into every event handler, which is why every command takes
 /// `&self`: the Sessions' interior mutability is the `RefCell`'s, and **no
-/// borrow is ever held across a call that can run someone else's code** — a
-/// modal dialog runs its own event loop, and `ScopePage::render` fires the
-/// list's own events synchronously. Only `on_item_activated` is bound to a
-/// list, so `render` cannot re-enter today; the rule is written down because
-/// the next binding is what would break it.
+/// borrow is ever held across a call that can run someone else's code**.
+///
+/// Two kinds of call can. A modal dialog runs its own event loop, and
+/// `ScopePage::render` fires the list's own events synchronously — of which
+/// only `on_item_activated` is bound, so `render` cannot re-enter. The second
+/// arrived with diagnostics and is the sharper one: **the Timer ticks inside a
+/// modal dialog's loop too**, so `collect_pass` can run — taking the Pump's
+/// borrow, the Sessions' and the findings' — while `ask_for_entry` or
+/// `question::ask` is open. Every dialog call site was checked against that
+/// and holds no borrow across it: `focused_entry` scopes its own, `edit` reads
+/// the raw text through a temporary that dies with its statement, and
+/// `convert_or_keep` drops the Session before it asks. What a pass landing
+/// under an open dialog does is write the Status column and re-sync controls
+/// the dialog has disabled anyway — invisible, and correct once it closes.
 struct App {
     frame: Frame,
     notebook: Notebook,
@@ -121,13 +144,10 @@ struct App {
     status: StatusBar,
     tabs: [ScopeTab; 2],
     readonly: Option<ReadOnlyReason>,
-    /// The diagnostic pass, running on its own thread. Asked for a pass by
-    /// `request_pass`, drained by `timer` — never called into from anywhere
-    /// else, because widgets may only be touched from the UI thread.
-    worker: RefCell<Worker>,
-    /// Drains the worker while a pass is outstanding, and stops as soon as
-    /// none is (spec §7, FR-diag-async).
-    timer: Timer<Frame>,
+    /// The diagnostic pass: the worker thread and the Timer that drains it
+    /// (spec §17, `pump`). Never called into off the UI thread, because
+    /// widgets may only be touched from it.
+    pump: Pump,
     /// The merged length the last pass measured — StatusBar field 1, which
     /// keeps showing it until the next pass replaces it. `None` only before
     /// the first pass has landed.
@@ -168,13 +188,13 @@ pub fn build_main_window(
             scope: Scope::User,
             session: user,
             page: user_page,
-            findings: RefCell::new(Findings::default()),
+            findings: RefCell::new(None),
         },
         ScopeTab {
             scope: Scope::System,
             session: system,
             page: system_page,
-            findings: RefCell::new(Findings::default()),
+            findings: RefCell::new(None),
         },
     ];
     // The Backups tab is not a Scope; its Snapshot list arrives with the backups ticket.
@@ -212,8 +232,7 @@ pub fn build_main_window(
         status,
         tabs,
         readonly,
-        worker: RefCell::new(Worker::spawn()),
-        timer: Timer::new(&frame),
+        pump: Pump::new(&frame),
         merged_length: Cell::new(None),
     });
     app.bind();
@@ -283,15 +302,12 @@ impl App {
         });
 
         // The one place a finished pass crosses onto the UI thread (spec §7,
-        // FR-diag-async). There is exactly one Timer, which matters: wxdragon
-        // binds a timer's tick on its *owner*, so a second one on this frame
-        // would fire this handler too.
+        // FR-diag-async).
         let app = Rc::clone(self);
-        self.timer.on_tick(move |_| app.collect_pass());
+        self.pump.on_tick(move |_| app.collect_pass());
     }
 
-    /// Asks for a pass over both Working Copies and starts the Timer that will
-    /// collect it.
+    /// Asks for a pass over both Working Copies.
     ///
     /// One pass covers both Scopes because they are diagnosed together: a
     /// System edit changes what a User Entry is a duplicate of, so there is no
@@ -302,22 +318,13 @@ impl App {
         // silently move every cross-scope duplicate flag onto the other Scope.
         let system = self.tab_of(Scope::System).raw_entries();
         let user = self.tab_of(Scope::User).raw_entries();
-        self.worker.borrow_mut().request(system, user);
-        if !self.timer.is_running() {
-            self.timer.start(DIAGNOSTIC_POLL_MS, false);
-        }
+        self.pump.request(system, user);
     }
 
-    /// The Timer's tick: take a finished pass if one has landed, and stop the
-    /// Timer once nothing is outstanding — an application at rest does not
-    /// wake its UI thread ten times a second.
+    /// The Timer's tick: put a finished pass on screen if one has landed.
     fn collect_pass(&self) {
-        let landed = self.worker.borrow_mut().take();
-        if let Some(diagnosis) = landed {
+        if let Some(diagnosis) = self.pump.take() {
             self.apply_pass(&diagnosis);
-        }
-        if !self.worker.borrow().outstanding() {
-            self.timer.stop();
         }
     }
 
@@ -333,8 +340,8 @@ impl App {
         for tab in &self.tabs {
             let session = tab.session.borrow();
             let findings = Findings::of(session.entries(), diagnosis.scope(tab.scope));
-            tab.page.render_status(&session, &findings);
-            *tab.findings.borrow_mut() = findings;
+            tab.page.render_status(&session, Some(&findings));
+            *tab.findings.borrow_mut() = Some(findings);
         }
         self.merged_length.set(Some(diagnosis.merged_length()));
         self.sync();
@@ -549,7 +556,8 @@ impl App {
     fn after_edit(&self, tab: &ScopeTab, row: Option<usize>) {
         {
             let session = tab.session.borrow();
-            tab.page.render(&session, &tab.findings.borrow(), row);
+            tab.page
+                .render(&session, tab.findings.borrow().as_ref(), row);
         }
         self.sync();
         self.request_pass();
@@ -674,23 +682,17 @@ fn readonly_text(reason: &ReadOnlyReason) -> String {
 fn general_status(user: &ScopeTab, system: &ScopeTab, readonly: Option<&ReadOnlyReason>) -> String {
     match readonly {
         Some(reason) => readonly_text(reason),
-        None => format!("{} | {}", scope_status(user), scope_status(system)),
+        None => format!("{} | {}", user.counts_text(), system.counts_text()),
     }
 }
 
-/// One Scope's half of that field: how many Entries it holds now, and how many
-/// findings the last pass made. The two numbers answer to different clocks —
-/// the count is the screen's, the issues are the last pass's — and the second
-/// catches up one Timer tick later.
-fn scope_status(tab: &ScopeTab) -> String {
-    let entries = entry_count_text(tab.scope, tab.session.borrow().entries().len());
-    entries + &issue_count_text(tab.findings.borrow().issue_count())
-}
-
-/// The issue half, a suffix because one gettext lookup selects on one number
-/// and this line carries two. Zero is shown like any other count: the field is
-/// a fixed-shape readout spoken as one sentence, and the Status column — where
-/// "never OK" applies — is a different surface.
+/// The issue half of one Scope's counts, a suffix because one gettext lookup
+/// selects on one number and that line carries two.
+///
+/// Zero is shown like any other count once a pass has run — a Scope with no
+/// Entries provably has no Issues, and a fixed shape is easier to parse
+/// aurally than one that comes and goes. The Status column, where "never OK"
+/// applies, is a different surface.
 fn issue_count_text(count: usize) -> String {
     fill(
         &translate_plural(

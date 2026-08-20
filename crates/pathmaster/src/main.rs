@@ -8,6 +8,7 @@
 
 mod announce;
 mod catalog;
+mod pump;
 mod ui;
 
 use std::cell::RefCell;

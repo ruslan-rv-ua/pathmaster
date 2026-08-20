@@ -572,7 +572,7 @@ fn an_entry_the_pass_never_saw_has_no_findings() {
 }
 
 #[test]
-fn findings_hold_the_passs_own_issue_count() {
+fn findings_hold_the_issue_count_of_the_pass_they_came_from() {
     // StatusBar field 0 reports the last pass, not the screen: the count does
     // not dip while an edited Entry waits for the next one (spec §12).
     let mut session = session(r#""C:\gone";C:\also-gone"#);

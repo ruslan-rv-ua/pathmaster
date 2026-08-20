@@ -73,14 +73,15 @@ the drive raises the OS's own "no disk" dialog, from a thread that owns no windo
 touches a widget — wx's event tables are thread-local, so a widget call from the worker would not
 crash, it would silently do nothing, which is worse.
 
-**Access denied is a branch the machine will not demonstrate, and that is written down.** The test
-that tried to provoke `ERROR_ACCESS_DENIED` from `GetFileAttributesW` measured the opposite:
+**Access denied is a branch the machine will not demonstrate, and that is written down.** The attempt
+to provoke `ERROR_ACCESS_DENIED` from `GetFileAttributesW` measured the opposite:
 `FILE_READ_ATTRIBUTES` is granted implicitly to anyone who may traverse the parent, so a deny-ACL'd
 directory reads its attributes back, and so does `C:\System Volume Information` on an ordinary
 account. The branch stays for the hardened tokens without that implicit grant; the rule it feeds —
-access denied is never Missing — is held in `core/tests/diagnostics.rs` where a fake can say so, and
-the platform test now pins what the machine *can* show: a directory the user cannot read is still a
-directory, never NotFound.
+access denied is never Missing — is held in `core/tests/diagnostics.rs` where a fake can say so. The
+measurement lives in `probe`'s doc comment and the platform test file's header, and there is
+deliberately **no** platform test for it: see the review section below, where the one that was
+written turned out to pass whether or not the deny was applied.
 
 **Eight msgids**, both `.po` files, gate passing. The five Issue words are single words by spec
 («Відсутній», «Відносний», «У лапках», «Дублікат», «Порожній») and there is deliberately no word for
@@ -127,3 +128,72 @@ not the application's.
 
 The GUI itself stays Release-Checklist territory (ADR-0007); steps 2–4 and 16 already name what this
 ticket delivers, so the Checklist gains nothing new.
+
+### Code review, and what it changed
+
+Reviewed on both axes (`/code-review`) after the first commit. **One real bug, found by the Spec
+axis, and it was the sharper half of something already half-noticed:**
+
+**StatusBar field 0 asserted a false zero.** Field 1 was written to be honest about "no pass has run
+yet" — it stays empty until the first one lands — but field 0 was not, and read
+«PATH користувача: 42 записи (0 проблем)» about a PATH nothing had yet looked at. The same
+`Findings::default()` stood for both "no pass" and "a pass that found nothing", and the column reads
+those identically (as nothing) which is why it went unnoticed there. `ScopeTab::findings` is now
+`Option<Findings>`, so the two states are different values rather than the same one read two ways:
+the column shows both as empty, and the issue suffix appears only once a pass exists. Measured on a
+fresh launch: field 0 is 54 characters before the first pass (both entry counts, no suffixes) and 79
+after. Field 1 is 0 then 30.
+
+**Spec §17 names a `pump` (Timer drain) module and there was not one** — the drain sat in
+`ui/mod.rs`. Extracting `crates/pathmaster/src/pump.rs` was worth more than compliance: the rule
+"the Timer runs only while a pass is outstanding" had been split between `request_pass` (start) and
+`collect_pass` (stop), and it is one rule. `Pump` owns the Worker and the Timer together, asking
+starts it and taking the last outstanding result stops it, and `ui/mod.rs` loses its second reason
+to change.
+
+**A Timer that failed to start could strand a pass.** `request_pass` started the Timer only when
+`is_running()` said it was not, and ignored `Start`'s answer — so a `Start` that returned false (a
+Timer that could not be created, a system out of timer handles) left the pass outstanding and
+uncollected until some later edit happened to retry. `Pump::request` now starts unconditionally:
+restarting a running Timer only resets its countdown, and the pass just asked for is exactly the one
+worth waiting the interval for.
+
+**The re-entrancy paragraph in `ui/mod.rs` had gone stale, and it had predicted this.** It ended
+"the rule is written down because the next binding is what would break it" — and this ticket added
+the next binding. `Timer::on_tick` fires inside a modal dialog's own event loop, so `collect_pass`
+can run while the Add/Edit dialog is open, taking the Pump's borrow, the Sessions' and the findings'.
+Every dialog call site was walked against that: none holds a borrow across the dialog
+(`focused_entry` scopes its own, `edit` reads the raw text through a statement-lifetime temporary,
+`convert_or_keep` drops the Session before it asks), so there is no bug — but the paragraph now names
+the Timer as the second re-entrancy source and records what was checked, instead of claiming there is
+only one.
+
+**A test that could not fail, deleted.** The platform test for `Existence::AccessDenied` denied read
+on a directory and asserted the probe still called it a directory — and measurement showed it passes
+identically with the deny removed, because `GetFileAttributesW` needs only `FILE_READ_ATTRIBUTES`,
+which rides the parent's traverse right. It was theatre, and it duplicated `datadir.rs`'s `icacls`
+helper to be so. Both are gone; the measurement is recorded where it belongs, in `probe`'s doc
+comment and the test file's header, and the rule it was pretending to hold is held in
+`core/tests/diagnostics.rs` where a fake can say it.
+
+Three shape fixes from the Standards axis in the same pass: two of the three `unsafe` blocks passed a
+`wide(...)` temporary while the third bound it first, so the file contradicted itself on the one
+non-obvious claim a SAFETY comment exists to make — all three bind now, as `datadir.rs` does;
+`root_kind` matched on a three-element tuple whose third element was `_` in every arm, vestigial from
+core's `is_fully_qualified`, where it is load-bearing; and `SEM_NOOPENFILEERRORBOX` came out, because
+it governs the legacy `OpenFile` API that nothing here calls — `SEM_FAILCRITICALERRORS` alone is the
+flag that suppresses the no-disk box. `scope_status` moved onto `ScopeTab` as `counts_text`, where
+`raw_entries` already lives.
+
+**One finding declined.** The Standards axis read the `(system, user)` pair travelling through
+`request_pass` → `Worker::request` → `Request` → `diagnose` as a Data Clump wanting its own type.
+The order is not an accident to be encapsulated — it is *runtime order*, a domain fact §7 fixes and
+core's `diagnose` signature already carries, and a wrapper struct in platform used at one call site
+would restate it rather than enforce it. What actually guards the hazard is naming the Scopes at the
+call site, which `tab_of(Scope::System)` does.
+
+Two things the Spec axis noted and this ticket keeps deliberately: field 1 is empty for the ~100 ms
+before the first pass lands, which is the honest reading of a field whose only source is the pass;
+and a zero-entry Scope reads "no entries (0 issues)" rather than §12's "{n} entries" shape, because
+§10.1 already gives the zero case its own msgid and the suffix keeps the field one shape to parse
+aurally.
