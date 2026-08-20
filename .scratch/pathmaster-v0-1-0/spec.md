@@ -235,6 +235,13 @@ action. A Session never survives a process boundary.
 > while dirty; **clears that Session's Undo/Redo stack**; re-runs diagnostics; announces the entry
 > count ("{Scope}: {n} entries" — supersedes the PRD's "PATH refreshed"). Focus stays on the Entry
 > with the same id if it survived, else its nearest neighbour by index, else the list.
+>
+> *Filled in by impl ticket 11.* The confirmation's title, which is the whole of it (§10): **"Refresh
+> discards your unsaved changes and the undo history — continue?"** [Yes] [No] — unlike Cancel's it
+> names the undo history, because Refresh is the one discard Ctrl+Z cannot take back. **A re-read
+> that fails leaves the Session exactly as it was** and announces nothing: an unreadable value is
+> not an Absent one (§4), and the Announcement catalogue is closed at seven. The §9 taxonomy that
+> will name it arrives with Apply.
 
 > **FR-close-confirm** (must, rewritten) — one dialog for the application, the title naming the
 > dirty Scopes: **"Unsaved changes in: User PATH, System PATH — save before closing?"**, buttons
@@ -272,6 +279,17 @@ Settled by ticket [10](issues/10-entry-editing-interaction.md).
 
 Duplicates and not-yet-existing paths commit legally — diagnostics flags them asynchronously; they
 are never blocked at commit and never warned about during typing.
+
+*Filled in by impl ticket 11.* The dialog's own strings: the field is labelled with the `Path`
+column header — one label for one thing — and its buttons are **[Browse…] [OK] [Cancel]**, ours
+rather than stock, because `add_std_catalog()` is never called (§11). The **length-zero** rejection
+has its own title, "The entry cannot be empty"; `wxDirDialog` is given a title of ours,
+**"Choose a folder"**, or it would speak wx's built-in English in a Ukrainian run. Every two-button
+dialog in the application — convert-or-keep included — gives the **negative button the default,
+the initial focus and Escape**: Windows hands Enter to the focused button, so a default the focus
+does not sit on is not the answer Enter gives. Browse seeds from the field text **literally**: a
+`%VAR%` is not expanded to find a seed, because expansion is diagnostics' pass over the process
+environment (§7) and a folder picker is not the place to start a second one.
 
 ## 7. Diagnostics
 
@@ -468,8 +486,15 @@ Closed at seven. Canonical English below (msgids); Ukrainian ships in the Catalo
 3. **Apply failed** — the §9 taxonomy texts.
 4. **Undo/Redo** — "Undone: {operation}" / "Redone: {operation}". Operation names (distinct English
    from the buttons that perform them — a ticket 11 D14 requirement): "Add entry", "Edit entry",
-   "Delete entry", "Move entry", "Cancel", "Change value type" **[assembly]**, "Restore snapshot"
-   **[assembly]**. No path text in the announcement — focus lands on the row and NVDA reads it.
+   "Delete entry", "Move entry", "Discard changes", "Change value type" **[assembly]**, "Restore
+   snapshot" **[assembly]**. No path text in the announcement — focus lands on the row and NVDA
+   reads it.
+   *Amended by impl ticket 11: the Cancel operation was listed as "Cancel", which the same
+   sentence's own rule forbids — three meanings need three English strings, and the third is
+   the dialog button "Cancel"/«Скасувати» that every modal carries (ADR-0004). The command keeps
+   §15's name one word longer ("Cancel Changes"/«Відхилити зміни») and the operation becomes the
+   verbal noun D14 asks for ("Discard changes"/«відхилення змін»). "Add entry" and "Edit entry"
+   double as the §6 dialog titles: identical English for one meaning, as ADR-0004 requires.*
 5. **Undo across the Apply barrier** — item 4's text with the suffix ", unsaved changes".
 6. **Cancel** — "Changes discarded".
 7. **Read-only Data at startup** — "Read-only: {reason}", with the three §3 reasons **[assembly]**:
@@ -643,6 +668,15 @@ Ctrl+Shift+Tab between tabs; arrows in lists; F2 / Enter / double-click edit; En
 `NVDA+End` reads the status bar. Apply/Cancel disabled while clean; every menu item's enabled state
 reflects the active Session. Buttons per Scope tab: Add, Edit, Delete, Move Up, Move Down, Apply,
 Cancel; Backups tab: Restore. No scenario requires a mouse.
+
+*Amended by impl ticket 11, which built the Edit menu and the per-Scope buttons.* The table names
+commands, not msgids; the shipped labels differ where ADR-0004 requires it. Menu items carry their
+mnemonic ("&Add Entry…"), buttons carry none — the Tab order is the map and a button's `&` would
+race the menu bar — and a `…` marks the two that open a dialog ("Add…", "Edit…"). The Cancel
+command is **"Cancel Changes"** in both places, leaving "Cancel" to the dialog button that means
+"do not commit". **A non-writable Session disables the whole Edit menu**, Refresh included: §5's
+"disables every editing action" is read as the ticket's "every control and menu item", so a Scope
+the user cannot edit reads as one throughout rather than offering a single live item.
 
 ## 16. Build, packaging, release
 

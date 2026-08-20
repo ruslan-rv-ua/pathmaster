@@ -62,6 +62,8 @@ interface expect the Catalogue's Ukrainian equivalents.
 | B1 | F2 on a row | Edit dialog: title "Edit entry", labelled path field, buttons spoken | |
 | B2 | OK on an entry containing `<` | Error dialog whose **title is the message**; OK; focus returns to the field, text intact | |
 | B3 | Browse in the Edit dialog | Standard Windows folder picker, operable by keyboard; chosen folder replaces the field text, focus returns to the field | |
+| B4 | OK on an entry using `%VAR%` in a `REG_SZ` Scope | Convert-or-keep dialog: title spoken, both buttons spoken; either answer commits, one Ctrl+Z takes it back | |
+| B5 | Cancel while dirty, then F5 while dirty | Each confirmation's title spoken and its two buttons; focus starts on the safe button, and Escape answers with it | |
 
 ## C. Elevated instance (ticket 12)
 

@@ -3,7 +3,8 @@
 //! An Entry is the raw substring between `;` separators, byte-for-byte;
 //! split-then-join reproduces the decoded value exactly.
 
-use pathmaster_core::path::{join, split};
+use pathmaster_core::msgids;
+use pathmaster_core::path::{join, rejection, split, Rejection};
 
 #[test]
 fn empty_value_decodes_to_zero_entries() {
@@ -62,4 +63,91 @@ fn split_then_join_reproduces_the_value_exactly() {
     ] {
         assert_eq!(join(&split(value)), value, "round trip of {value:?}");
     }
+}
+
+// ---- What may be committed as an Entry (spec §6, FR-edit-f2) ----
+
+#[test]
+fn an_ordinary_path_is_accepted() {
+    assert_eq!(rejection(r"C:\Program Files\Tool\bin"), None);
+}
+
+#[test]
+fn the_length_zero_entry_is_rejected() {
+    assert_eq!(rejection(""), Some(Rejection::Empty));
+}
+
+#[test]
+fn whitespace_only_commits_verbatim() {
+    // Blocking "   " would smuggle a trim into validation, and the editor
+    // never trims or normalises (spec §6 D5). Whether it reads as an Empty
+    // Entry is diagnostics' call, not the editor's.
+    assert_eq!(rejection("   "), None);
+    assert_eq!(rejection("\t"), None);
+}
+
+#[test]
+fn each_forbidden_character_is_rejected_and_named() {
+    for forbidden in ['<', '>', '|', '"'] {
+        assert_eq!(
+            rejection(&format!(r"C:\dir{forbidden}")),
+            Some(Rejection::ForbiddenCharacter(forbidden)),
+            "{forbidden:?} is forbidden in an Entry",
+        );
+    }
+}
+
+#[test]
+fn the_separator_may_not_be_typed_into_an_entry() {
+    // An Entry cannot contain the separator it is defined by: typing a second
+    // path means a second Entry, not a character.
+    assert_eq!(
+        rejection(r"C:\one;C:\two"),
+        Some(Rejection::ForbiddenCharacter(';')),
+    );
+}
+
+#[test]
+fn the_first_forbidden_character_in_the_text_is_the_one_reported() {
+    assert_eq!(
+        rejection(r#"C:\a|b<c"#),
+        Some(Rejection::ForbiddenCharacter('|')),
+    );
+}
+
+#[test]
+fn validation_polices_characters_only_never_the_path_itself() {
+    // A duplicate, a path that does not exist yet and a relative one all
+    // commit legally — diagnostics flags them asynchronously (spec §6 D6).
+    for text in [r"Z:\not\created\yet", "..", r"\\server\share", "tool"] {
+        assert_eq!(rejection(text), None, "{text:?} is a legal Entry");
+    }
+}
+
+#[test]
+fn a_variable_reference_is_ordinary_text_to_validation() {
+    assert_eq!(rejection(r"%SystemRoot%\System32"), None);
+}
+
+#[test]
+fn each_rejection_names_the_catalogue_string_that_is_its_dialog() {
+    // The message *is* the dialog's title — NVDA never speaks a body — so a
+    // rejection with no Catalogue string would be a silent refusal.
+    let registered: Vec<&str> = msgids::REGISTRY.iter().map(|entry| entry.msgid).collect();
+    for rejection in [Rejection::Empty, Rejection::ForbiddenCharacter('<')] {
+        let msgid = rejection.catalogue_msgid();
+        assert!(
+            registered.contains(&msgid),
+            "{rejection:?} names {msgid:?}, which the Catalogue does not hold",
+        );
+    }
+    assert_ne!(
+        Rejection::Empty.catalogue_msgid(),
+        Rejection::ForbiddenCharacter('<').catalogue_msgid(),
+    );
+    // The forbidden-character message names the character it rejected.
+    assert_eq!(
+        msgids::placeholders(Rejection::ForbiddenCharacter('<').catalogue_msgid()),
+        vec!["character"],
+    );
 }

@@ -95,3 +95,178 @@ msgstr "the data directory is not writable"
 #. set aside. The whole message is the title — a dialog body is never spoken.
 msgid "Settings could not be read — defaults are in use"
 msgstr "Settings could not be read — defaults are in use"
+
+#. Menu bar title. The mnemonic letter is Latin in every language.
+msgid "&Edit"
+msgstr "&Edit"
+
+#. Edit menu item: opens the Add dialog. The code appends its accelerator.
+msgid "&Add Entry…"
+msgstr "&Add Entry…"
+
+#. Edit menu item: opens the Edit dialog on the focused row (F2).
+msgid "&Edit Entry…"
+msgstr "&Edit Entry…"
+
+#. Edit menu item: deletes the focused entry, with no confirmation (Del).
+msgid "&Delete Entry"
+msgstr "&Delete Entry"
+
+#. Edit menu item: moves the focused entry one place earlier (Alt+Up).
+msgid "&Move Up"
+msgstr "&Move Up"
+
+#. Edit menu item: moves the focused entry one place later (Alt+Down).
+msgid "Mo&ve Down"
+msgstr "Mo&ve Down"
+
+#. Edit menu item: undoes the last operation (Ctrl+Z).
+msgid "&Undo"
+msgstr "&Undo"
+
+#. Edit menu item: redoes the operation last undone (Ctrl+Y).
+msgid "&Redo"
+msgstr "&Redo"
+
+#. Edit menu item: the Cancel command — discards this Scope's unsaved changes
+#. back to the value last read. Not the Cancel *button* of a dialog, which is
+#. "Cancel" below and means "do not commit" (ADR-0004).
+msgid "&Cancel Changes"
+msgstr "&Cancel Changes"
+
+#. Edit menu item: re-reads the active Scope from the registry (F5).
+msgid "Re&fresh"
+msgstr "Re&fresh"
+
+#. Button under a Scope's list: opens the Add dialog. Buttons carry no
+#. mnemonic — the Tab order is the map, and an "&" would race the menu bar.
+msgid "Add…"
+msgstr "Add…"
+
+#. Button under a Scope's list: opens the Edit dialog on the focused row.
+msgid "Edit…"
+msgstr "Edit…"
+
+#. Button under a Scope's list: deletes the focused entry.
+msgid "Delete"
+msgstr "Delete"
+
+#. Button under a Scope's list: moves the focused entry one place earlier.
+msgid "Move Up"
+msgstr "Move Up"
+
+#. Button under a Scope's list: moves the focused entry one place later.
+msgid "Move Down"
+msgstr "Move Down"
+
+#. Button under a Scope's list: the Cancel command — discards this Scope's
+#. unsaved changes. Disabled while there are none.
+msgid "Cancel Changes"
+msgstr "Cancel Changes"
+
+#. Dialog title when an existing entry is edited, and the operation name in
+#. "Undone: {operation}". Translate as a verbal noun so the announcement
+#. composes: "Скасовано: редагування запису".
+msgid "Edit entry"
+msgstr "Edit entry"
+
+#. Dialog title when a new entry is added, and the operation name in
+#. "Undone: {operation}" — a verbal noun, as above.
+msgid "Add entry"
+msgstr "Add entry"
+
+#. Button in the Add/Edit dialog: opens the Windows folder picker.
+msgid "Browse…"
+msgstr "Browse…"
+
+#. Title of the Windows folder picker Browse opens.
+msgid "Choose a folder"
+msgstr "Choose a folder"
+
+#. Affirmative button of our own dialogs. Kept as "OK" in every language so it
+#. matches the one stock button left in the application.
+msgid "OK"
+msgstr "OK"
+
+#. Negative button of our own dialogs: "do not commit", "close this dialog".
+#. Not the Cancel command, which is "Cancel Changes" above (ADR-0004).
+msgid "Cancel"
+msgstr "Cancel"
+
+#. Affirmative button of a confirmation.
+msgid "Yes"
+msgstr "Yes"
+
+#. Negative button of a confirmation.
+msgid "No"
+msgstr "No"
+
+#. Validation error: the whole message is the dialog's title. {character} is
+#. the rejected character itself — one of < > | " or the ; separator.
+msgid "The entry contains a forbidden character: {character}"
+msgstr "The entry contains a forbidden character: {character}"
+
+#. Validation error: the path field was left empty. Whitespace is not empty.
+msgid "The entry cannot be empty"
+msgstr "The entry cannot be empty"
+
+#. Dialog title: an entry using %VAR% is being committed into a Scope stored
+#. as REG_SZ, which does not expand it. %VAR% and REG_SZ are literal data.
+msgid "This entry uses %VAR%, but the value type (REG_SZ) does not expand variables"
+msgstr "This entry uses %VAR%, but the value type (REG_SZ) does not expand variables"
+
+#. Button of that dialog: convert the Scope to REG_EXPAND_SZ. Literal data.
+msgid "Change type to REG_EXPAND_SZ"
+msgstr "Change type to REG_EXPAND_SZ"
+
+#. Button of that dialog: commit the entry, leaving the value type alone.
+msgid "Keep as literal text"
+msgstr "Keep as literal text"
+
+#. Confirmation title for the Cancel command. Undoable, so it says no more.
+msgid "Discard changes?"
+msgstr "Discard changes?"
+
+#. Confirmation title for Refresh, which unlike Cancel cannot be undone.
+msgid "Refresh discards your unsaved changes and the undo history — continue?"
+msgstr "Refresh discards your unsaved changes and the undo history — continue?"
+
+#. Announcement: spoken after Ctrl+Z. {operation} is one of the operation
+#. names in this file, translated as a verbal noun.
+msgid "Undone: {operation}"
+msgstr "Undone: {operation}"
+
+#. Announcement: spoken after Ctrl+Y.
+msgid "Redone: {operation}"
+msgstr "Redone: {operation}"
+
+#. Announcement suffix, appended to the two above when the undo re-dirtied a
+#. Scope that had just been applied. Keep the leading comma and space.
+msgid ", unsaved changes"
+msgstr ", unsaved changes"
+
+#. Announcement: spoken after the Cancel command discards the changes.
+msgid "Changes discarded"
+msgstr "Changes discarded"
+
+#. Operation name in "Undone: {operation}" — a verbal noun, not the button.
+msgid "Delete entry"
+msgstr "Delete entry"
+
+#. Operation name: one Move Up or Move Down. The direction is not named — the
+#. row NVDA reads afterwards says it.
+msgid "Move entry"
+msgstr "Move entry"
+
+#. Operation name: the Cancel command that discarded the changes. A verbal
+#. noun ("відхилення змін"), never the imperative on the button.
+msgid "Discard changes"
+msgstr "Discard changes"
+
+#. Operation name: the Scope's value type was converted.
+msgid "Change value type"
+msgstr "Change value type"
+
+#. Operation name: a saved Snapshot was loaded into the working copy.
+msgid "Restore snapshot"
+msgstr "Restore snapshot"

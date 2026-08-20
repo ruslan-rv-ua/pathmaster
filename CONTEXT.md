@@ -59,8 +59,9 @@ content, not a record that something happened — an edit and its exact reversal
 _Avoid_: Modified, Changed, Unsaved (as a flag), Touched
 
 **Checkpoint**:
-One entry in an Editing Session's undo history: a complete captured state of its Working Copy, together with
-the Entry the change concerned so focus can return there. One user-visible operation produces exactly one
+One entry in an Editing Session's undo history: a complete captured state of its Working Copy, the Entry the
+change concerned so focus can return there, and the name of the operation it stands for so undoing it can be
+announced — the one thing focus landing on a row cannot say. One user-visible operation produces exactly one
 Checkpoint, however many Entries it touched.
 _Avoid_: Snapshot (that is a backup file), Undo step, Command, Transaction, Revision
 

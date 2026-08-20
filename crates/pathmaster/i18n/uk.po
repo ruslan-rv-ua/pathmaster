@@ -88,3 +88,179 @@ msgstr "папка даних недоступна для запису"
 #. set aside. The whole message is the title — a dialog body is never spoken.
 msgid "Settings could not be read — defaults are in use"
 msgstr "Не вдалося прочитати налаштування — використовуються типові значення"
+
+#. Menu bar title. The mnemonic letter is Latin in every language.
+msgid "&Edit"
+msgstr "Редагування(&E)"
+
+#. Edit menu item: opens the Add dialog. The code appends its accelerator.
+msgid "&Add Entry…"
+msgstr "Додати запис(&A)…"
+
+#. Edit menu item: opens the Edit dialog on the focused row (F2).
+msgid "&Edit Entry…"
+msgstr "Змінити запис(&E)…"
+
+#. Edit menu item: deletes the focused entry, with no confirmation (Del).
+msgid "&Delete Entry"
+msgstr "Видалити запис(&D)"
+
+#. Edit menu item: moves the focused entry one place earlier (Alt+Up).
+msgid "&Move Up"
+msgstr "Перемістити вгору(&M)"
+
+#. Edit menu item: moves the focused entry one place later (Alt+Down).
+msgid "Mo&ve Down"
+msgstr "Перемістити вниз(&V)"
+
+#. Edit menu item: undoes the last operation (Ctrl+Z). "Скасувати дію" rather
+#. than a bare "Скасувати", which is the Cancel button below.
+msgid "&Undo"
+msgstr "Скасувати дію(&U)"
+
+#. Edit menu item: redoes the operation last undone (Ctrl+Y).
+msgid "&Redo"
+msgstr "Повторити дію(&R)"
+
+#. Edit menu item: the Cancel command — discards this Scope's unsaved changes
+#. back to the value last read. Not the Cancel *button* of a dialog, which is
+#. "Cancel" below and means "do not commit" (ADR-0004).
+msgid "&Cancel Changes"
+msgstr "Відхилити зміни(&C)"
+
+#. Edit menu item: re-reads the active Scope from the registry (F5).
+msgid "Re&fresh"
+msgstr "Оновити(&F)"
+
+#. Button under a Scope's list: opens the Add dialog. Buttons carry no
+#. mnemonic — the Tab order is the map, and an "&" would race the menu bar.
+msgid "Add…"
+msgstr "Додати…"
+
+#. Button under a Scope's list: opens the Edit dialog on the focused row.
+msgid "Edit…"
+msgstr "Змінити…"
+
+#. Button under a Scope's list: deletes the focused entry.
+msgid "Delete"
+msgstr "Видалити"
+
+#. Button under a Scope's list: moves the focused entry one place earlier.
+msgid "Move Up"
+msgstr "Перемістити вгору"
+
+#. Button under a Scope's list: moves the focused entry one place later.
+msgid "Move Down"
+msgstr "Перемістити вниз"
+
+#. Button under a Scope's list: the Cancel command — discards this Scope's
+#. unsaved changes. Disabled while there are none.
+msgid "Cancel Changes"
+msgstr "Відхилити зміни"
+
+#. Dialog title when an existing entry is edited, and the operation name in
+#. "Undone: {operation}" — hence a verbal noun. It keeps its capital because
+#. it is also a title; a screen reader does not speak capitalisation.
+msgid "Edit entry"
+msgstr "Редагування запису"
+
+#. Dialog title when a new entry is added, and the operation name in
+#. "Undone: {operation}" — a verbal noun, as above.
+msgid "Add entry"
+msgstr "Додавання запису"
+
+#. Button in the Add/Edit dialog: opens the Windows folder picker.
+msgid "Browse…"
+msgstr "Огляд…"
+
+#. Title of the Windows folder picker Browse opens.
+msgid "Choose a folder"
+msgstr "Виберіть папку"
+
+#. Affirmative button of our own dialogs. Kept as "OK" in every language so it
+#. matches the one stock button left in the application.
+msgid "OK"
+msgstr "OK"
+
+#. Negative button of our own dialogs: "do not commit", "close this dialog".
+#. Not the Cancel command, which is "Cancel Changes" above (ADR-0004).
+msgid "Cancel"
+msgstr "Скасувати"
+
+#. Affirmative button of a confirmation.
+msgid "Yes"
+msgstr "Так"
+
+#. Negative button of a confirmation.
+msgid "No"
+msgstr "Ні"
+
+#. Validation error: the whole message is the dialog's title. {character} is
+#. the rejected character itself — one of < > | " or the ; separator.
+msgid "The entry contains a forbidden character: {character}"
+msgstr "Запис містить заборонений символ: {character}"
+
+#. Validation error: the path field was left empty. Whitespace is not empty.
+msgid "The entry cannot be empty"
+msgstr "Запис не може бути порожнім"
+
+#. Dialog title: an entry using %VAR% is being committed into a Scope stored
+#. as REG_SZ, which does not expand it. %VAR% and REG_SZ are literal data.
+msgid "This entry uses %VAR%, but the value type (REG_SZ) does not expand variables"
+msgstr "Цей запис використовує %VAR%, але тип значення (REG_SZ) не розгортає змінні"
+
+#. Button of that dialog: convert the Scope to REG_EXPAND_SZ. Literal data.
+msgid "Change type to REG_EXPAND_SZ"
+msgstr "Змінити тип на REG_EXPAND_SZ"
+
+#. Button of that dialog: commit the entry, leaving the value type alone.
+msgid "Keep as literal text"
+msgstr "Залишити як звичайний текст"
+
+#. Confirmation title for the Cancel command. Undoable, so it says no more.
+msgid "Discard changes?"
+msgstr "Відхилити зміни?"
+
+#. Confirmation title for Refresh, which unlike Cancel cannot be undone.
+msgid "Refresh discards your unsaved changes and the undo history — continue?"
+msgstr "Оновлення відхилить незбережені зміни та історію скасувань — продовжити?"
+
+#. Announcement: spoken after Ctrl+Z. {operation} is one of the operation
+#. names in this file, translated as a verbal noun.
+msgid "Undone: {operation}"
+msgstr "Скасовано: {operation}"
+
+#. Announcement: spoken after Ctrl+Y.
+msgid "Redone: {operation}"
+msgstr "Повторено: {operation}"
+
+#. Announcement suffix, appended to the two above when the undo re-dirtied a
+#. Scope that had just been applied. Keep the leading comma and space.
+msgid ", unsaved changes"
+msgstr ", незбережені зміни"
+
+#. Announcement: spoken after the Cancel command discards the changes.
+msgid "Changes discarded"
+msgstr "Зміни відхилено"
+
+#. Operation name in "Undone: {operation}" — a verbal noun, not the button.
+msgid "Delete entry"
+msgstr "Видалення запису"
+
+#. Operation name: one Move Up or Move Down. The direction is not named — the
+#. row NVDA reads afterwards says it.
+msgid "Move entry"
+msgstr "Переміщення запису"
+
+#. Operation name: the Cancel command that discarded the changes. A verbal
+#. noun, never the imperative on the button ("Відхилити зміни").
+msgid "Discard changes"
+msgstr "Відхилення змін"
+
+#. Operation name: the Scope's value type was converted.
+msgid "Change value type"
+msgstr "Зміна типу значення"
+
+#. Operation name: a saved Snapshot was loaded into the working copy.
+msgid "Restore snapshot"
+msgstr "Відновлення з резервної копії"

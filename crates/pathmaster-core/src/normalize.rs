@@ -125,6 +125,30 @@ pub fn expand(text: &str, env: &dyn Environment) -> Expansion {
     }
 }
 
+/// Whether `text` carries a `%NAME%` reference at all — the one question the
+/// convert-or-keep dialog asks (spec §6).
+///
+/// A `REG_SZ` Scope stores such an Entry as literal text, so committing one
+/// into a `REG_SZ` Scope is the single occasion the Value Type may change, and
+/// only ever by asking. Whether the name resolves is a *different* question
+/// and this does not ask it: the environment does not decide what a value type
+/// expands. What counts as a reference is [`expand`]'s reading, walked the
+/// same way — a closing `%` with a name between the two, `%%` resolving
+/// nothing.
+pub fn has_variable_reference(text: &str) -> bool {
+    let mut rest = text;
+    while let Some(open) = rest.find('%') {
+        let after = &rest[open + 1..];
+        if after.find('%').is_some_and(|close| close > 0) {
+            return true;
+        }
+        // A failed reference gives its opening `%` back and the scan resumes
+        // at the very next character, as expansion's does.
+        rest = after;
+    }
+    false
+}
+
 /// Trims trailing separators, keeping one when trimming would leave a bare
 /// root: `C:\` trimmed to `C:` names the current directory on that drive, and
 /// `\` trimmed to nothing names nothing at all.

@@ -5,7 +5,9 @@
 //! (unknown names stay literal) → `/`→`\` → trim trailing `\` unless that leaves
 //! a bare root → compare ordinal case-insensitively.
 
-use pathmaster_core::normalize::{expand, strip_quotes, Environment, Normalised};
+use pathmaster_core::normalize::{
+    expand, has_variable_reference, strip_quotes, Environment, Normalised,
+};
 
 /// A fixed environment, looked up case-insensitively as Windows' own is.
 struct Env(&'static [(&'static str, &'static str)]);
@@ -209,5 +211,60 @@ proptest::proptest! {
         );
         let twice = Normalised::of(once.as_str(), &ENV);
         proptest::prop_assert_eq!(twice, once);
+    }
+}
+
+// ---- The question the convert-or-keep dialog asks (spec §6) ----
+
+#[test]
+fn a_reference_is_recognised_wherever_it_stands() {
+    assert!(has_variable_reference("%SystemRoot%"));
+    assert!(has_variable_reference(r"C:\%JAVA_HOME%\bin"));
+    assert!(has_variable_reference(r"%NOT_DEFINED_ANYWHERE%\bin"));
+}
+
+#[test]
+fn whether_the_name_resolves_is_a_different_question() {
+    // A `REG_SZ` Scope stores the reference as literal text whether or not
+    // this run defines the name, so the dialog does not ask the environment —
+    // and this function takes none.
+    assert!(has_variable_reference("%NOPE%"));
+}
+
+#[test]
+fn a_lone_percent_sign_is_not_a_reference() {
+    assert!(!has_variable_reference(r"C:\100% Fun"));
+    assert!(!has_variable_reference("%"));
+    assert!(!has_variable_reference("%SystemRoot"));
+    assert!(!has_variable_reference(""));
+}
+
+#[test]
+fn an_empty_name_is_not_a_reference_here_either() {
+    // `%%` resolves nothing when expanded, so it raises no question — but
+    // `%%NAME%` does, exactly as expansion reads it.
+    assert!(!has_variable_reference("x%%y"));
+    assert!(has_variable_reference("%%SystemRoot%"));
+}
+
+#[test]
+fn recognition_and_expansion_read_the_same_text_the_same_way() {
+    // The two must not drift: a text expansion changes is a text the dialog
+    // must have asked about.
+    for text in [
+        "%SystemRoot%",
+        r"C:\%JAVA_HOME%\bin",
+        "%%SystemRoot%%",
+        "x%%y",
+        r"C:\100% Fun",
+        "%SystemRoot",
+        "%NOPE%",
+        "",
+    ] {
+        let expanded = expand(text, &ENV).text != text;
+        assert!(
+            !expanded || has_variable_reference(text),
+            "{text:?} expands, so it carries a reference",
+        );
     }
 }

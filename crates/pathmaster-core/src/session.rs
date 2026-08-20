@@ -54,22 +54,66 @@ impl Entry {
     }
 }
 
+/// The user-visible operation a Checkpoint stands for — the one thing an undo
+/// announces that focus landing on a row cannot say (spec §10.1 item 4).
+///
+/// One operation, one Checkpoint, however many Entries it touched; Move Up and
+/// Move Down are the same operation because a listener does not need the
+/// direction they already heard.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Operation {
+    Add,
+    Edit,
+    Delete,
+    Move,
+    Cancel,
+    ChangeValueType,
+    Restore,
+}
+
+impl Operation {
+    /// The Catalogue string Announcement 4 fills `{operation}` with. Each is
+    /// deliberately different English from the button that performs it: the
+    /// two need different Ukrainian forms (ADR-0004, ticket 11 D14).
+    pub fn catalogue_msgid(&self) -> &'static str {
+        match self {
+            Operation::Add => crate::msgids::DIALOG_ADD_ENTRY,
+            Operation::Edit => crate::msgids::DIALOG_EDIT_ENTRY,
+            Operation::Delete => crate::msgids::OPERATION_DELETE,
+            Operation::Move => crate::msgids::OPERATION_MOVE,
+            Operation::Cancel => crate::msgids::OPERATION_CANCEL,
+            Operation::ChangeValueType => crate::msgids::OPERATION_CHANGE_VALUE_TYPE,
+            Operation::Restore => crate::msgids::OPERATION_RESTORE,
+        }
+    }
+}
+
 /// One entry in the undo history: a complete captured Working Copy (Entries
-/// with ids, Value Type) plus the id of the Entry the change concerned, so
-/// focus can return there (ADR-0001). Issues are a derived view and are
-/// deliberately not part of it.
+/// with ids, Value Type), the id of the Entry the change concerned so focus
+/// can return there, and the operation it stands for so an undo can name it
+/// (ADR-0001). Issues are a derived view and are deliberately not part of it.
 #[derive(Debug, Clone)]
 struct Checkpoint {
     entries: Vec<Entry>,
     value_type: ValueType,
     focus: Option<EntryId>,
+    operation: Operation,
 }
 
-/// What an undo or redo did: where focus should go, if the operation
-/// concerned a single Entry.
+/// What an undo or redo did: where focus should go, what to call what just
+/// happened, and whether it crossed the Apply barrier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UndoOutcome {
+    /// Where focus lands, if the operation concerned a single Entry.
     pub focus: Option<EntryId>,
+    /// The operation the restored Checkpoint stands for.
+    pub operation: Operation,
+    /// Whether this step re-dirtied a Session that was clean — Apply is a
+    /// barrier, not a flush, so undoing past one moves the Working Copy alone
+    /// and the Announcement gains its ", unsaved changes" suffix (spec §10.1
+    /// item 5). Like dirtiness itself this is a comparison of before and
+    /// after, never a record that an Apply happened.
+    pub crossed_apply: bool,
 }
 
 /// One Scope's Editing Session.
@@ -148,7 +192,7 @@ impl Session {
         }
         let entry = fresh_entry(&mut self.next_id, raw.into());
         let id = entry.id;
-        self.push_checkpoint(Some(id));
+        self.push_checkpoint(Some(id), Operation::Add);
         self.entries.push(entry);
         Some(id)
     }
@@ -160,7 +204,7 @@ impl Session {
         let Some(index) = self.index_of(id) else {
             return false;
         };
-        self.push_checkpoint(Some(id));
+        self.push_checkpoint(Some(id), Operation::Delete);
         self.entries.remove(index);
         true
     }
@@ -178,7 +222,7 @@ impl Session {
         if self.entries[index].raw == raw {
             return false;
         }
-        self.push_checkpoint(Some(id));
+        self.push_checkpoint(Some(id), Operation::Edit);
         self.entries[index].raw = raw;
         true
     }
@@ -189,7 +233,7 @@ impl Session {
         }
         match self.index_of(id) {
             Some(index) if index > 0 => {
-                self.push_checkpoint(Some(id));
+                self.push_checkpoint(Some(id), Operation::Move);
                 self.entries.swap(index, index - 1);
                 true
             }
@@ -203,7 +247,7 @@ impl Session {
         }
         match self.index_of(id) {
             Some(index) if index + 1 < self.entries.len() => {
-                self.push_checkpoint(Some(id));
+                self.push_checkpoint(Some(id), Operation::Move);
                 self.entries.swap(index, index + 1);
                 true
             }
@@ -217,7 +261,7 @@ impl Session {
         if !self.writable || self.value_type == value_type {
             return false;
         }
-        self.push_checkpoint(None);
+        self.push_checkpoint(None, Operation::ChangeValueType);
         self.value_type = value_type;
         true
     }
@@ -238,7 +282,7 @@ impl Session {
         if !self.writable || !self.is_dirty() {
             return false;
         }
-        self.push_checkpoint(None);
+        self.push_checkpoint(None, Operation::Cancel);
         self.entries = self.baseline.clone();
         self.value_type = self.baseline_value_type;
         true
@@ -250,7 +294,7 @@ impl Session {
         if !self.writable {
             return false;
         }
-        self.push_checkpoint(None);
+        self.push_checkpoint(None, Operation::Restore);
         self.entries = entries
             .into_iter()
             .map(|raw| fresh_entry(&mut self.next_id, raw))
@@ -263,7 +307,14 @@ impl Session {
     /// clears both stacks — Checkpoints describe edits over a Baseline that no
     /// longer exists (ADR-0001). An Entry whose raw text survives the re-read
     /// keeps its id, so focus can stay on it (FR-refresh).
-    pub fn refresh(&mut self, value: ScopeValue) {
+    ///
+    /// `focus` is the Entry the user was on; the answer is where focus lands:
+    /// the same id if it survived, else its nearest neighbour by index, else
+    /// nothing — which the caller reads as the list itself. The index has to
+    /// be read before the re-read replaces it, which is why the question is
+    /// asked here rather than after.
+    pub fn refresh(&mut self, value: ScopeValue, focus: Option<EntryId>) -> Option<EntryId> {
+        let previous_index = focus.and_then(|id| self.index_of(id));
         let (raws, value_type) = decode(&value);
         self.entries = self.entries_reusing_ids(&raws);
         self.value_type = value_type;
@@ -271,6 +322,10 @@ impl Session {
         self.baseline_value_type = value_type;
         self.undo.clear();
         self.redo.clear();
+        match focus {
+            Some(id) if self.index_of(id).is_some() => Some(id),
+            _ => self.entry_near(previous_index?).map(|entry| entry.id),
+        }
     }
 
     /// Runs several mutations as one user-visible operation — one Checkpoint,
@@ -278,14 +333,24 @@ impl Session {
     /// 11's convert-or-keep dialog commits an edit and a type change this
     /// way; v0.2.0's Fix Issues will batch multi-entry edits. A batch whose
     /// net effect is no change is not an operation and leaves no Checkpoint.
-    pub fn batch(&mut self, focus: Option<EntryId>, mutate: impl FnOnce(&mut Session)) -> bool {
+    ///
+    /// `operation` is what the whole batch is called: the inner mutations'
+    /// own names go with the Checkpoints this discards. `mutate` answers with
+    /// the Entry the batch concerned, which becomes the Checkpoint's focus
+    /// hint — an Add's new Entry does not exist until the work has run, so the
+    /// hint is discovered rather than predicted.
+    pub fn batch(
+        &mut self,
+        operation: Operation,
+        mutate: impl FnOnce(&mut Session) -> Option<EntryId>,
+    ) -> bool {
         if !self.writable {
             return false;
         }
-        let before = self.capture(focus);
+        let mut before = self.capture(None, operation);
         let undo_depth = self.undo.len();
         let redo_before = std::mem::take(&mut self.redo);
-        mutate(self);
+        before.focus = mutate(self);
         // The inner operations each pushed their own Checkpoint; the batch is one.
         self.undo.truncate(undo_depth);
         if self.entries == before.entries && self.value_type == before.value_type {
@@ -312,7 +377,8 @@ impl Session {
             return None;
         }
         let checkpoint = self.undo.pop()?;
-        self.redo.push(self.capture(checkpoint.focus));
+        self.redo
+            .push(self.capture(checkpoint.focus, checkpoint.operation));
         self.restore_checkpoint(checkpoint)
     }
 
@@ -322,7 +388,8 @@ impl Session {
             return None;
         }
         let checkpoint = self.redo.pop()?;
-        self.undo.push(self.capture(checkpoint.focus));
+        self.undo
+            .push(self.capture(checkpoint.focus, checkpoint.operation));
         self.restore_checkpoint(checkpoint)
     }
 
@@ -331,18 +398,19 @@ impl Session {
     }
 
     /// Captures the current Working Copy as a Checkpoint.
-    fn capture(&self, focus: Option<EntryId>) -> Checkpoint {
+    fn capture(&self, focus: Option<EntryId>, operation: Operation) -> Checkpoint {
         Checkpoint {
             entries: self.entries.clone(),
             value_type: self.value_type,
             focus,
+            operation,
         }
     }
 
     /// One user-visible operation, one Checkpoint; a new operation truncates
     /// the Redo stack.
-    fn push_checkpoint(&mut self, focus: Option<EntryId>) {
-        let checkpoint = self.capture(focus);
+    fn push_checkpoint(&mut self, focus: Option<EntryId>, operation: Operation) {
+        let checkpoint = self.capture(focus, operation);
         self.undo.push(checkpoint);
         self.redo.clear();
     }
@@ -373,10 +441,16 @@ impl Session {
     }
 
     fn restore_checkpoint(&mut self, checkpoint: Checkpoint) -> Option<UndoOutcome> {
+        let was_dirty = self.is_dirty();
         let focus = self.landing_focus(&checkpoint);
+        let operation = checkpoint.operation;
         self.entries = checkpoint.entries;
         self.value_type = checkpoint.value_type;
-        Some(UndoOutcome { focus })
+        Some(UndoOutcome {
+            focus,
+            operation,
+            crossed_apply: !was_dirty && self.is_dirty(),
+        })
     }
 
     /// Where focus lands after restoring `checkpoint`: the hinted Entry if
@@ -390,6 +464,14 @@ impl Session {
         let index = self.index_of(hint)?;
         let last = checkpoint.entries.len().checked_sub(1)?;
         Some(checkpoint.entries[index.min(last)].id)
+    }
+
+    /// The current Entry standing at `index`, clamped to the last row — the
+    /// "nearest neighbour by index" both Refresh and a vanished focus hint
+    /// fall back to. `None` only when there are no Entries left at all.
+    fn entry_near(&self, index: usize) -> Option<&Entry> {
+        let last = self.entries.len().checked_sub(1)?;
+        self.entries.get(index.min(last))
     }
 }
 

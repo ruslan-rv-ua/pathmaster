@@ -1,6 +1,9 @@
 //! The Editing Session at the crate boundary (spec §5, ADR-0001, ticket impl-02).
 
-use pathmaster_core::session::{Scope, ScopeValue, Session, ValueType};
+use std::collections::BTreeSet;
+
+use pathmaster_core::msgids;
+use pathmaster_core::session::{Operation, Scope, ScopeValue, Session, ValueType};
 
 fn present(raw: &str) -> ScopeValue {
     ScopeValue::Present {
@@ -15,6 +18,11 @@ fn user_session(raw: &str) -> Session {
 
 fn raws(session: &Session) -> Vec<&str> {
     session.entries().iter().map(|e| e.raw()).collect()
+}
+
+/// Undoes one step and answers with the operation the Checkpoint named.
+fn undone(session: &mut Session) -> Operation {
+    session.undo().expect("one step to undo").operation
 }
 
 // ---- Construction ----
@@ -193,9 +201,10 @@ fn a_batch_is_one_checkpoint_however_much_it_touches() {
     // one Checkpoint").
     let mut session = user_session(r"C:\one;C:\two");
     let id = session.entries()[0].id();
-    assert!(session.batch(Some(id), |s| {
+    assert!(session.batch(Operation::ChangeValueType, |s| {
         s.edit(id, r"C:\%VAR%");
         s.set_value_type(ValueType::RegSz);
+        Some(id)
     }));
 
     assert_eq!(session.undo().expect("one step to undo").focus, Some(id));
@@ -215,9 +224,10 @@ fn a_batch_is_one_checkpoint_however_much_it_touches() {
 fn a_batch_that_changes_nothing_is_not_an_operation() {
     let mut session = user_session(r"C:\one");
     let id = session.entries()[0].id();
-    assert!(!session.batch(Some(id), |s| {
+    assert!(!session.batch(Operation::Edit, |s| {
         s.edit(id, r"C:\other");
         s.edit(id, r"C:\one");
+        Some(id)
     }));
     assert!(!session.can_undo());
     assert!(!session.is_dirty());
@@ -336,7 +346,7 @@ fn refresh_resets_working_copy_and_baseline_and_clears_both_stacks() {
     session.add(r"C:\two");
     session.undo();
     assert!(session.can_redo());
-    session.refresh(present(r"E:\fresh;E:\other"));
+    session.refresh(present(r"E:\fresh;E:\other"), None);
     assert_eq!(raws(&session), vec![r"E:\fresh", r"E:\other"]);
     assert!(!session.is_dirty());
     assert!(!session.can_undo());
@@ -348,7 +358,7 @@ fn an_entry_surviving_refresh_keeps_its_id() {
     let mut session = user_session(r"C:\kept;C:\dropped");
     let kept = session.entries()[0].id();
     let dropped = session.entries()[1].id();
-    session.refresh(present(r"C:\inserted;C:\kept"));
+    session.refresh(present(r"C:\inserted;C:\kept"), None);
     assert_eq!(session.entries()[1].id(), kept);
     assert_ne!(session.entries()[0].id(), kept);
     assert_ne!(session.entries()[0].id(), dropped);
@@ -373,4 +383,188 @@ fn a_non_writable_session_rejects_every_editing_action() {
     assert!(session.redo().is_none());
     assert_eq!(raws(&session), vec![r"C:\one", r"C:\two"]);
     assert!(!session.is_dirty());
+}
+
+// ---- Each Checkpoint names the operation it undoes (spec §10.1 item 4) ----
+
+#[test]
+fn every_operation_names_itself_for_the_announcement() {
+    let mut session = user_session(r"C:\one;C:\two");
+    let first = session.entries()[0].id();
+    let second = session.entries()[1].id();
+
+    session.add(r"C:\three");
+    assert_eq!(undone(&mut session), Operation::Add);
+    session.edit(first, r"C:\edited");
+    assert_eq!(undone(&mut session), Operation::Edit);
+    session.delete(second);
+    assert_eq!(undone(&mut session), Operation::Delete);
+    session.move_down(first);
+    assert_eq!(undone(&mut session), Operation::Move);
+    session.move_up(second);
+    assert_eq!(undone(&mut session), Operation::Move);
+    session.set_value_type(ValueType::RegSz);
+    assert_eq!(undone(&mut session), Operation::ChangeValueType);
+    session.restore(vec![r"D:\restored".to_string()], ValueType::RegSz);
+    assert_eq!(undone(&mut session), Operation::Restore);
+    session.edit(first, r"C:\dirty");
+    session.cancel();
+    assert_eq!(undone(&mut session), Operation::Cancel);
+}
+
+#[test]
+fn redo_announces_the_operation_undo_took_back() {
+    let mut session = user_session(r"C:\one");
+    session.add(r"C:\two");
+    session.undo();
+    assert_eq!(
+        session.redo().expect("one step to redo").operation,
+        Operation::Add,
+    );
+}
+
+#[test]
+fn a_batch_announces_the_one_operation_it_was_named_with() {
+    // The convert-or-keep dialog commits an Entry and a Value Type together;
+    // the type change is the half the user cannot see, so it is the half the
+    // announcement names (spec §6).
+    let mut session = user_session(r"C:\one");
+    let id = session.entries()[0].id();
+    session.batch(Operation::ChangeValueType, |s| {
+        s.edit(id, r"C:\%VAR%");
+        s.set_value_type(ValueType::RegSz);
+        Some(id)
+    });
+    assert_eq!(undone(&mut session), Operation::ChangeValueType);
+}
+
+#[test]
+fn a_batch_takes_its_focus_hint_from_the_work_it_ran() {
+    // An Add's new Entry does not exist until the batch has run, so the hint
+    // cannot be predicted before it — undoing must still land on its
+    // neighbour rather than nowhere.
+    let mut session = user_session(r"C:\one");
+    let survivor = session.entries()[0].id();
+    assert!(session.batch(Operation::ChangeValueType, |s| {
+        s.set_value_type(ValueType::RegSz);
+        s.add(r"C:\%VAR%\bin")
+    }));
+    assert_eq!(
+        session.undo().expect("one step to undo").focus,
+        Some(survivor),
+    );
+}
+
+#[test]
+fn an_operation_name_is_a_catalogue_string() {
+    // Announcement 4 fills `{operation}` with translated text, so every
+    // operation must name a msgid — and the names must not collide.
+    let msgids: BTreeSet<&str> = [
+        Operation::Add,
+        Operation::Edit,
+        Operation::Delete,
+        Operation::Move,
+        Operation::Cancel,
+        Operation::ChangeValueType,
+        Operation::Restore,
+    ]
+    .iter()
+    .map(|operation| operation.catalogue_msgid())
+    .collect();
+    assert_eq!(msgids.len(), 7, "each operation names a distinct msgid");
+    let registered: BTreeSet<&str> = msgids::REGISTRY.iter().map(|entry| entry.msgid).collect();
+    for msgid in msgids {
+        assert!(registered.contains(msgid), "{msgid:?} is in the Catalogue");
+    }
+}
+
+// ---- Undo across the Apply barrier (spec §10.1 item 5) ----
+
+#[test]
+fn an_undo_that_re_dirties_a_clean_session_crossed_the_apply_barrier() {
+    let mut session = user_session(r"C:\one");
+    let id = session.entries()[0].id();
+    session.edit(id, r"C:\applied");
+    session.mark_applied();
+    assert!(!session.is_dirty());
+    assert!(
+        session.undo().expect("one step to undo").crossed_apply,
+        "undoing past an Apply re-dirties the Session — the suffix rides it",
+    );
+}
+
+#[test]
+fn an_undo_inside_a_dirty_session_crosses_nothing() {
+    let mut session = user_session(r"C:\one");
+    let id = session.entries()[0].id();
+    session.edit(id, r"C:\once");
+    session.edit(id, r"C:\twice");
+    assert!(!session.undo().expect("one step to undo").crossed_apply);
+}
+
+#[test]
+fn an_undo_back_onto_the_baseline_crosses_nothing() {
+    let mut session = user_session(r"C:\one");
+    let id = session.entries()[0].id();
+    session.edit(id, r"C:\changed");
+    let outcome = session.undo().expect("one step to undo");
+    assert!(!outcome.crossed_apply);
+    assert!(!session.is_dirty());
+}
+
+#[test]
+fn a_redo_can_cross_the_barrier_too() {
+    // Redo re-dirties by the same route: Apply, undo, redo lands the Working
+    // Copy back off its Baseline.
+    let mut session = user_session(r"C:\one");
+    let id = session.entries()[0].id();
+    session.edit(id, r"C:\edited");
+    session.undo();
+    session.mark_applied();
+    assert!(!session.is_dirty());
+    assert!(session.redo().expect("one step to redo").crossed_apply);
+}
+
+// ---- Where focus lands after a Refresh (FR-refresh) ----
+
+#[test]
+fn refresh_keeps_focus_on_the_entry_that_survived_it() {
+    let mut session = user_session(r"C:\one;C:\two");
+    let focused = session.entries()[1].id();
+    let landing = session.refresh(present(r"C:\two;C:\three"), Some(focused));
+    assert_eq!(landing, Some(focused));
+    assert_eq!(session.entries()[0].id(), focused);
+}
+
+#[test]
+fn refresh_falls_back_to_the_nearest_neighbour_by_index() {
+    let mut session = user_session(r"C:\one;C:\gone;C:\three");
+    let focused = session.entries()[1].id();
+    let landing = session.refresh(present(r"E:\a;E:\b;E:\c"), Some(focused));
+    assert_eq!(
+        landing,
+        Some(session.entries()[1].id()),
+        "the Entry now standing where the focused one stood",
+    );
+}
+
+#[test]
+fn refresh_clamps_the_neighbour_to_the_new_last_row() {
+    let mut session = user_session(r"C:\one;C:\two;C:\three");
+    let focused = session.entries()[2].id();
+    let landing = session.refresh(present(r"E:\only"), Some(focused));
+    assert_eq!(landing, Some(session.entries()[0].id()));
+}
+
+#[test]
+fn refresh_of_an_emptied_scope_hands_focus_back_to_the_list() {
+    let mut session = user_session(r"C:\one");
+    let focused = session.entries()[0].id();
+    assert_eq!(session.refresh(ScopeValue::Absent, Some(focused)), None);
+}
+
+#[test]
+fn refresh_with_nothing_focused_lands_nowhere() {
+    let mut session = user_session(r"C:\one");
+    assert_eq!(session.refresh(present(r"C:\one"), None), None);
 }
