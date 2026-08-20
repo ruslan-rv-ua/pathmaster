@@ -79,7 +79,10 @@ two seconds and links no wxWidgets.
   oracle (.NET's UI culture), so the test is honest on a Ukrainian developer machine and an
   English CI runner alike. The same enum drift makes `set_language(...)` unusable;
   `set_language_str("uk")` is a string and is unaffected. Both facts are recorded at their
-  call sites.
+  call sites. **The record was corrected, not merely noted**: ticket 11's fact table and D3 carry
+  a dated amendment, and spec §11 now names the Windows call and says why the wx one cannot be
+  used. §11's "edit one mapping arm" was corrected in the same pass to name every edit a new
+  language actually needs, and §17's module lists gained `language` and `locale`.
 - **Fuzzy is not free with `polib`.** `mo_file::write` writes every message it is given,
   fuzzy and untranslated included — and an untranslated entry would answer with an *empty
   string* where a miss should have fallen back to English. `build.rs` therefore performs the

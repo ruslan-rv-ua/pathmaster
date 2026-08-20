@@ -53,7 +53,7 @@ Read from the crate, not assumed:
 | **No interpolation anywhere** in the API — substitution is ours | whole public surface of `translations.rs` |
 | `translate` is a **function, not a macro** — no compile-time extraction, no existence check | ticket 03, row 117 |
 | **`msgctxt` is not bound at any level** — `GetTranslatedString(ptr, orig, domain, buf, len)` has no context parameter | `translations.rs:226`, `:236`; no context in the C++ shim |
-| `Language::Ukrainian = 217`, a single variant — no regional `uk-UA` | `language.rs:458` |
+| ~~`Language::Ukrainian = 217`, a single variant — no regional `uk-UA`~~ — **amended, see D3**: that is wxdragon's table (wxWidgets 3.2 numbering); the vendored wxWidgets 3.3.3 renumbers `wxLanguage` to ~900 entries and adds `wxLANGUAGE_UKRAINIAN_UKRAINE` | `language.rs:458`, `:507`; wx 3.3.3 `include/wx/language.h` |
 | `add_std_catalog()` is a **separate call** for wx's own strings | `translations.rs:168` |
 | `MessageDialog` cannot relabel its buttons — no FFI at all | ticket 03, row 74 |
 | Menu label reaches `wxMenu::Append` **verbatim**; wx parses `&` and `\t` out of it | ticket 03, row 56 |
@@ -87,11 +87,25 @@ its own prototype ticket.
 
 Two languages ship, so nothing needs negotiating:
 
-- `Locale::get_system_language() == Ukrainian` -> `uk`; **everything else, including `Unknown`** -> `en`.
+- The **system language is read from Windows**, not from wx: `GetUserDefaultUILanguage()`, whose
+  LANGID's primary half is `LANG_UKRAINIAN` -> `uk`; **everything else** -> `en`.
 - `settings.json` overrides the system locale; absent or unrecognised -> back to the system locale, no error.
 - English is **not the default language** — it is the **fallback**, and that is precisely why msgids are English.
 
-Regional variants need no handling: the wx enum has one `Ukrainian`, so `uk` and `uk-UA` both land on it.
+Regional variants need no handling: `uk` and `uk-UA` share one primary language identifier.
+
+> **Amended 2026-08-20 by impl ticket 06.** The first bullet originally read
+> "`Locale::get_system_language() == Ukrainian` -> `uk`; everything else, including `Unknown` -> `en`",
+> and rested on the fact-table row above. **That comparison can never be true in this build.**
+> wxdragon 0.9.18's `Language` enum mirrors wxWidgets **3.2** — it stops at `UserDefined = 234` and
+> `from_i32` answers `None` above that — while the vendored wxWidgets **3.3.3** renumbered
+> `wxLanguage` to roughly nine hundred entries: `wxLANGUAGE_UKRAINIAN` sits near ordinal 859, and
+> 3.3 added `wxLANGUAGE_UKRAINIAN_UKRAINE`, which is what a `uk-UA` machine actually matches.
+> Measured on a `uk-UA` machine: `get_system_language()` answers `Unknown`, inside `wxdragon::main`
+> and outside it alike. The two-way branch this decision fixes is unchanged; only its source moved,
+> to `pathmaster_platform::locale`, which is also where §17 puts OS facts and where a test can reach
+> it. The same drift makes `set_language(…)` unusable; `set_language_str("uk")` is a string and is
+> unaffected.
 
 ### D4. The log is English, always, and lives outside the Catalogue
 

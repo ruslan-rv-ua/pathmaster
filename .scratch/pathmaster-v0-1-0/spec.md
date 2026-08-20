@@ -484,14 +484,18 @@ Settled by ticket [11](issues/11-i18n-mechanism.md);
 - **Placeholders are named braces** `{n}`, `{operation}` — `%d` is indistinguishable from `%VAR%`
   in this domain. Substitution is one explicit helper.
 - **`.po` committed in `i18n/`; `.mo` generated at build time by `polib`** (pure Rust, no `msgfmt`
-  pin); `build.rs` enumerates `i18n/*.po`. Adding a language: drop `xx.po`, edit one mapping arm,
-  rebuild — the PRD's "without touching the code" is rewritten, not pretended satisfied. Ukrainian
-  `.po` carries `Plural-Forms: nplurals=3`.
+  pin); `build.rs` enumerates `i18n/*.po`. Adding a language: drop `xx.po` in, then name it in
+  `pathmaster-core::language` (a variant with its code and endonym, its stored form, and the
+  resolution arm), rebuild — the PRD's "without touching the code" is rewritten, not pretended
+  satisfied. Ukrainian `.po` carries `Plural-Forms: nplurals=3`.
 - **Interface Language** resolves by a two-way branch: system language `Ukrainian` → `uk`,
-  everything else → `en` (English is the fallback, not the default). `settings.json` takes
-  `"auto" | "en" | "uk"` and records the **choice, not its outcome**. Startup order: Data
-  Directory → settings → translations → UI → writability → announce. In Read-only Data the
-  selector is disabled and reads as disabled.
+  everything else → `en` (English is the fallback, not the default). The system language comes
+  from **Windows** (`GetUserDefaultUILanguage`, in `pathmaster-platform`), never from
+  `Locale::get_system_language()`: wxdragon's `Language` enum mirrors wxWidgets 3.2 and the
+  vendored 3.3.3 renumbered `wxLanguage`, so that call cannot answer `Ukrainian` (ticket 11 D3,
+  amended by impl ticket 06). `settings.json` takes `"auto" | "en" | "uk"` and records the
+  **choice, not its outcome**. Startup order: Data Directory → settings → translations → UI →
+  writability → announce. In Read-only Data the selector is disabled and reads as disabled.
 - **Accelerators belong to the code, never the Catalogue**: `wxAcceleratorTable` is absent, so the
   label string *is* the binding — the Catalogue holds `"&Undo"`, the code appends `"\tCtrl+Z"`.
   Ukrainian mnemonics keep the Latin letter in parentheses: `"Файл(&F)"`. Languages are listed by
@@ -653,11 +657,12 @@ ever links wxWidgets.
 
 - **`crates/pathmaster-core`** — pure, no I/O, any-OS: `path` (split/join), `normalize`,
   `diagnostics`, `session`, `snapshot`, `rotation`, `thresholds`, `settings` (parse + per-field
-  rules), `logfmt` (line shape, truncation, levels), `msgids` (registry + `.po` integrity gate via
-  polib). Module names indicative; the inter-crate seams are what this spec fixes hard.
+  rules), `logfmt` (line shape, truncation, levels), `language` (the stored choice and the §11
+  branch), `msgids` (registry + `.po` integrity gate via polib). Module names indicative; the inter-crate seams are what this spec fixes hard.
 - **`crates/pathmaster-platform`** — imperative shell, no wx: `registry` (adapter, **key path as a
-  constructor parameter**), `datadir`, `elevation`, `logwriter`, `panic_hook` (writes past the
-  logger; core supplies only the line format), `broadcast`.
+  constructor parameter**), `datadir`, `elevation`, `locale` (the system language, §11),
+  `logwriter`, `panic_hook` (writes past the logger; core supplies only the line format),
+  `broadcast`.
 - **`crates/pathmaster`** — **bin-only, no lib target**: `ui/*`, `announce`, `pump` (Timer drain),
   `catalog` (TranslationsLoader), `main.rs` (panic hook → settings → language → window),
   `build.rs` (polib → `.mo`; llvm-rc → icon/VERSIONINFO), `i18n/*.po`.
