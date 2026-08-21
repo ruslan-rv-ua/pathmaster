@@ -247,6 +247,11 @@ msgstr "Відхилити зміни(&C)"
 msgid "Re&fresh"
 msgstr "Оновити(&F)"
 
+#. Tools menu item: opens the Settings dialog. The mnemonic letter is Latin in
+#. every language; the "…" marks a menu item that opens a dialog.
+msgid "&Settings…"
+msgstr "Налаштування(&S)…"
+
 #. Tools menu item: hands the folder the Snapshot files live in to the shell.
 #. "Backups" here is the directory, as in the tab label above.
 msgid "&Open Backups Folder"
@@ -334,6 +339,33 @@ msgstr "Запис містить заборонений символ: {characte
 #. Validation error: the path field was left empty. Whitespace is not empty.
 msgid "The entry cannot be empty"
 msgstr "Запис не може бути порожнім"
+
+#. Validation error in the Settings dialog: the backup-budget field held
+#. something that is not a whole number of at least 1. Zero is outlawed —
+#. rotation at zero would delete the pre-Apply safety net.
+msgid "Snapshots to keep must be a whole number, 1 or more"
+msgstr "Кількість знімків має бути цілим числом, не меншим за 1"
+
+#. Settings dialog title (Tools -> Settings…).
+msgid "Settings"
+msgstr "Налаштування"
+
+#. Label of the Settings dialog's language selector. The parenthesis is the
+#. whole notice that the language applies only after a restart — there is no
+#. announcement for it, so this label must carry it.
+msgid "Language (takes effect after restart)"
+msgstr "Мова (набуде чинності після перезапуску)"
+
+#. First item of that selector: follow the language Windows itself is showing.
+#. The other items are the languages' own endonyms and are never translated.
+msgid "Follow the system language"
+msgstr "Використовувати мову системи"
+
+#. Label of the Settings dialog's backup-budget field: how many Snapshot files
+#. are kept for each of the two PATH scopes before the oldest is deleted.
+#. "Snapshot" (знімок), not "backup" — the latter names the directory.
+msgid "Snapshots to keep per PATH"
+msgstr "Скільки знімків зберігати для кожного PATH"
 
 #. Dialog title: an entry using %VAR% is being committed into a Scope stored
 #. as REG_SZ, which does not expand it. %VAR% and REG_SZ are literal data.

@@ -95,6 +95,18 @@ impl Window {
     }
 }
 
+/// The two settings the Settings dialog offers (spec §13): what it opens on,
+/// and what it answers with.
+///
+/// Geometry is deliberately not here. It is a setting in the file and nothing
+/// the user sets — the window records where they left it — so a dialog that
+/// carried it would be offering to type in a position.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Choices {
+    pub language: LanguageChoice,
+    pub max_backups: u32,
+}
+
 /// One known field whose stored value was invalid, and the default that stands
 /// in for it this run. The log is its only witness — no dialog, no
 /// Announcement — so the wording lives here rather than at a call site.
@@ -189,12 +201,7 @@ impl SettingsFile {
             &DEFAULT_MAX_BACKUPS.to_string(),
             &mut rejected,
             // Valid domain ≥ 1, and nothing outside it is nudged into it.
-            |value| {
-                value
-                    .as_u64()
-                    .and_then(|n| u32::try_from(n).ok())
-                    .filter(|n| *n >= 1)
-            },
+            |value| value.as_u64().and_then(in_backup_budget),
         );
         let window = read_field(
             &document,
@@ -229,6 +236,46 @@ impl SettingsFile {
     /// The remembered geometry, or `None` when the file has none to give.
     pub fn window(&self) -> Option<Window> {
         self.window
+    }
+
+    /// The two settings the Settings dialog opens on — what this run is using,
+    /// never the raw values the file kept for what it could not read. A
+    /// `language` this version cannot do is not a language to show as done.
+    pub fn choices(&self) -> Choices {
+        Choices {
+            language: self.language,
+            max_backups: self.max_backups,
+        }
+    }
+
+    /// Records what the Settings dialog answered with, and answers whether the
+    /// document changed at all.
+    ///
+    /// **Only the settings the user changed are written**, and that is the
+    /// choice-not-outcome rule doing its work at the one moment it can be got
+    /// wrong. A `language` the file kept because this version could not read it
+    /// stands in the document while the dialog shows the default that replaced
+    /// it in memory; pressing OK over an untouched selector must therefore
+    /// leave it standing, or every trip through this dialog would quietly
+    /// downgrade a v0.2 file to what v0.1 happened to be doing.
+    ///
+    /// The comparison is of content and not a record that something happened —
+    /// the same reading of [`Dirty`](crate::session::Session::is_dirty) the
+    /// Editing Sessions take. A user who retypes the value that was already
+    /// there has changed nothing, so nothing is written; the answer is what
+    /// lets the caller leave a hand-edited file unreformatted and a first run
+    /// without a `{}` nobody asked for.
+    pub fn record_choices(&mut self, choices: Choices) -> bool {
+        let mut changed = false;
+        if choices.language != self.language {
+            self.set_language(choices.language);
+            changed = true;
+        }
+        if choices.max_backups != self.max_backups {
+            self.set_max_backups(choices.max_backups);
+            changed = true;
+        }
+        changed
     }
 
     /// Records a new Interface Language choice, in memory and in the document
@@ -272,6 +319,36 @@ impl SettingsFile {
         text.push('\n');
         text
     }
+}
+
+/// Reads what was typed into the Settings dialog's backup-budget field
+/// (spec §13), which is the same domain the file's own field layer accepts:
+/// whole, and ≥ 1.
+///
+/// Both readings go through [`in_backup_budget`], so the dialog cannot come to
+/// accept a budget the file would reject — which would be a value the user
+/// chose, saw written, and lost on the next start with a `WARN` line as the
+/// only trace.
+///
+/// Surrounding whitespace is not part of a number: this field holds a count,
+/// not text that has to survive a round trip the way an Entry does. Everything
+/// else the file would not accept is refused here too — a sign, a decimal
+/// point, an exponent — because JSON does not accept them either.
+pub fn parse_max_backups(typed: &str) -> Option<u32> {
+    let typed = typed.trim();
+    if typed.is_empty() || !typed.chars().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+    // A digit string too long for `u64` fails here rather than wrapping, and
+    // is out of the domain either way.
+    in_backup_budget(typed.parse().ok()?)
+}
+
+/// The backup budget this application accepts, wherever the number came from:
+/// whole, and ≥ 1 (spec §13). Zero is outlawed rather than clamped — rotation
+/// at zero deletes the pre-Apply safety net — and the ceiling is the type's.
+fn in_backup_budget(n: u64) -> Option<u32> {
+    u32::try_from(n).ok().filter(|n| *n >= 1)
 }
 
 /// One field through the field layer: absent is not a rejection, a value

@@ -16,6 +16,7 @@
 use pathmaster_core::backups::{self, SnapshotFile};
 use pathmaster_core::catalogue::{Announcement, Catalogue, Lookup, ScopeCounts, UndoDirection};
 use pathmaster_core::diagnostics::Issue;
+use pathmaster_core::language::LanguageChoice;
 use pathmaster_core::logfmt::Timestamp;
 use pathmaster_core::msgids;
 use pathmaster_core::path::Rejection;
@@ -650,5 +651,59 @@ fn a_snapshot_of_an_absent_scope_counts_the_entries_restoring_it_would_load() {
     assert_eq!(
         the_catalogue().snapshot_columns(&snapshot_file(Scope::System, Some(Captured::Absent)))[2],
         "0",
+    );
+}
+
+// ---- The Settings dialog's language selector (spec §11, §13) ----
+
+/// A lookup that marks what it answered, for the one rule here that is about
+/// what is deliberately **not** looked up: an endonym is outside the Catalogue,
+/// so a user who cannot read the current Interface Language can still find
+/// theirs. Against the identity adapter above, a translated endonym and an
+/// untranslated one are the same string, and the rule would go untested.
+struct Marked;
+
+impl Lookup for Marked {
+    fn translate(&self, msgid: &str) -> String {
+        format!("[{msgid}]")
+    }
+
+    fn translate_plural(&self, singular: &str, plural: &str, n: u32) -> String {
+        format!("[{}]", if n == 1 { singular } else { plural })
+    }
+}
+
+#[test]
+fn the_language_selector_names_the_auto_choice_and_then_each_language_by_endonym() {
+    assert_eq!(
+        the_catalogue().language_items(),
+        [
+            msgids::SETTINGS_LANGUAGE_FOLLOWS_SYSTEM,
+            "English",
+            "Українська",
+        ]
+    );
+}
+
+#[test]
+fn an_endonym_is_not_looked_up_while_the_auto_choice_is() {
+    let items = Catalogue::new(Marked).language_items();
+
+    assert_eq!(
+        items[0],
+        format!("[{}]", msgids::SETTINGS_LANGUAGE_FOLLOWS_SYSTEM)
+    );
+    assert_eq!(items[1], "English");
+    assert_eq!(items[2], "Українська");
+}
+
+#[test]
+fn the_selector_shows_one_item_per_choice_it_offers() {
+    // The dialog reads its answer back by position. A list of labels and the
+    // list of choices they stand for that could differ in length would be a
+    // selector answering with a language nobody picked.
+    assert_eq!(
+        the_catalogue().language_items().len(),
+        LanguageChoice::SELECTABLE.len()
     );
 }

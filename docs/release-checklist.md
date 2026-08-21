@@ -89,6 +89,13 @@ of a write in progress — must not appear in the list at all.
 | B9 | Add an Entry long enough to take the StatusBar's merged length past 8,191, then Apply | Warning dialog: title names 8,191 and the length this Apply would leave; both buttons spoken; [Cancel] writes nothing, [Apply Anyway] proceeds to "User PATH applied" | |
 | B10 | Lengthen it past 32,767, then Apply | Hard-cap dialog: title names 32,767 and the length; **exactly one button**, Cancel, which Escape also answers; nothing written | |
 | B11 | Delete `data\backups\`, put a *file* of that name in its place, then Apply | "Apply failed — could not write a backup, no changes were made."; the registry value is unchanged and the Session is still dirty | |
+| B12 | Tools → Settings… | Dialog title "Settings"; Tab through it and hear the selector named "Language (takes effect after restart)", then the field named "Snapshots to keep per PATH", then [OK] and [Cancel] — our own buttons, not stock ones | |
+| B13 | Arrow through the language selector | Three items: the auto choice in the current interface language, then "English" and "Українська" **each in its own language**, never translated | |
+| B14 | Type `0` in the budget field and press OK | Error dialog whose **title is the message**; OK; focus returns to the field with the text intact, and the Settings dialog is still open. The same for an empty field and for `2.5` | |
+| B15 | Change **only** the budget, OK, and open `data\settings.json` | `maxBackups` is the new number; `language` is untouched — including a hand-placed unreadable one (stage `"language": "fr"` beforehand, which must still be there) — as are any unknown fields and the file's key order | |
+| B16 | Change **only** the language and OK | `language` is the new code, the running window is **still in the old language** — menu bar, tabs and Banner unchanged — and nothing is spoken. Restart: the new language is in force | |
+| B17 | Open Settings, change nothing, OK; then open it again and press Escape | `settings.json` is byte-identical after both, and `NVDA+Tab` confirms focus is back on the control it was on before the menu was opened | |
+| B18 | Tools → Settings… in the step-17 unwritable-`data\` run | The item is **available**, and inside the dialog the selector, the field and [OK] all read as unavailable while the settings are still shown; Cancel is where focus starts and the only way out besides Escape | |
 
 ## C. Elevated instance (ticket 12)
 

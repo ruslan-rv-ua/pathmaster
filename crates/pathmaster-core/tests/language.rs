@@ -65,3 +65,41 @@ fn a_language_carries_its_catalogue_code_and_its_endonym() {
     assert_eq!(Language::English.endonym(), "English");
     assert_eq!(Language::Ukrainian.endonym(), "Українська");
 }
+
+// ------------------------------------------- what the Settings dialog offers
+
+#[test]
+fn the_selector_offers_the_auto_choice_first_and_then_the_languages_that_ship() {
+    // Auto leads because it is the default and the one a user undoing an
+    // explicit choice comes back to; the languages follow in their own order.
+    assert_eq!(
+        LanguageChoice::SELECTABLE,
+        [
+            LanguageChoice::Auto,
+            LanguageChoice::English,
+            LanguageChoice::Ukrainian,
+        ]
+    );
+}
+
+#[test]
+fn the_selector_offers_every_choice_the_file_can_store() {
+    // A choice the file accepts but the dialog cannot reach would be one the
+    // user could leave and never come back to by hand.
+    for stored in ["auto", "en", "uk"] {
+        let choice = LanguageChoice::parse(stored).expect("a stored choice");
+        assert!(LanguageChoice::SELECTABLE.contains(&choice), "{stored}");
+    }
+}
+
+#[test]
+fn a_choice_names_a_language_unless_it_defers_to_the_system() {
+    // Which is the whole difference between the three: two are answers, one
+    // is a question put to Windows.
+    assert_eq!(LanguageChoice::Auto.language(), None);
+    assert_eq!(LanguageChoice::English.language(), Some(Language::English));
+    assert_eq!(
+        LanguageChoice::Ukrainian.language(),
+        Some(Language::Ukrainian)
+    );
+}

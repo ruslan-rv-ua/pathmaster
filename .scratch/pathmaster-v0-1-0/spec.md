@@ -618,6 +618,16 @@ Settled by ticket [11](issues/11-i18n-mechanism.md);
   the selector's own label — **"Language (takes effect after restart)"** — so the Announcement
   catalogue stays closed. `maxBackups` applies immediately.
 
+*Amended by impl ticket 16, which built the selector.* It offers one item per value the file can
+store, `auto` first — a choice the file accepts but the dialog cannot reach would be one the user
+could leave and never come back to by hand. **The auto item is Catalogue text and the two languages
+are not**: it names a rule (follow the system) rather than a language, while an endonym translated
+into the current Interface Language would be the one item in this list a user who cannot read that
+language could not find. The order is written down once, and the dialog reads its answer back by
+position, so a label list that could differ in length or order from the choices it stands for would
+be a selector answering with a language nobody picked. Nothing re-translates a running window:
+committing a new language leaves the menu bar, the tabs and the Banner exactly as they were.
+
 ## 12. Window layout, sizing, iconography
 
 Settled by ticket [17](issues/17-window-layout-and-iconography.md).
@@ -726,6 +736,41 @@ on a clean shutdown. Two rules the taxonomy above, which is about *reading*, doe
 "Language (takes effect after restart)", endonym items, disabled in Read-only Data) and the
 `maxBackups` field; our own OK/Cancel buttons.
 
+**Amended by impl ticket 16**, which built that dialog — the file's second natural writer, and the
+first one the user asks for. Four rules the taxonomy above, which is about *reading*, does not give:
+
+- **Only the settings the user changed are written**, compared setting by setting. This is the
+  choice-not-outcome rule at the one moment it can be lost: a `language` the file kept because this
+  version could not read it stands in the document while the dialog shows the default that replaced
+  it *in memory*, so an OK over an untouched selector must leave the raw value standing. Writing
+  both settings on every OK would quietly downgrade a v0.2 file to whatever v0.1 happened to be
+  doing, which is exactly what keeping the raw value exists to prevent — and it is per setting, so
+  a run that changes the budget leaves an unreadable `language` alone and vice versa.
+- **An OK that changes nothing writes nothing.** Dirty is a comparison and not a record that
+  something happened (`CONTEXT.md`), and the same reading applies here: a user who retypes the
+  value already in the field has changed no setting. So a hand-edited file is not reformatted by
+  being looked at, and a first run does not gain a `{}` nobody asked for.
+- **The dialog's OK fails the same way the shutdown write does** — one `WARN settings:` line, no
+  dialog, no Announcement — even though the first clause of the rule above does not cover it,
+  because this time the user *did* ask. There is no eighth Announcement to speak it with and no
+  dialog in this section's inventory to show it in; a modal raised over the modal they have just
+  dismissed would name a failure they can do nothing about; and the setting they chose is in force
+  for this run either way. What they lose is that it does not survive a restart, and that is what
+  the line says.
+- **The valid domain is one rule read twice.** What the field accepts and what the file accepts are
+  the same predicate — whole, and ≥ 1 — so the dialog cannot come to accept a budget the file
+  would reject: a value the user chose, saw written and lost at the next start, with a `WARN` line
+  as its only trace. The field is validated on commit like a path, keeping its text and its focus
+  on a rejection (§6), and **`0` is refused rather than clamped** here for the reason it is refused
+  there.
+
+Two things the dialog decides that the requirement leaves open. **In Read-only Data the OK button
+is disabled too**, not only the two controls: that run has no write path, so OK is a button with
+nothing to do, and what is left is a dialog the settings can still be read out of and a Cancel.
+And **the budget's label says "Snapshots"** — `CONTEXT.md` reserves *Backup* for the act of taking
+one and for the directory they live in, which is what the tab and the Tools item are named for,
+while what a budget counts is files.
+
 ## 14. Logging
 
 Settled by ticket [21](issues/21-log-format.md) (supersedes ticket 07's 5 MB/`.log.1` sketch).
@@ -795,14 +840,24 @@ application a dirty Session could disable the way out of is one the user has to 
 close-confirm is the whole of why they do not have to. The File menu's mnemonics are A and x.
 
 *Amended by impl ticket 14, which built the Tools menu and the Backups tab's Restore button.*
-Tools opens with **Open Backups Folder** alone; Settings… and Restart as Administrator arrive with
-tickets 16 and 17, and the mnemonics across the bar are F, E, T. The item shows `data\backups\`,
+Tools opened with **Open Backups Folder** alone; Restart as Administrator arrives with ticket 17,
+and the mnemonics across the bar are F, E, T. The item shows `data\backups\`,
 **creating it when this Run has not yet taken a Snapshot** and falling back to the Data Directory
 when it cannot be created — a menu item that reads as available opens something. It is disabled in
 the one run that has no Data Directory at all (§3, own location unknown). **Restore is a button and
 nothing else**: §15 gives it no menu item and no accelerator, so it is not one of the commands the
 menu bar carries, and its enabled state follows the focused Snapshot row rather than any Session
 the notebook is showing.
+
+*Amended by impl ticket 16, which added Tools → **Settings…** — first in the menu, as the table
+above has it, and with no accelerator: §15 gives it none, and every shortcut in this application
+must have a menu home rather than the other way round.* It is the third item that does not follow
+the active Session, and like Exit it is **available in every state** — Read-only Data, the Backups
+tab and a dirty Session alike. That is deliberate and not an oversight of "every menu item's
+enabled state reflects the active Session": **the read-only state is answered inside the dialog**,
+which disables its own controls (§13), because an item that read as unavailable would say the
+settings cannot be looked at, and looking at them is exactly what that run can still do. The Tools
+mnemonics are S and O.
 
 ## 16. Build, packaging, release
 

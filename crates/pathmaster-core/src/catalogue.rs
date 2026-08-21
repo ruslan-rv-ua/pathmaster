@@ -25,6 +25,7 @@
 
 use crate::backups::SnapshotFile;
 use crate::diagnostics::Issue;
+use crate::language::LanguageChoice;
 use crate::msgids::{self, fill};
 use crate::path::Rejection;
 use crate::session::{Scope, UndoOutcome};
@@ -193,6 +194,32 @@ impl Catalogue {
             &self.lookup.translate(msgids::DIALOG_CLOSE_CONFIRM),
             &[("scopes", &scopes.join(", "))],
         )
+    }
+
+    /// The Settings dialog's language selector, one item per choice it offers,
+    /// in [`LanguageChoice::SELECTABLE`]'s order (spec §11, §13).
+    ///
+    /// **Only the auto choice is looked up.** It names a rule — follow the
+    /// system — rather than a language, so it is Catalogue text like any other
+    /// sentence. The languages beside it are their own endonyms and
+    /// deliberately outside the Catalogue: a user who cannot read the current
+    /// Interface Language must still be able to find theirs, and a translated
+    /// "English" would be the one item in this list they could not.
+    ///
+    /// Composed here rather than in the dialog because the pairing is a rule:
+    /// the selector answers by position, so a list of labels that could differ
+    /// in length or order from the choices they stand for would be a selector
+    /// answering with a language nobody picked.
+    pub fn language_items(&self) -> Vec<String> {
+        LanguageChoice::SELECTABLE
+            .iter()
+            .map(|choice| match choice.language() {
+                Some(language) => language.endonym().to_owned(),
+                None => self
+                    .lookup
+                    .translate(msgids::SETTINGS_LANGUAGE_FOLLOWS_SYSTEM),
+            })
+            .collect()
     }
 
     /// StatusBar field 0, the general status (spec §12): each Scope's entry

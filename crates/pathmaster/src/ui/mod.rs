@@ -20,6 +20,7 @@ mod entry_dialog;
 mod list;
 mod question;
 mod scope_page;
+mod settings_dialog;
 
 use std::cell::{Cell, RefCell};
 use std::path::Path;
@@ -541,6 +542,7 @@ impl App {
         // would route the next command someone adds to a Scope it may not be
         // about, silently.
         match command {
+            Command::Settings => return self.open_settings(),
             Command::OpenBackupsFolder => return self.open_backups_folder(),
             // `false`, never `true`: a forced close would be a way past the
             // very dialog the close-confirm exists to ask (spec §5).
@@ -569,7 +571,68 @@ impl App {
             Command::Cancel => self.cancel(tab),
             Command::Refresh => self.refresh(tab),
             // Answered above, before there was a Scope to answer them over.
-            Command::OpenBackupsFolder | Command::Exit => {}
+            Command::Settings | Command::OpenBackupsFolder | Command::Exit => {}
+        }
+    }
+
+    /// Tools → Settings…: the two settings the user may change while the
+    /// application runs (spec §13, §11).
+    ///
+    /// The order is the whole of it. What the dialog opens on is read out
+    /// **before** it is shown — a `Ref` taken inside the call would live
+    /// across a modal loop, and the diagnostic Timer ticks inside one — and
+    /// what it answers is recorded and written afterwards, both under a
+    /// borrow that dies here.
+    ///
+    /// **`maxBackups` is in force the moment this returns**: the settings the
+    /// window holds are what the next Apply Run reads its rotation budget from
+    /// (ADR-0010), so there is nothing further to apply. The language is not,
+    /// and says so on its own label — nothing is re-translated and nothing is
+    /// announced.
+    ///
+    /// Escape and [Cancel] leave the file untouched, and so does an OK over
+    /// controls the user only looked at: `record_choices` compares, and a
+    /// comparison that finds nothing has nothing to write.
+    fn open_settings(&self) {
+        let opening = self.settings.borrow().choices();
+        // The one run that may write is the one whose OK is worth pressing.
+        // Asked once, and used twice: the dialog disables its controls on this
+        // answer, and the write below needs the very directory it names.
+        let data_dir = self.writable_data_dir();
+        let Some(chosen) = settings_dialog::ask_for_settings(
+            &self.frame,
+            &self.catalogue,
+            opening,
+            data_dir.is_some(),
+        ) else {
+            return;
+        };
+        // Unreachable: a Read-only Data run has no enabled OK to answer with.
+        // Answered anyway, and answered by changing nothing — a run that may
+        // not write its directory may not quietly change what it is doing
+        // either, because the two would then disagree at the next start.
+        let Some(data_dir) = data_dir else { return };
+        let mut settings = self.settings.borrow_mut();
+        if !settings.record_choices(chosen) {
+            return;
+        }
+        // The atomic replace every write to this file goes through: the other
+        // instance (two are a designed state) never reads a half-written file,
+        // and a failed write leaves the previous one intact.
+        //
+        // **A failure earns one `WARN settings:` line and nothing else**, the
+        // rule the geometry write already follows (spec §13) — even though the
+        // user did ask for this one. There is no eighth Announcement to speak
+        // it with and no dialog in §13's inventory to show it in, a modal
+        // raised over the modal they have just dismissed would name a failure
+        // they can do nothing about, and the setting they chose is in force
+        // this run either way. What they lose is that it does not survive a
+        // restart, which is exactly what the line says.
+        if let Err(error) = settings::write(data_dir, &settings) {
+            self.run
+                .log(&Record::settings_write_failed(FailureCause::Io {
+                    os_error: error.raw_os_error(),
+                }));
         }
     }
 

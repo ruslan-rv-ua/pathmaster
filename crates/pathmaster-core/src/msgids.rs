@@ -202,10 +202,12 @@ pub const MENU_REDO: &str = "&Redo";
 pub const MENU_CANCEL: &str = "&Cancel Changes";
 pub const MENU_REFRESH: &str = "Re&fresh";
 
-/// The Tools menu's items (spec §15). Settings… and Restart as Administrator
-/// arrive with the tickets that own them; this one hands the Snapshots' own
+/// The Tools menu's items (spec §15). Restart as Administrator arrives with
+/// the ticket that owns it. Open Backups Folder hands the Snapshots' own
 /// directory to the shell, which is why it opens rather than asks — a folder
-/// picker would be a question, and nothing here is asking one.
+/// picker would be a question, and nothing here is asking one. The mnemonic
+/// letters are S and O, unique within the menu, and gated.
+pub const MENU_SETTINGS: &str = "&Settings…";
 pub const MENU_OPEN_BACKUPS_FOLDER: &str = "&Open Backups Folder";
 
 /// The per-Scope buttons (spec §15). Their English differs from both the menu
@@ -251,12 +253,37 @@ pub const BUTTON_DIALOG_CANCEL: &str = "Cancel";
 pub const BUTTON_YES: &str = "Yes";
 pub const BUTTON_NO: &str = "No";
 
+/// The Settings dialog (Tools → Settings…, spec §13, §11).
+///
+/// **The restart notice rides the language selector's own label**, which is
+/// why that label is a sentence: FR-i18n-runtime says the language applies
+/// after a restart, and the Announcement catalogue is closed at seven, so the
+/// one place left to say so is the label of the control that changes it.
+///
+/// The auto choice is Catalogue text because it names a rule rather than a
+/// language; the two languages beside it in the selector are their own
+/// endonyms and deliberately outside the Catalogue, so a user who cannot read
+/// the current Interface Language can still find theirs (spec §11).
+///
+/// The budget's label says **Snapshots** and not "backups": `CONTEXT.md`
+/// reserves the latter for the act of taking one and for the directory they
+/// live in, which is what the tab and the Tools item above are named for.
+pub const DIALOG_SETTINGS: &str = "Settings";
+pub const SETTINGS_LANGUAGE: &str = "Language (takes effect after restart)";
+pub const SETTINGS_LANGUAGE_FOLLOWS_SYSTEM: &str = "Follow the system language";
+pub const SETTINGS_MAX_BACKUPS: &str = "Snapshots to keep per PATH";
+
 /// Validation's error dialog, whose **title is the message** — NVDA never
 /// speaks a `MessageDialog`'s body (spec §6, §10). Its single OK is the one
 /// stock button left in the application.
+///
+/// The budget's rejection is the second of them and is worded like the first
+/// two: what was wanted, never what was typed. The field keeps the text, so
+/// repeating it back would say nothing the user cannot already read there.
 pub const REJECTED_FORBIDDEN_CHARACTER: &str =
     "The entry contains a forbidden character: {character}";
 pub const REJECTED_EMPTY: &str = "The entry cannot be empty";
+pub const REJECTED_MAX_BACKUPS: &str = "Snapshots to keep must be a whole number, 1 or more";
 
 /// The convert-or-keep dialog: the single occasion a Value Type changes, and
 /// only ever by asking (spec §5, §6). `%VAR%` and `REG_SZ` are data, not
@@ -388,6 +415,7 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::menu_item(MENU_REDO, MENU_GROUP_EDIT),
     CatalogueEntry::menu_item(MENU_CANCEL, MENU_GROUP_EDIT),
     CatalogueEntry::menu_item(MENU_REFRESH, MENU_GROUP_EDIT),
+    CatalogueEntry::menu_item(MENU_SETTINGS, MENU_GROUP_TOOLS),
     CatalogueEntry::menu_item(MENU_OPEN_BACKUPS_FOLDER, MENU_GROUP_TOOLS),
     CatalogueEntry::text(BUTTON_ADD),
     CatalogueEntry::text(BUTTON_EDIT),
@@ -405,8 +433,13 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::text(BUTTON_DIALOG_CANCEL),
     CatalogueEntry::text(BUTTON_YES),
     CatalogueEntry::text(BUTTON_NO),
+    CatalogueEntry::text(DIALOG_SETTINGS),
+    CatalogueEntry::text(SETTINGS_LANGUAGE),
+    CatalogueEntry::text(SETTINGS_LANGUAGE_FOLLOWS_SYSTEM),
+    CatalogueEntry::text(SETTINGS_MAX_BACKUPS),
     CatalogueEntry::text(REJECTED_FORBIDDEN_CHARACTER),
     CatalogueEntry::text(REJECTED_EMPTY),
+    CatalogueEntry::text(REJECTED_MAX_BACKUPS),
     CatalogueEntry::text(DIALOG_VAR_IN_REG_SZ),
     CatalogueEntry::text(BUTTON_CHANGE_VALUE_TYPE),
     CatalogueEntry::text(BUTTON_KEEP_LITERAL),

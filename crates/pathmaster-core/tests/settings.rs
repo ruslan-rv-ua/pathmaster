@@ -9,7 +9,9 @@
 
 use pathmaster_core::language::LanguageChoice;
 use pathmaster_core::logfmt::{line, Timestamp};
-use pathmaster_core::settings::{Parsed, Rejected, SettingsFile, Window, DEFAULT_MAX_BACKUPS};
+use pathmaster_core::settings::{
+    parse_max_backups, Choices, Parsed, Rejected, SettingsFile, Window, DEFAULT_MAX_BACKUPS,
+};
 
 /// The successful half of [`SettingsFile::parse`], for the tests whose subject
 /// is not the parse layer.
@@ -416,4 +418,118 @@ fn defaults_are_the_values_the_spec_names() {
     assert_eq!(file.max_backups(), 50);
     assert_eq!(DEFAULT_MAX_BACKUPS, 50);
     assert_eq!(file.window(), None);
+}
+
+// --------------------------------------- what the Settings dialog changes
+
+#[test]
+fn the_dialog_opens_on_the_settings_this_run_is_using() {
+    let (file, _) = read(r#"{"language": "fr", "maxBackups": 7}"#);
+
+    // The values in memory, never the raw ones the file kept: `fr` is not
+    // something this version can do, so it is not something to show as done.
+    assert_eq!(
+        file.choices(),
+        Choices {
+            language: LanguageChoice::Auto,
+            max_backups: 7,
+        }
+    );
+}
+
+#[test]
+fn recording_the_answer_changes_only_the_settings_the_user_changed() {
+    let (mut file, _) = read(r#"{"language": "fr", "maxBackups": 0}"#);
+
+    assert!(file.record_choices(Choices {
+        language: LanguageChoice::Auto,
+        max_backups: 12,
+    }));
+
+    // The budget moves; the language the user left alone keeps the raw value
+    // the file was holding for it — the choice-not-outcome rule, which is
+    // about the setting the user changed and not about the dialog they opened.
+    let rewritten = file.to_json();
+    assert!(rewritten.contains(r#""fr""#), "{rewritten}");
+    assert!(rewritten.contains("12"), "{rewritten}");
+    assert_eq!(file.max_backups(), 12);
+    assert_eq!(file.language(), LanguageChoice::Auto);
+}
+
+#[test]
+fn changing_that_very_setting_is_what_replaces_a_value_the_file_kept() {
+    let (mut file, _) = read(r#"{"language": "fr", "maxBackups": 7}"#);
+
+    assert!(file.record_choices(Choices {
+        language: LanguageChoice::Ukrainian,
+        max_backups: 7,
+    }));
+
+    let rewritten = file.to_json();
+    assert!(!rewritten.contains(r#""fr""#), "{rewritten}");
+    assert!(rewritten.contains(r#""uk""#), "{rewritten}");
+}
+
+#[test]
+fn an_answer_that_changes_nothing_leaves_the_document_exactly_as_it_was() {
+    // Dirty is a comparison, not a record that something happened: an OK over
+    // controls the user only looked at has nothing to write. So a hand-edited
+    // file is not reformatted, a raw value it kept is not replaced, and a
+    // first run does not gain a `{}` nobody asked for.
+    let (mut file, _) = read(r#"{"language": "fr", "maxBackups": 0}"#);
+    let before = file.to_json();
+    let opened_on = file.choices();
+
+    assert!(!file.record_choices(opened_on));
+    assert_eq!(file.to_json(), before);
+
+    let mut first_run = SettingsFile::defaults();
+    let opened_on = first_run.choices();
+    assert!(!first_run.record_choices(opened_on));
+    assert_eq!(first_run.to_json(), "{}\n");
+}
+
+#[test]
+fn a_first_run_records_the_setting_that_was_changed_and_not_the_one_that_was_not() {
+    let mut file = SettingsFile::defaults();
+
+    assert!(file.record_choices(Choices {
+        language: LanguageChoice::Auto,
+        max_backups: 10,
+    }));
+
+    let rewritten = file.to_json();
+    assert!(rewritten.contains("maxBackups"), "{rewritten}");
+    assert!(!rewritten.contains("language"), "{rewritten}");
+}
+
+#[test]
+fn the_backup_budget_field_takes_a_whole_number_in_the_files_own_domain() {
+    assert_eq!(parse_max_backups("1"), Some(1));
+    assert_eq!(parse_max_backups("50"), Some(50));
+    assert_eq!(parse_max_backups(&u32::MAX.to_string()), Some(u32::MAX));
+    // Surrounding whitespace is not part of a number. This field holds a
+    // count, not text that has to survive a round trip the way an Entry does.
+    assert_eq!(parse_max_backups("  7  "), Some(7));
+}
+
+#[test]
+fn the_backup_budget_field_rejects_everything_the_file_would_have_rejected() {
+    for typed in [
+        "",
+        "   ",
+        "0",
+        "-3",
+        "2.5",
+        "abc",
+        "7 backups",
+        "1e3",
+        "+5",
+        // Past u32, and past u64 — a budget nobody can reach is still not one
+        // this application can hold.
+        "4294967296",
+        "99999999999999999999999999",
+    ] {
+        assert_eq!(parse_max_backups(typed), None, "{typed:?}");
+    }
 }
