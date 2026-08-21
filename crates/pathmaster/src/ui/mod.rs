@@ -14,8 +14,10 @@
 //! Working Copy ends in `after_edit`, which asks the [`Pump`] for a pass over
 //! both Scopes (spec §7, FR-diag-async).
 
+mod backups_page;
 mod command;
 mod entry_dialog;
+mod list;
 mod question;
 mod scope_page;
 
@@ -33,13 +35,15 @@ use pathmaster_platform::datadir::ReadOnlyReason;
 use pathmaster_platform::diagnostics::ProcessEnvironment;
 use pathmaster_platform::logwriter;
 use pathmaster_platform::registry::{RawValue, ScopeKey};
+use pathmaster_platform::snapshots;
 use pathmaster_platform::startup::Run;
 use wxdragon::prelude::*;
 
 use crate::announce::Announcer;
 use crate::catalog::{self, translate};
 use crate::pump::Pump;
-use crate::ui::command::Command;
+use crate::ui::backups_page::BackupsPage;
+use crate::ui::command::{Availability, Command};
 use crate::ui::scope_page::ScopePage;
 use crate::SharedScope;
 
@@ -48,6 +52,17 @@ use crate::SharedScope;
 /// editing at all.
 const TAB_INDEX_USER: i32 = 0;
 const TAB_INDEX_SYSTEM: i32 = 1;
+const TAB_INDEX_BACKUPS: i32 = 2;
+
+/// The page a Scope's tab sits at. The one place the order above is read as a
+/// mapping, so activating a Scope's tab and finding the tab a page belongs to
+/// cannot disagree.
+fn tab_index(scope: Scope) -> i32 {
+    match scope {
+        Scope::User => TAB_INDEX_USER,
+        Scope::System => TAB_INDEX_SYSTEM,
+    }
+}
 
 /// One Scope, everything the application holds of it: which Scope it is, the
 /// Session being edited, and the tab showing it. They travel together through
@@ -182,6 +197,10 @@ impl ScopeTab {
 struct App {
     frame: Frame,
     notebook: Notebook,
+    /// The Backups tab: every Snapshot on disk, and the Restore that brings one
+    /// back into a Working Copy (spec §8). Not a Scope, so it is not one of
+    /// [`tabs`](App::tabs) and no editing command reaches it.
+    backups: BackupsPage,
     menu: MenuBar,
     /// The one Catalogue (ADR-0009): every string this window composes is
     /// composed here, and the Announcer holds the same one.
@@ -261,8 +280,9 @@ pub fn build_main_window(
             last_read: RefCell::new(system.last_read),
         },
     ];
-    // The Backups tab is not a Scope; its Snapshot list arrives with the backups ticket.
-    let backups_page = Panel::builder(&notebook).build();
+    // The Backups tab is not a Scope: it lists files rather than Entries, and
+    // its content is read from the directory when it is activated.
+    let backups = BackupsPage::build(&notebook, &catalogue);
     notebook.add_page(
         &tabs[0].page.panel,
         &translate(msgids::TAB_USER),
@@ -275,7 +295,7 @@ pub fn build_main_window(
         false,
         None,
     );
-    notebook.add_page(&backups_page, &translate(msgids::TAB_BACKUPS), false, None);
+    notebook.add_page(&backups.panel, &translate(msgids::TAB_BACKUPS), false, None);
 
     let root_sizer = BoxSizer::builder(Orientation::Vertical).build();
     root_sizer.add(&banner, 0, SizerFlag::Expand | SizerFlag::All, 4);
@@ -291,6 +311,7 @@ pub fn build_main_window(
     let app = Rc::new(App {
         frame,
         notebook,
+        backups,
         menu: frame.get_menu_bar().expect("the menu bar was just set"),
         announcer: Announcer::new(banner, Rc::clone(&catalogue)),
         catalogue,
@@ -353,6 +374,15 @@ impl App {
             }
         }
 
+        // The Backups tab's own two events. Restore has no menu item and no
+        // accelerator (spec §15), so the button is its whole route — and the
+        // list's focus decides what that button is worth, because a row is
+        // what a Restore is of.
+        let app = Rc::clone(self);
+        self.backups.restore.on_click(move |_| app.restore());
+        let app = Rc::clone(self);
+        self.backups.list.on_item_focused(move |_| app.sync());
+
         // Announcement 1 (spec §10.1): activating a Scope tab speaks its entry
         // count. The count is read at activation time, not captured — Refresh
         // and editing change it under the same handler.
@@ -360,13 +390,21 @@ impl App {
         self.notebook.on_page_changed(move |event| {
             // The selection the event carries, not the notebook's: on Windows
             // the widget has not caught up when this fires.
-            let active = app.tab_at(event.get_selection());
+            let selection = event.get_selection();
+            let active = app.tab_at(selection);
             if let Some(tab) = active {
                 let count = tab.session.borrow().entries().len();
                 app.announcer.announce(Announcement::EntryCount {
                     scope: tab.scope,
                     count,
                 });
+            }
+            // The directory is re-read here rather than held: the other
+            // instance writes Snapshots into it too, and this tab is the only
+            // place that shows them. Activating it announces nothing — it is
+            // not a Scope, and there is no seventh Announcement for a list.
+            if selection == Some(TAB_INDEX_BACKUPS) {
+                app.reload_backups();
             }
             app.sync_for(active);
             event.base.skip(true);
@@ -424,11 +462,21 @@ impl App {
     /// fire against an enabled state set before the last operation, and the
     /// answer must be the same one the menu is showing.
     fn run(&self, command: Command) {
-        let Some(tab) = self.active_tab() else { return };
-        let available = command.enabled(Some(&tab.session.borrow()));
+        let active = self.active_tab();
+        // The borrow dies here, before anything below can open a dialog.
+        let available = {
+            let session = active.map(|tab| tab.session.borrow());
+            command.enabled(&self.availability(session.as_deref()))
+        };
         if !available {
             return;
         }
+        // The one command that is not about a Scope — and the one reachable
+        // from the Backups tab, where there is no Scope tab to hand it.
+        if command == Command::OpenBackupsFolder {
+            return self.open_backups_folder();
+        }
+        let Some(tab) = active else { return };
         match command {
             Command::Add => self.add(tab),
             Command::Edit => self.edit(tab),
@@ -440,7 +488,65 @@ impl App {
             Command::Apply => self.apply(tab),
             Command::Cancel => self.cancel(tab),
             Command::Refresh => self.refresh(tab),
+            // Answered above, before there was a Scope to answer it over.
+            Command::OpenBackupsFolder => {}
         }
+    }
+
+    /// Tools → Open Backups Folder: the Snapshots' own directory, handed to
+    /// the shell (spec §15). Not a file dialog — nothing here is asking the
+    /// user for a folder.
+    fn open_backups_folder(&self) {
+        // Unreachable with `None` — `Command::enabled` has already turned the
+        // item off for the one Run that does not know where its data lives —
+        // and this is what that `None` means.
+        if let Some(data_dir) = self.run.data_dir() {
+            snapshots::open_folder(data_dir);
+        }
+    }
+
+    /// Restore loads the chosen Snapshot's Entries and Value Type into its own
+    /// Scope's Working Copy, as one ordinary Checkpoint (spec §8, ADR-0006).
+    /// **Nothing reaches the registry**: what a Restore has done is make the
+    /// Session dirty, and Apply is what writes it — which is also why an
+    /// accidental one is Ctrl+Z, and why there is no confirmation to sit
+    /// through, exactly as Delete has none.
+    ///
+    /// The target Scope's tab is then activated with focus on the restored
+    /// list, so what happened is heard through focus rather than through an
+    /// eighth Announcement. Activating a Scope's tab speaks its entry count
+    /// like any other activation — this is one, and hiding it from the handler
+    /// that answers them would be a second kind of tab switch.
+    fn restore(&self) {
+        // Read out before the Session is touched: the page's own borrow must
+        // not still be open when the notebook fires its page-changed handler,
+        // which reads every Session in the window.
+        let Some((scope, entries, value_type)) = self.backups.restore_payload() else {
+            return;
+        };
+        let tab = self.tab_of(scope);
+        if !tab.session.borrow_mut().restore(entries, value_type) {
+            return;
+        }
+        self.notebook.set_selection(tab_index(scope) as usize);
+        // The first row, or — over a Snapshot that restored nothing — the list
+        // itself, which is where `focus_row` lands when there is no row.
+        self.after_edit(tab, Some(0));
+    }
+
+    /// Re-reads `data\backups\` and puts it on screen.
+    ///
+    /// A directory that cannot be read reads as no Snapshots, and says nothing
+    /// about it: the Announcement catalogue is closed at seven and none of
+    /// them is about a list, and the only run that can reach it is one whose
+    /// Data Directory the user has taken away underneath it.
+    fn reload_backups(&self) {
+        let rows = self
+            .run
+            .data_dir()
+            .and_then(|data_dir| snapshots::load(&snapshots::dir(data_dir)).ok())
+            .unwrap_or_default();
+        self.backups.show(rows);
     }
 
     /// Add is dialog-first: the dialog opens empty, and OK appends at the end
@@ -677,7 +783,8 @@ impl App {
                     // is not redrawn — nothing in it changed — and focus is
                     // moved only if the control holding it has just been
                     // disabled out from under the user.
-                    tab.page.rescue_focus(&tab.session.borrow());
+                    tab.page
+                        .rescue_focus(&self.availability(Some(&tab.session.borrow())));
                     self.announcer.announce(Announcement::Applied { scope });
                 }
                 ScopeOutcome::Refreshed { found } => {
@@ -773,10 +880,18 @@ impl App {
 
     /// The Scope tab at a notebook page index, if that page is a Scope at all.
     fn tab_at(&self, selection: Option<i32>) -> Option<&ScopeTab> {
-        match selection {
-            Some(TAB_INDEX_USER) => self.tabs.first(),
-            Some(TAB_INDEX_SYSTEM) => self.tabs.get(1),
-            _ => None,
+        let selection = selection?;
+        self.tabs
+            .iter()
+            .find(|tab| tab_index(tab.scope) == selection)
+    }
+
+    /// What a command's availability is decided from: a Session, and the facts
+    /// of this Run (see [`Availability`]).
+    fn availability<'a>(&self, session: Option<&'a Session>) -> Availability<'a> {
+        Availability {
+            session,
+            data_dir: self.run.data_dir().is_some(),
         }
     }
 
@@ -789,11 +904,21 @@ impl App {
     /// selection lags the page-changed event that carries it.
     fn sync_for(&self, active: Option<&ScopeTab>) {
         let session = active.map(|tab| tab.session.borrow());
-        command::sync_menu_bar(&self.menu, session.as_deref());
+        command::sync_menu_bar(&self.menu, &self.availability(session.as_deref()));
         drop(session);
         for tab in &self.tabs {
-            tab.page.sync_buttons(&tab.session.borrow());
+            tab.page
+                .sync_buttons(&self.availability(Some(&tab.session.borrow())));
         }
+        // Restore is worth something only over a row that can be loaded into a
+        // Session that can be written: a Corrupted Snapshot has nothing to
+        // load, and System unelevated or a Read-only Data run has nowhere to
+        // load it (spec §8). Both read as a disabled button.
+        let restorable = self
+            .backups
+            .restore_target()
+            .is_some_and(|scope| self.tab_of(scope).session.borrow().writable());
+        self.backups.sync_button(restorable);
         // User first, then System: the order the tabs are in, not the runtime
         // order a pass evaluates them in (spec §12).
         self.status.set_status_text(

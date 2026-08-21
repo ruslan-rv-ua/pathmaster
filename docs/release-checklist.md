@@ -54,6 +54,19 @@ interface expect the Catalogue's Ukrainian equivalents.
 | 15 | Full Tab cycle | Every control reached and spoken; cycle returns to start, no trap | |
 | 16 | `NVDA+End` | Both status bar fields spoken on demand (entry/issue counts; merged PATH length) | |
 | 17 | Start with an unwritable `data\` | Read-only Data Announcement at startup, reason named | |
+| 18 | Ctrl+Tab to the Backups tab | The tab label, and **nothing else** — it is not a Scope, so no entry count and no other Announcement | |
+| 19 | Tab into the list and arrow through it | Each row read by its columns: "{date and time}; Scope: {User PATH \| System PATH}; Entries: {n}" — the date spoken as `2026-08-19 14:32:07`, not as the file name spells it | |
+| 20 | Arrow to a Snapshot whose file was corrupted by hand (see below) | The row ends "Entries: \[Corrupted]" — part of the row, never an Announcement; Tab to Restore and it reads as unavailable | |
+| 21 | Arrow to a valid User Snapshot and press Restore | **No confirmation dialog**; the User tab is activated and speaks its new entry count; `NVDA+Tab` confirms focus is on the restored list; Apply and Cancel Changes read as available | |
+| 22 | Ctrl+Z after step 21 | "Undone: Restore snapshot", and the list is back to what it held | |
+| 23 | Arrow to a **System** Snapshot, unelevated | Restore reads as unavailable — the System Session cannot be written, whatever the file holds | |
+| 24 | Tools → Open Backups Folder | The menu item is spoken; `data\backups\` opens in Explorer — a folder, **not** a file-picker dialog | |
+
+Steps 20 and 21 need Snapshots to exist. Apply once to make a real one (step 10), or hand-place
+files in `data\backups\`: `YYYY-MM-DDTHH-MM-SS-User.json` holding
+`{"timestamp":"…","scope":"User","valueType":"REG_EXPAND_SZ","entries":["C:\\one"]}` for step 21,
+and the same name with a truncated body for step 20. A file named anything else — and the `.tmp`
+of a write in progress — must not appear in the list at all.
 
 ## B. Dialog steps (ticket 10)
 
@@ -84,6 +97,7 @@ the header. Elevate via Tools → Restart as Administrator.
 | C4 | One Announcement, elevated (e.g. F5) | "{scope}: {n} entries" | |
 | C5 | Decline the UAC prompt (separate attempt) | Dialog title "Elevation was cancelled — still running without administrator rights"; original instance stays functional | |
 | C6 | Edit and Apply on the System tab, elevated | "System PATH applied" — Announcement 2's other string, which no unelevated run can reach: unelevated, the System Session is non-writable and Apply reads as unavailable | |
+| C7 | Backups tab, elevated: arrow to a System Snapshot and press Restore | Restore now reads as available (step 23's other half); the System tab is activated and speaks its new entry count, and `NVDA+Tab` confirms focus is on the restored list | |
 
 ## D. Layout and environment
 

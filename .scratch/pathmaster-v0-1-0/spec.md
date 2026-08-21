@@ -418,6 +418,22 @@ follows the write delete the backup that write just took.
 > is activated with focus on the restored list, so the operation is heard through focus. Restore
 > to a non-writable Session (System unelevated; Read-only Data) is a disabled control.
 
+**Amended by impl ticket 14** — four rules the tab had to settle, none of them changing what a
+Snapshot is or what Restore does:
+
+- **`[Corrupted]` stands in the entry-count column**, where a count would. It answers the same
+  question — how many Entries restoring this file would load — for a file that cannot be read;
+  a fourth column would be a fourth heading to say the same thing.
+- **A Snapshot that cannot be *read* is Corrupted too**, not invisible. Unparsable JSON, a
+  mistyped field and a file the OS will not open are one thing to the person looking at the row:
+  nothing can be restored from it. Invisible would make the list disagree with the directory,
+  where the file still occupies its Scope's rotation budget.
+- **The list is newest first** — the reverse of the order rotation reads the directory in.
+  Rotation wants the oldest; someone restoring wants the backup they took last.
+- **Restoring a Snapshot of an Absent Scope loads no Entries, typed `REG_EXPAND_SZ`** — the type
+  the first Apply will create (§4), because an Absent Scope recorded no Value Type and a Working
+  Copy has no Absent state to restore into. Its entry-count column therefore reads `0`.
+
 Apply-time backup failure (Announcement): "Apply failed — could not write a backup, no changes
 were made." `winget uninstall` deletes `data\`, Snapshots included; `winget upgrade` keeps it —
 README material.
@@ -699,6 +715,16 @@ re-reads rather than edits: §5 disables "every editing action" and Refresh is n
 Data "still reads, diagnoses and lists" (`CONTEXT.md`), and an unelevated System tab would
 otherwise never see an external change without a restart.
 
+*Amended by impl ticket 14, which built the Tools menu and the Backups tab's Restore button.*
+Tools opens with **Open Backups Folder** alone; Settings… and Restart as Administrator arrive with
+tickets 16 and 17, and the mnemonics across the bar are F, E, T. The item shows `data\backups\`,
+**creating it when this Run has not yet taken a Snapshot** and falling back to the Data Directory
+when it cannot be created — a menu item that reads as available opens something. It is disabled in
+the one run that has no Data Directory at all (§3, own location unknown). **Restore is a button and
+nothing else**: §15 gives it no menu item and no accelerator, so it is not one of the commands the
+menu bar carries, and its enabled state follows the focused Snapshot row rather than any Session
+the notebook is showing.
+
 ## 16. Build, packaging, release
 
 Settled by tickets [04](issues/04-single-exe-build-profile.md) and
@@ -745,10 +771,12 @@ Settled by ticket [23](issues/23-crate-and-module-layout.md);
 ever links wxWidgets.
 
 - **`crates/pathmaster-core`** — pure, no I/O, any-OS: `path` (split/join), `normalize`,
-  `diagnostics`, `session`, `snapshot`, `rotation`, `thresholds`, `settings` (parse + per-field
-  rules), `logfmt` (line shape, truncation, levels), `language` (the stored choice and the §11
-  branch), `msgids` (registry + `.po` integrity gate via polib), `catalogue` (the injected lookup,
-  the Announcement type, and everything composed out of the msgids — impl ticket 19, ADR-0009).
+  `diagnostics`, `session`, `snapshot`, `rotation`, `backups` (the Backups list: a Snapshot's name
+  married to what reading its file turned out to be — impl ticket 14), `thresholds`, `settings`
+  (parse + per-field rules), `logfmt` (line shape, truncation, levels), `language` (the stored
+  choice and the §11 branch), `msgids` (registry + `.po` integrity gate via polib), `catalogue`
+  (the injected lookup, the Announcement type, and everything composed out of the msgids — impl
+  ticket 19, ADR-0009).
   Module names indicative; the inter-crate seams are what this spec fixes hard.
 - **`crates/pathmaster-platform`** — imperative shell, no wx: `registry` (adapter, **key path as a
   constructor parameter**), `datadir`, `diagnostics` (the pass's two adapters and its worker thread,

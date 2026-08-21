@@ -13,11 +13,14 @@
 //! (`tests/catalogue.rs` is the completeness gate, which is about the strings
 //! themselves; this file is about what is built out of them.)
 
+use pathmaster_core::backups::{self, Row};
 use pathmaster_core::catalogue::{Announcement, Catalogue, Lookup, ScopeCounts, UndoDirection};
 use pathmaster_core::diagnostics::Issue;
+use pathmaster_core::logfmt::Timestamp;
 use pathmaster_core::msgids;
 use pathmaster_core::path::Rejection;
-use pathmaster_core::session::{Operation, Scope, UndoOutcome};
+use pathmaster_core::session::{Operation, Scope, UndoOutcome, ValueType};
+use pathmaster_core::snapshot::{Captured, Decoded, Snapshot, SnapshotName};
 use pathmaster_core::thresholds;
 
 /// The tests' adapter: it answers with the msgid and picks
@@ -523,5 +526,80 @@ fn the_empty_rejection_has_nothing_to_fill_and_fills_nothing() {
     assert_eq!(
         the_catalogue().rejection(Rejection::Empty),
         "The entry cannot be empty"
+    );
+}
+
+// ---- The Backups list's three columns (spec §8, FR-backup-ui) ----
+
+/// One row, as the Backups tab builds one: a Snapshot's name, and what reading
+/// its file turned out to be.
+fn backup_row(scope: Scope, captured: Option<Captured>) -> Row {
+    let name = SnapshotName::next(
+        Timestamp {
+            year: 2026,
+            month: 8,
+            day: 19,
+            hour: 14,
+            minute: 32,
+            second: 7,
+            offset_minutes: 180,
+        },
+        scope,
+        &[],
+    );
+    let decoded = match captured {
+        Some(captured) => Decoded::Valid(Snapshot::under(&name, captured)),
+        None => Decoded::Corrupted,
+    };
+    backups::rows([(name, decoded)]).pop().expect("one row")
+}
+
+fn holding(entries: &[&str]) -> Option<Captured> {
+    Some(Captured::Present {
+        value_type: ValueType::RegExpandSz,
+        entries: entries.iter().map(|entry| (*entry).to_string()).collect(),
+    })
+}
+
+#[test]
+fn a_row_reads_as_when_it_was_taken_which_scope_and_how_many_entries() {
+    assert_eq!(
+        the_catalogue().backup_row(&backup_row(Scope::User, holding(&["one", "two"]))),
+        [
+            "2026-08-19 14:32:07".to_string(),
+            "User PATH".to_string(),
+            "2".to_string(),
+        ],
+    );
+}
+
+#[test]
+fn a_scope_is_named_in_the_backups_list_exactly_as_its_own_tab_names_it() {
+    // One name per Scope: a second English for it would be a second
+    // translation to keep in step (ADR-0004).
+    assert_eq!(
+        the_catalogue().backup_row(&backup_row(Scope::System, holding(&[])))[1],
+        msgids::TAB_SYSTEM,
+    );
+}
+
+#[test]
+fn a_corrupted_snapshot_says_so_where_its_entry_count_would_stand() {
+    // Passive list text in the column that answers "what would restoring this
+    // load" — never an Announcement (`CONTEXT.md`, **Corrupted**).
+    let row = the_catalogue().backup_row(&backup_row(Scope::User, None));
+
+    assert_eq!(row[0], "2026-08-19 14:32:07");
+    assert_eq!(row[1], "User PATH");
+    assert_eq!(row[2], "[Corrupted]");
+}
+
+#[test]
+fn a_snapshot_of_an_absent_scope_counts_the_entries_restoring_it_would_load() {
+    // None — which is what a Working Copy restored from an Absent Scope holds,
+    // there being no Absent state to restore it into (ADR-0006).
+    assert_eq!(
+        the_catalogue().backup_row(&backup_row(Scope::System, Some(Captured::Absent)))[2],
+        "0",
     );
 }

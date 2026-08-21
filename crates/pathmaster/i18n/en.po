@@ -53,6 +53,26 @@ msgstr "Path"
 msgid "Status"
 msgstr "Status"
 
+#. Backups list column header: when this Snapshot was taken, local time.
+msgid "Date and time"
+msgstr "Date and time"
+
+#. Backups list column header: which Scope this Snapshot holds. Its values are
+#. the two Scope tab labels above.
+msgid "Scope"
+msgstr "Scope"
+
+#. Backups list column header: how many entries restoring this Snapshot would
+#. load into the working copy.
+msgid "Entries"
+msgstr "Entries"
+
+#. Backups list text, in the Entries column, for a Snapshot file that failed
+#. validation: it cannot be restored, and its Restore button is disabled. Never
+#. spoken as an announcement — the row carries it. Keep the brackets.
+msgid "[Corrupted]"
+msgstr "[Corrupted]"
+
 #. Announcement: spoken when the User tab is activated or refreshed.
 msgid "User PATH: {n} entry"
 msgid_plural "User PATH: {n} entries"
@@ -178,6 +198,10 @@ msgstr "&Edit"
 msgid "&File"
 msgstr "&File"
 
+#. Menu bar title. The mnemonic letter is Latin in every language.
+msgid "&Tools"
+msgstr "&Tools"
+
 #. File menu item: writes the active Scope's entries to the registry (Ctrl+S).
 #. The code appends its accelerator.
 msgid "&Apply"
@@ -221,6 +245,11 @@ msgstr "&Cancel Changes"
 msgid "Re&fresh"
 msgstr "Re&fresh"
 
+#. Tools menu item: hands the folder the Snapshot files live in to the shell.
+#. "Backups" here is the directory, as in the tab label above.
+msgid "&Open Backups Folder"
+msgstr "&Open Backups Folder"
+
 #. Button under a Scope's list: opens the Add dialog. Buttons carry no
 #. mnemonic — the Tab order is the map, and an "&" would race the menu bar.
 msgid "Add…"
@@ -251,6 +280,12 @@ msgstr "Apply"
 #. unsaved changes. Disabled while there are none.
 msgid "Cancel Changes"
 msgstr "Cancel Changes"
+
+#. Button on the Backups tab: loads the chosen Snapshot into its Scope's
+#. working copy as one undoable step. Nothing is written until that Scope is
+#. applied, which is why the label promises no more than it does.
+msgid "Restore"
+msgstr "Restore"
 
 #. Dialog title when an existing entry is edited, and the operation name in
 #. "Undone: {operation}". Translate as a verbal noun so the announcement

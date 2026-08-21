@@ -23,6 +23,7 @@
 //! happens, handed to the one thing that speaks, and counted by a test — so
 //! the set is closed by the compiler.
 
+use crate::backups::Row;
 use crate::diagnostics::Issue;
 use crate::msgids::{self, fill};
 use crate::path::Rejection;
@@ -305,6 +306,33 @@ impl Catalogue {
             .map(|issue| self.lookup.translate(issue.catalogue_msgid()))
             .collect::<Vec<String>>()
             .join(", ")
+    }
+
+    /// One row of the Backups list, in the tab's three columns: when the
+    /// Snapshot was taken, the Scope it holds, and how many Entries restoring
+    /// it would load (spec §8, FR-backup-ui).
+    ///
+    /// A Corrupted file's third column is `[Corrupted]` where the count would
+    /// stand, because that is the answer to the same question for a file that
+    /// cannot be read. It is passive list text and never an Announcement — the
+    /// same free ride the Status column already takes, read when the row gets
+    /// focus and never spoken unprompted (`CONTEXT.md`, **Corrupted**).
+    ///
+    /// The Scope is named with its tab's own label: a Scope has one name, and
+    /// a second English for it would be a second translation to keep in step
+    /// (ADR-0004).
+    pub fn backup_row(&self, row: &Row) -> [String; 3] {
+        [
+            row.taken(),
+            self.lookup.translate(match row.scope() {
+                Scope::User => msgids::TAB_USER,
+                Scope::System => msgids::TAB_SYSTEM,
+            }),
+            match row.restores() {
+                Some((entries, _)) => entries.len().to_string(),
+                None => self.lookup.translate(msgids::SNAPSHOT_CORRUPTED),
+            },
+        ]
     }
 
     /// Announcement 1: the Scope's entry count, with the zero case as its own

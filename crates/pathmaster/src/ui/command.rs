@@ -1,4 +1,4 @@
-//! The ten commands the window carries, and the menus they live in
+//! The eleven commands the window carries, and the menus they live in
 //! (spec §15, §5, §6).
 //!
 //! One enum is the whole map: it names the menu items, the menu each belongs
@@ -21,6 +21,16 @@ use wxdragon::prelude::*;
 use crate::catalog::translate;
 
 /// One user-visible command.
+///
+/// Every one of them but the last is about a Scope, and the last is here for
+/// the reason the enum exists at all: it is a menu item, and a menu item's id,
+/// label and enabled state are answered in one place or in three.
+///
+/// **Restore is deliberately not one of them.** §15 gives it no menu item and
+/// no accelerator — the Backups tab covers it — and a button on that tab is not
+/// a Scope button, which is what [`button_label`](Command::button_label) means
+/// here. It has exactly one route, so the rule this enum enforces has nothing
+/// to enforce for it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Command {
     Add,
@@ -33,13 +43,29 @@ pub enum Command {
     Apply,
     Cancel,
     Refresh,
+    OpenBackupsFolder,
+}
+
+/// What a command's availability is decided from.
+///
+/// The active Scope's Editing Session answers for the ten that edit one, and
+/// `None` — the Backups tab, which is not a Scope — closes every one of them.
+/// The Run's own facts answer for the eleventh, which is not about a Scope and
+/// is available on that tab precisely because it is not. Tickets 16 and 17 add
+/// their Tools items to the same shape.
+pub struct Availability<'a> {
+    pub session: Option<&'a Session>,
+    /// Whether this Run has a Data Directory at all. The one Run that has none
+    /// does not know where it is (`ReadOnlyReason::OwnLocationUnknown`), and so
+    /// has no folder of Snapshots to show.
+    pub data_dir: bool,
 }
 
 impl Command {
     /// Every command, in **button** order — §15's Add, Edit, Delete, Move Up,
     /// Move Down, Apply, Cancel — which is also the order each menu takes its
     /// own items in, since [`menu`](Self::menu) preserves it.
-    pub const ALL: [Command; 10] = [
+    pub const ALL: [Command; 11] = [
         Command::Add,
         Command::Edit,
         Command::Delete,
@@ -50,13 +76,16 @@ impl Command {
         Command::Apply,
         Command::Cancel,
         Command::Refresh,
+        Command::OpenBackupsFolder,
     ];
 
-    /// The menus, in menu-bar order. Tools and Help arrive with the tickets
-    /// that fill them (spec §15).
-    const MENUS: [(&'static str, &'static str); 2] = [
+    /// The menus, in menu-bar order. Help arrives with the ticket that fills
+    /// it; Tools gains Settings… and Restart as Administrator with theirs
+    /// (spec §15).
+    const MENUS: [(&'static str, &'static str); 3] = [
         (msgids::MENU_TITLE_FILE, msgids::MENU_GROUP_FILE),
         (msgids::MENU_TITLE_EDIT, msgids::MENU_GROUP_EDIT),
+        (msgids::MENU_TITLE_TOOLS, msgids::MENU_GROUP_TOOLS),
     ];
 
     /// The id this command's menu item is appended under, and the id its
@@ -97,6 +126,7 @@ impl Command {
             | Command::Redo
             | Command::Cancel
             | Command::Refresh => msgids::MENU_GROUP_EDIT,
+            Command::OpenBackupsFolder => msgids::MENU_GROUP_TOOLS,
         }
     }
 
@@ -113,6 +143,7 @@ impl Command {
             Command::Redo => msgids::MENU_REDO,
             Command::Cancel => msgids::MENU_CANCEL,
             Command::Refresh => msgids::MENU_REFRESH,
+            Command::OpenBackupsFolder => msgids::MENU_OPEN_BACKUPS_FOLDER,
         });
         match self.accelerator() {
             Some(accelerator) => format!("{label}\t{accelerator}"),
@@ -122,8 +153,9 @@ impl Command {
 
     /// The label of this command's button under a Scope's list, or `None`
     /// where §15 gives it none — Undo, Redo and Refresh are menu and keyboard
-    /// commands. Which commands have a button is therefore answered here and
-    /// nowhere else; the Tab order is `ALL`'s order, filtered by this.
+    /// commands, and the Tools item is not about a Scope at all. Which
+    /// commands have a button is therefore answered here and nowhere else; the
+    /// Tab order is `ALL`'s order, filtered by this.
     ///
     /// The English differs from both the menu item and the operation name
     /// Announcement 4 speaks, because the three need different Ukrainian
@@ -137,7 +169,9 @@ impl Command {
             Command::MoveDown => msgids::BUTTON_MOVE_DOWN,
             Command::Apply => msgids::BUTTON_APPLY,
             Command::Cancel => msgids::BUTTON_CANCEL,
-            Command::Undo | Command::Redo | Command::Refresh => return None,
+            Command::Undo | Command::Redo | Command::Refresh | Command::OpenBackupsFolder => {
+                return None
+            }
         };
         Some(translate(msgid))
     }
@@ -155,12 +189,13 @@ impl Command {
             Command::Redo => Some("Ctrl+Y"),
             Command::Apply => Some("Ctrl+S"),
             Command::Refresh => Some("F5"),
-            Command::Add | Command::Cancel => None,
+            Command::Add | Command::Cancel | Command::OpenBackupsFolder => None,
         }
     }
 
-    /// Whether this command is available over `session` — `None` being the
-    /// Backups tab, which is not a Scope and offers no editing at all.
+    /// Whether this command is available — over the active Scope's Session,
+    /// `None` being the Backups tab, which is not a Scope and offers no
+    /// editing at all.
     ///
     /// A non-writable Session closes every command that edits, and a disabled
     /// item is how a screen reader is told so (spec §5, §15). **Refresh is not
@@ -168,8 +203,16 @@ impl Command {
     /// one they can look at — Read-only Data "still reads, diagnoses and
     /// lists", and an unelevated System tab would otherwise never see an
     /// external change without a restart.
-    pub fn enabled(self, session: Option<&Session>) -> bool {
-        let Some(session) = session else { return false };
+    pub fn enabled(self, available: &Availability) -> bool {
+        // The one command that is not about a Scope, answered before a Session
+        // is asked for — it is available on the Backups tab, where there is
+        // none, and a Read-only Data run still lists what it cannot write.
+        if self == Command::OpenBackupsFolder {
+            return available.data_dir;
+        }
+        let Some(session) = available.session else {
+            return false;
+        };
         match self {
             Command::Refresh => true,
             _ if !session.writable() => false,
@@ -185,15 +228,20 @@ impl Command {
             // (ADR-0002) — and a Read-only Data run has already reached this
             // `match` through the non-writable Session above.
             Command::Apply | Command::Cancel => session.is_dirty(),
+            // Answered above, before there was a Session to answer it over. An
+            // arm all the same, so the next command someone adds has to say
+            // what it is worth rather than inherit a catch-all — the rule
+            // `menu()` already keeps.
+            Command::OpenBackupsFolder => available.data_dir,
         }
     }
 }
 
 /// Builds the menu bar from [`Command::MENUS`] and [`Command::menu`], so a
 /// command with no menu is a command with no shortcut — which for Ctrl+S would
-/// be a command with no way to reach it at all. Tools and Help arrive with the
-/// tickets that fill them; File is Apply alone until the close-confirm ticket
-/// adds Exit.
+/// be a command with no way to reach it at all. Help arrives with the ticket
+/// that fills it; File is Apply alone until the close-confirm ticket adds Exit,
+/// and Tools is one item until tickets 16 and 17 add theirs.
 ///
 /// Every item's help string is deliberately empty: wx writes it to the status
 /// bar as the user moves through the menu, and the status bar is command-only
@@ -210,10 +258,10 @@ pub fn build_menu_bar() -> MenuBar {
     bar.build()
 }
 
-/// Points every menu item at the active Session's state. Called after every
+/// Points every menu item at the state that now holds. Called after every
 /// operation and every tab change, so what the menu reads is never stale.
-pub fn sync_menu_bar(bar: &MenuBar, session: Option<&Session>) {
+pub fn sync_menu_bar(bar: &MenuBar, available: &Availability) {
     for command in Command::ALL {
-        bar.enable_item(command.id(), command.enabled(session));
+        bar.enable_item(command.id(), command.enabled(available));
     }
 }

@@ -23,6 +23,15 @@ pub enum ValueType {
     RegExpandSz,
 }
 
+/// The Value Type a Scope with no stored value of its own takes: the one the
+/// first Apply will create (spec §4).
+///
+/// An Absent Scope has no Value Type, and two places need an answer anyway —
+/// the Session loaded from one, and the Restore of a Snapshot that captured
+/// one ([`backups::Row::restores`](crate::backups::Row::restores)). It is one
+/// constant so that they cannot answer differently.
+pub const ABSENT_VALUE_TYPE: ValueType = ValueType::RegExpandSz;
+
 /// A Scope's registry value as read: absent, or present with its type and raw
 /// decoded string. Absent is distinct from present-and-empty (spec §4).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -494,7 +503,7 @@ impl Session {
 
 fn decode(value: &ScopeValue) -> (Vec<String>, ValueType) {
     match value {
-        ScopeValue::Absent => (Vec::new(), ValueType::RegExpandSz),
+        ScopeValue::Absent => (Vec::new(), ABSENT_VALUE_TYPE),
         ScopeValue::Present { value_type, raw } => (
             split(raw).into_iter().map(str::to_string).collect(),
             *value_type,

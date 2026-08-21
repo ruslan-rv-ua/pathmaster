@@ -63,6 +63,21 @@ pub const TAB_BACKUPS: &str = "Backups";
 pub const COLUMN_PATH: &str = "Path";
 pub const COLUMN_STATUS: &str = "Status";
 
+/// The three the Backups tab shows (spec §8, FR-backup-ui). The Scope column's
+/// *values* are [`TAB_USER`] and [`TAB_SYSTEM`] — a Scope has one name, and the
+/// tab that shows it is where it is already written.
+pub const COLUMN_DATE_AND_TIME: &str = "Date and time";
+pub const COLUMN_SCOPE: &str = "Scope";
+pub const COLUMN_ENTRIES: &str = "Entries";
+
+/// What the Entries column says of a Snapshot that failed validation (spec §8):
+/// passive list text, read for free when the row takes focus, and never an
+/// Announcement (`CONTEXT.md`, **Corrupted**). It stands where a count would
+/// because it answers the same question — how many Entries restoring this
+/// file would load — for a file that cannot be read at all. The brackets are
+/// the spec's own and mark it as a state rather than a number.
+pub const SNAPSHOT_CORRUPTED: &str = "[Corrupted]";
+
 /// Announcement 1 (spec §10.1): the entry count on tab activation and Refresh.
 /// The zero case is its own msgid rather than a plural form — Ukrainian's
 /// `nplurals=3` has no zero form, and "no entries" is better speech than "0".
@@ -155,11 +170,13 @@ pub const MERGED_LENGTH_EXCEEDS: &str = " — exceeds 8,191 (cmd.exe limit)";
 pub const MENU_GROUP_BAR: &str = "menu bar";
 pub const MENU_GROUP_EDIT: &str = "Edit";
 pub const MENU_GROUP_FILE: &str = "File";
+pub const MENU_GROUP_TOOLS: &str = "Tools";
 
-/// The menu bar's titles. Tools and Help arrive with the tickets that fill
-/// them (spec §15).
+/// The menu bar's titles. Help arrives with the ticket that fills it
+/// (spec §15). The mnemonics are F, E, T — unique across the bar, and gated.
 pub const MENU_TITLE_EDIT: &str = "&Edit";
 pub const MENU_TITLE_FILE: &str = "&File";
+pub const MENU_TITLE_TOOLS: &str = "&Tools";
 
 /// The File menu's items (spec §15). Exit arrives with the ticket that owns
 /// the close-confirm; Apply is here because Ctrl+S can only live on a menu
@@ -181,6 +198,12 @@ pub const MENU_REDO: &str = "&Redo";
 pub const MENU_CANCEL: &str = "&Cancel Changes";
 pub const MENU_REFRESH: &str = "Re&fresh";
 
+/// The Tools menu's items (spec §15). Settings… and Restart as Administrator
+/// arrive with the tickets that own them; this one hands the Snapshots' own
+/// directory to the shell, which is why it opens rather than asks — a folder
+/// picker would be a question, and nothing here is asking one.
+pub const MENU_OPEN_BACKUPS_FOLDER: &str = "&Open Backups Folder";
+
 /// The per-Scope buttons (spec §15). Their English differs from both the menu
 /// items that share their command and the operation names that announce it —
 /// a `…` where a dialog follows, no mnemonic (the Tab order is the map, and a
@@ -193,6 +216,11 @@ pub const BUTTON_MOVE_UP: &str = "Move Up";
 pub const BUTTON_MOVE_DOWN: &str = "Move Down";
 pub const BUTTON_APPLY: &str = "Apply";
 pub const BUTTON_CANCEL: &str = "Cancel Changes";
+
+/// The Backups tab's one button (spec §15): it loads the chosen Snapshot into
+/// its Scope's Working Copy, which is why it says no more than what it does —
+/// nothing is written until that Scope is applied.
+pub const BUTTON_RESTORE: &str = "Restore";
 
 /// The Add/Edit dialog (spec §6, FR-edit-f2). The titles double as the
 /// operation names Announcement 4 speaks — the spec writes them identically
@@ -294,6 +322,10 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::text(TAB_BACKUPS),
     CatalogueEntry::text(COLUMN_PATH),
     CatalogueEntry::text(COLUMN_STATUS),
+    CatalogueEntry::text(COLUMN_DATE_AND_TIME),
+    CatalogueEntry::text(COLUMN_SCOPE),
+    CatalogueEntry::text(COLUMN_ENTRIES),
+    CatalogueEntry::text(SNAPSHOT_CORRUPTED),
     CatalogueEntry::plural(ENTRIES_USER, ENTRIES_USER_PLURAL),
     CatalogueEntry::text(ENTRIES_USER_NONE),
     CatalogueEntry::plural(ENTRIES_SYSTEM, ENTRIES_SYSTEM_PLURAL),
@@ -319,6 +351,7 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::text(MERGED_LENGTH_EXCEEDS),
     CatalogueEntry::menu_item(MENU_TITLE_EDIT, MENU_GROUP_BAR),
     CatalogueEntry::menu_item(MENU_TITLE_FILE, MENU_GROUP_BAR),
+    CatalogueEntry::menu_item(MENU_TITLE_TOOLS, MENU_GROUP_BAR),
     CatalogueEntry::menu_item(MENU_APPLY, MENU_GROUP_FILE),
     CatalogueEntry::menu_item(MENU_ADD_ENTRY, MENU_GROUP_EDIT),
     CatalogueEntry::menu_item(MENU_EDIT_ENTRY, MENU_GROUP_EDIT),
@@ -329,6 +362,7 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::menu_item(MENU_REDO, MENU_GROUP_EDIT),
     CatalogueEntry::menu_item(MENU_CANCEL, MENU_GROUP_EDIT),
     CatalogueEntry::menu_item(MENU_REFRESH, MENU_GROUP_EDIT),
+    CatalogueEntry::menu_item(MENU_OPEN_BACKUPS_FOLDER, MENU_GROUP_TOOLS),
     CatalogueEntry::text(BUTTON_ADD),
     CatalogueEntry::text(BUTTON_EDIT),
     CatalogueEntry::text(BUTTON_DELETE),
@@ -336,6 +370,7 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::text(BUTTON_MOVE_DOWN),
     CatalogueEntry::text(BUTTON_APPLY),
     CatalogueEntry::text(BUTTON_CANCEL),
+    CatalogueEntry::text(BUTTON_RESTORE),
     CatalogueEntry::text(DIALOG_EDIT_ENTRY),
     CatalogueEntry::text(DIALOG_ADD_ENTRY),
     CatalogueEntry::text(BUTTON_BROWSE),

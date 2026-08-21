@@ -18,7 +18,8 @@ use pathmaster_core::session::{EntryId, Session};
 use wxdragon::prelude::*;
 
 use crate::catalog::translate;
-use crate::ui::command::Command;
+use crate::ui::command::{Availability, Command};
+use crate::ui::list;
 
 /// Status column width in DIP — the app's single deliberate pixel constant
 /// (spec §12 D2). Status text is of predictable length (comma-joined one-word
@@ -190,11 +191,11 @@ impl ScopePage {
     /// It is asked before the buttons are re-synced, so the answer comes from
     /// two live facts: which button wx says has the focus, and what the
     /// Session now says that button's command is worth.
-    pub fn rescue_focus(&self, session: &Session) {
+    pub fn rescue_focus(&self, available: &Availability) {
         let stranded = self
             .buttons
             .iter()
-            .any(|(command, button)| button.has_focus() && !command.enabled(Some(session)));
+            .any(|(command, button)| button.has_focus() && !command.enabled(available));
         if !stranded {
             return;
         }
@@ -215,18 +216,9 @@ impl ScopePage {
             .checked_sub(1)
     }
 
-    /// The row the user is on, if any: the focused one, or the selected one
-    /// when the list has been clicked but never arrowed through.
+    /// The row the user is on, if any (see [`list::focused_row`]).
     pub fn focused_row(&self) -> Option<usize> {
-        let focused = self
-            .list
-            .get_next_item(-1, ListNextItemFlag::All, ListItemState::Focused);
-        let row = if focused >= 0 {
-            focused
-        } else {
-            self.list.get_first_selected_item()
-        };
-        usize::try_from(row).ok()
+        list::focused_row(&self.list)
     }
 
     /// The Entry the user is on: its row and its id. `None` when the list is
@@ -241,12 +233,16 @@ impl ScopePage {
         session.entries().iter().position(|entry| entry.id() == id)
     }
 
-    /// Points every button at the active Session's state — the same `match`
-    /// the menu items answer to, so a command cannot be dead in one place and
-    /// live in the other.
-    pub fn sync_buttons(&self, session: &Session) {
+    /// Points every button at the state that now holds — the same `match` the
+    /// menu items answer to, so a command cannot be dead in one place and live
+    /// in the other.
+    ///
+    /// `available` carries **this tab's** Session and not the active one: a
+    /// Scope's buttons answer to the Scope they sit under, whichever tab the
+    /// user is looking at.
+    pub fn sync_buttons(&self, available: &Availability) {
         for (command, button) in &self.buttons {
-            button.enable(command.enabled(Some(session)));
+            button.enable(command.enabled(available));
         }
     }
 }

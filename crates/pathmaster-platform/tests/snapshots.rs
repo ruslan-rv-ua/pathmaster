@@ -3,14 +3,17 @@
 //! What the module decides is nothing — the name's shape, the schema and the
 //! budget all live in `pathmaster-core`. What it owns is the directory, so
 //! these tests are about the filesystem: a directory that is not there yet, a
-//! `.tmp` a listing must not see, and a rotation that deletes one Scope's
-//! oldest and leaves the other Scope alone however old its files are.
+//! `.tmp` a listing must not see, a rotation that deletes one Scope's oldest
+//! and leaves the other Scope alone however old its files are, and — for the
+//! Backups tab (impl ticket 14) — what reading every one of them turns out to
+//! be, including the ones that cannot be read at all.
 
 #![cfg(windows)]
 
 use std::fs;
 use std::path::Path;
 
+use pathmaster_core::backups::Row;
 use pathmaster_core::logfmt::Timestamp;
 use pathmaster_core::session::{Scope, ValueType};
 use pathmaster_core::snapshot::{Captured, Snapshot, SnapshotName};
@@ -167,4 +170,105 @@ fn rotation_tolerates_a_file_another_instance_has_already_deleted() {
     snapshots::rotate(&dir, &listing, Scope::User, 1);
 
     assert_eq!(file_names(&dir), vec![newest.file_name().to_string()]);
+}
+
+// ---- What the Backups tab is handed (spec §8, FR-backup-ui) ----
+
+#[test]
+fn a_load_reads_every_snapshot_and_hands_them_back_newest_first() {
+    let temp = tempfile::tempdir().unwrap();
+    let dir = snapshots::dir(temp.path());
+    take(&dir, Scope::User, 7);
+    take(&dir, Scope::System, 9);
+    // Neither of these claims to be a Snapshot, so neither is Corrupted: they
+    // are simply invisible, the same as they are to a listing.
+    fs::write(dir.join("notes.txt"), b"hello").unwrap();
+    fs::write(dir.join("2026-08-21T14-32-08-User.json.4242.tmp"), b"{}").unwrap();
+
+    let rows = snapshots::load(&dir).expect("a load");
+
+    assert_eq!(
+        rows.iter().map(Row::taken).collect::<Vec<String>>(),
+        ["2026-08-21 14:32:09", "2026-08-21 14:32:07"],
+    );
+    assert_eq!(
+        rows.iter().map(Row::scope).collect::<Vec<Scope>>(),
+        [Scope::System, Scope::User],
+    );
+    assert_eq!(
+        rows[1].restores().expect("a valid Snapshot").0,
+        [r"C:\bin".to_string()],
+    );
+}
+
+#[test]
+fn a_snapshot_that_fails_validation_loads_as_corrupted_and_keeps_its_row() {
+    // It is still a Snapshot file, it still counts toward its Scope's rotation
+    // budget, and its name still dates it — what it has is nothing to restore.
+    let temp = tempfile::tempdir().unwrap();
+    let dir = snapshots::dir(temp.path());
+    let valid = take(&dir, Scope::User, 7);
+    let broken = SnapshotName::next(at(9), Scope::System, &[valid]);
+    fs::write(dir.join(broken.file_name()), b"{ not json at all").unwrap();
+
+    let rows = snapshots::load(&dir).expect("a load");
+
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0].scope(), Scope::System);
+    assert_eq!(rows[0].taken(), "2026-08-21 14:32:09");
+    assert_eq!(rows[0].restores(), None);
+    assert!(rows[1].restores().is_some(), "the good one is untouched");
+}
+
+#[test]
+fn a_snapshot_that_cannot_be_read_at_all_is_corrupted_too() {
+    // A directory wearing a Snapshot's name is the reachable version of every
+    // way a read can fail — locked, denied, half a device. The row says the
+    // one thing that matters about all of them: nothing can be restored here.
+    let temp = tempfile::tempdir().unwrap();
+    let dir = snapshots::dir(temp.path());
+    let unreadable = SnapshotName::next(at(7), Scope::User, &[]);
+    fs::create_dir_all(dir.join(unreadable.file_name())).unwrap();
+
+    let rows = snapshots::load(&dir).expect("a load");
+
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].restores(), None);
+}
+
+#[test]
+fn a_directory_that_does_not_exist_yet_loads_as_no_rows() {
+    // The Backups tab of a run that has never applied anything: no Snapshots,
+    // which is the literal truth and not a failure.
+    let temp = tempfile::tempdir().unwrap();
+
+    assert_eq!(
+        snapshots::load(&snapshots::dir(temp.path())).expect("an empty load"),
+        Vec::new(),
+    );
+}
+
+// ---- Tools → Open Backups Folder (spec §15) ----
+
+#[test]
+fn the_folder_to_open_is_the_backups_directory_created_if_it_is_not_there_yet() {
+    let temp = tempfile::tempdir().unwrap();
+    let backups = snapshots::dir(temp.path());
+
+    assert_eq!(snapshots::folder_to_open(temp.path()), backups);
+    assert!(
+        backups.is_dir(),
+        "a menu item that reads as available must open something"
+    );
+}
+
+#[test]
+fn a_backups_directory_that_cannot_be_created_falls_back_to_the_data_directory() {
+    // A *file* of that name is the one way to make the creation fail without a
+    // privilege — the same staging the Release Checklist's backup-failure step
+    // uses. A Read-only Data run reaches the same fallback by being read-only.
+    let temp = tempfile::tempdir().unwrap();
+    fs::write(snapshots::dir(temp.path()), b"not a directory").unwrap();
+
+    assert_eq!(snapshots::folder_to_open(temp.path()), temp.path());
 }
