@@ -147,6 +147,12 @@ msgstr "the data directory is not writable"
 msgid "Settings could not be read — defaults are in use"
 msgstr "Settings could not be read — defaults are in use"
 
+#. Dialog after OK in the Settings dialog: `settings.json` could not be
+#. written, so nothing was recorded and the run is exactly as it was. The
+#. mirror of the message above; the whole message is the title.
+msgid "Settings could not be written — nothing was changed"
+msgstr "Settings could not be written — nothing was changed"
+
 #. Status column word: the entry's path does not name an existing directory.
 #. One word, never a sentence — NVDA reads the column on every arrow key.
 msgid "Missing"
@@ -344,7 +350,7 @@ msgstr "The entry contains a forbidden character: {character}"
 msgid "The entry cannot be empty"
 msgstr "The entry cannot be empty"
 
-#. Validation error in the Settings dialog: the backup-budget field held
+#. Validation error in the Settings dialog: the "Snapshots to keep" field held
 #. something that is not a whole number of at least 1. Zero is outlawed —
 #. rotation at zero would delete the pre-Apply safety net.
 msgid "Snapshots to keep must be a whole number, 1 or more"

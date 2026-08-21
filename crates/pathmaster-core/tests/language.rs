@@ -93,6 +93,23 @@ fn the_selector_offers_every_choice_the_file_can_store() {
 }
 
 #[test]
+fn a_choice_and_the_position_it_is_shown_at_round_trip() {
+    // The dialog shows a choice by position and reads its answer back the same
+    // way, so the two walks are one rule: a gap between them would be a
+    // selector answering with a language nobody picked.
+    for choice in LanguageChoice::SELECTABLE {
+        let index = choice
+            .selector_index()
+            .expect("every selectable choice has a place in the selector");
+        assert_eq!(LanguageChoice::at_selector_index(index), Some(choice));
+    }
+    assert_eq!(
+        LanguageChoice::at_selector_index(LanguageChoice::SELECTABLE.len()),
+        None
+    );
+}
+
+#[test]
 fn a_choice_names_a_language_unless_it_defers_to_the_system() {
     // Which is the whole difference between the three: two are answers, one
     // is a question put to Windows.

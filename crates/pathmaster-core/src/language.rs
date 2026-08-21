@@ -53,6 +53,30 @@ impl LanguageChoice {
         }
     }
 
+    /// Where this choice sits among the selector's items, which is how the
+    /// dialog decides what to show as selected.
+    ///
+    /// `None` is unreachable — every choice is in
+    /// [`SELECTABLE`](Self::SELECTABLE), and a test says so — and means "no
+    /// selection", which is the one answer that cannot show a choice nobody
+    /// made.
+    pub fn selector_index(self) -> Option<usize> {
+        Self::SELECTABLE
+            .iter()
+            .position(|selectable| *selectable == self)
+    }
+
+    /// The choice the selector's item at `index` stands for, or `None` for a
+    /// position it has no item at.
+    ///
+    /// The other half of [`selector_index`](Self::selector_index), and here
+    /// beside it: the selector answers by position, so the walk out to a
+    /// position and the walk back from one are one rule and are tested as a
+    /// round trip.
+    pub fn at_selector_index(index: usize) -> Option<LanguageChoice> {
+        Self::SELECTABLE.get(index).copied()
+    }
+
     /// The language this choice names, when it names one — `None` for `Auto`,
     /// which names a question put to Windows rather than an answer.
     ///

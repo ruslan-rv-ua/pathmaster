@@ -43,7 +43,7 @@ const SELECTOR_WIDTH_DIP: i32 = 320;
 
 /// The budget field's width in DIP. It holds a count, so it is sized for one
 /// rather than left to stretch across the dialog like a path.
-const FIELD_WIDTH_DIP: i32 = 90;
+const BUDGET_WIDTH_DIP: i32 = 90;
 
 /// Opens the dialog over the settings this run is using and answers with what
 /// the user committed, or `None` if they abandoned it.
@@ -78,16 +78,16 @@ pub fn ask_for_settings(
     // By position, from the one list that fixes the order (`SELECTABLE`). A
     // choice with no place in it is unreachable — the items were built from
     // that very list — and reads here as no selection at all.
-    if let Some(index) = selector_index(opening.language) {
-        language.set_selection(index);
+    if let Some(index) = opening.language.selector_index() {
+        language.set_selection(index as u32);
     }
 
     let budget_label = StaticText::builder(&panel)
-        .with_label(&translate(msgids::SETTINGS_MAX_BACKUPS))
+        .with_label(&translate(msgids::SETTINGS_SNAPSHOTS_TO_KEEP))
         .build();
     let budget = TextCtrl::builder(&panel)
         .with_value(&opening.max_backups.to_string())
-        .with_size(Size::new(FIELD_WIDTH_DIP, -1))
+        .with_size(Size::new(BUDGET_WIDTH_DIP, -1))
         .build();
 
     let commit = Button::builder(&panel)
@@ -123,7 +123,7 @@ pub fn ask_for_settings(
             // A bare lookup: this title carries no number and no name, so
             // there is no composition rule for the Catalogue to hold and it
             // stays here with the other labels (`pathmaster_core::catalogue`).
-            question::tell(&dialog, &translate(msgids::REJECTED_MAX_BACKUPS));
+            question::tell(&dialog, &translate(msgids::REJECTED_SNAPSHOTS_TO_KEEP));
             // The text is never touched — the user goes back to what they
             // typed, one character away from a legal budget.
             budget.set_focus();
@@ -160,19 +160,10 @@ pub fn ask_for_settings(
     let chosen = Choices {
         language: language
             .get_selection()
-            .and_then(|index| LanguageChoice::SELECTABLE.get(index as usize).copied())
+            .and_then(|index| LanguageChoice::at_selector_index(index as usize))
             .unwrap_or(opening.language),
         max_backups: parse_max_backups(&budget.get_value()).unwrap_or(opening.max_backups),
     };
     dialog.destroy();
     committed.then_some(chosen)
-}
-
-/// Where a choice sits in the selector — the reverse of the reading above, so
-/// the two travel together and the order is still written down once.
-fn selector_index(choice: LanguageChoice) -> Option<u32> {
-    LanguageChoice::SELECTABLE
-        .iter()
-        .position(|selectable| *selectable == choice)
-        .map(|index| index as u32)
 }

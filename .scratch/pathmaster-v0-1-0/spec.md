@@ -750,13 +750,21 @@ first one the user asks for. Four rules the taxonomy above, which is about *read
   something happened (`CONTEXT.md`), and the same reading applies here: a user who retypes the
   value already in the field has changed no setting. So a hand-edited file is not reformatted by
   being looked at, and a first run does not gain a `{}` nobody asked for.
-- **The dialog's OK fails the same way the shutdown write does** — one `WARN settings:` line, no
-  dialog, no Announcement — even though the first clause of the rule above does not cover it,
-  because this time the user *did* ask. There is no eighth Announcement to speak it with and no
-  dialog in this section's inventory to show it in; a modal raised over the modal they have just
-  dismissed would name a failure they can do nothing about; and the setting they chose is in force
-  for this run either way. What they lose is that it does not survive a restart, and that is what
-  the line says.
+- **The run adopts what the file took, never the other way round.** The document is amended on a
+  copy, written, and only then becomes what the window holds. Two things follow, and both matter.
+  The file and the run can never disagree about what the settings are. And a write that failed
+  leaves the difference standing, so the next OK is a change again and can be retried — where
+  recording in memory first would leave the second attempt comparing equal and writing nothing,
+  which is precisely the state a user whose setting did not persist must not be left in. The
+  condition that fails this write is one §3 calls a designed state: the other instance holding the
+  file.
+- **A failed OK earns the `WARN settings:` line *and* a dialog** — "Settings could not be written —
+  nothing was changed", the mirror of the unreadable-file dialog above, with the whole message in
+  the title and the stock [OK]. This is the shutdown writer's rule **not** extended, and the
+  difference is the whole reason: nobody asked for the geometry write and the window is already
+  going, while here the user asked, is still sitting in front of the application, and — because
+  nothing was adopted — gets nothing at all for having pressed OK. It is not an Announcement; that
+  catalogue stays closed at seven.
 - **The valid domain is one rule read twice.** What the field accepts and what the file accepts are
   the same predicate — whole, and ≥ 1 — so the dialog cannot come to accept a budget the file
   would reject: a value the user chose, saw written and lost at the next start, with a `WARN` line
@@ -770,6 +778,14 @@ nothing to do, and what is left is a dialog the settings can still be read out o
 And **the budget's label says "Snapshots"** — `CONTEXT.md` reserves *Backup* for the act of taking
 one and for the directory they live in, which is what the tab and the Tools item are named for,
 while what a budget counts is files.
+
+And one consequence of the first rule above, named here rather than left to be discovered: **a
+value this version cannot read is cleared by choosing something else and choosing back.** A file
+saying `"language": "fr"` shows the selector on the auto choice, because that is the fallback the
+run is using — so a user who *wants* auto changes nothing by selecting it, `"fr"` stands, and the
+`WARN` line recurs at every start, which is true: the file really does still say something this
+version cannot read. Clearing it takes two trips through the dialog. The alternative is writing the
+language on every OK, which is the rule above deleted.
 
 ## 14. Logging
 

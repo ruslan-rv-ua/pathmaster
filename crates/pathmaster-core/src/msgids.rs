@@ -131,6 +131,19 @@ pub const READONLY_REASON_NOT_WRITABLE: &str = "the data directory is not writab
 /// meaning of its own to lose.
 pub const DIALOG_SETTINGS_UNREADABLE: &str = "Settings could not be read — defaults are in use";
 
+/// The dialog a failed write of `settings.json` earns (spec §13) — the mirror
+/// of the one above, and shaped like it: the whole message is the title, the
+/// [OK] button is the stock one, and it says what became of what the user
+/// asked for rather than why the disk refused.
+///
+/// It exists because **nothing was recorded**. The window adopts an amended
+/// document only once the file has taken it, so a write that failed leaves the
+/// run exactly as it was — and a user who pressed OK and saw the dialog close
+/// has no other way to learn that. The shutdown path's geometry write earns no
+/// dialog and keeps its `WARN` line alone: nobody asked for that one, and the
+/// window is already going.
+pub const DIALOG_SETTINGS_UNWRITABLE: &str = "Settings could not be written — nothing was changed";
+
 /// The five Issue types' words, and the whole of what the Status column shows
 /// (spec §7, FR-diag-status). One word each, comma-joined most-severe-first —
 /// no severity prefix, no icons, and no word for a healthy Entry: an empty
@@ -271,7 +284,7 @@ pub const BUTTON_NO: &str = "No";
 pub const DIALOG_SETTINGS: &str = "Settings";
 pub const SETTINGS_LANGUAGE: &str = "Language (takes effect after restart)";
 pub const SETTINGS_LANGUAGE_FOLLOWS_SYSTEM: &str = "Follow the system language";
-pub const SETTINGS_MAX_BACKUPS: &str = "Snapshots to keep per PATH";
+pub const SETTINGS_SNAPSHOTS_TO_KEEP: &str = "Snapshots to keep per PATH";
 
 /// Validation's error dialog, whose **title is the message** — NVDA never
 /// speaks a `MessageDialog`'s body (spec §6, §10). Its single OK is the one
@@ -283,7 +296,7 @@ pub const SETTINGS_MAX_BACKUPS: &str = "Snapshots to keep per PATH";
 pub const REJECTED_FORBIDDEN_CHARACTER: &str =
     "The entry contains a forbidden character: {character}";
 pub const REJECTED_EMPTY: &str = "The entry cannot be empty";
-pub const REJECTED_MAX_BACKUPS: &str = "Snapshots to keep must be a whole number, 1 or more";
+pub const REJECTED_SNAPSHOTS_TO_KEEP: &str = "Snapshots to keep must be a whole number, 1 or more";
 
 /// The convert-or-keep dialog: the single occasion a Value Type changes, and
 /// only ever by asking (spec §5, §6). `%VAR%` and `REG_SZ` are data, not
@@ -393,6 +406,7 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::text(READONLY_REASON_CANNOT_CREATE),
     CatalogueEntry::text(READONLY_REASON_NOT_WRITABLE),
     CatalogueEntry::text(DIALOG_SETTINGS_UNREADABLE),
+    CatalogueEntry::text(DIALOG_SETTINGS_UNWRITABLE),
     CatalogueEntry::text(ISSUE_MISSING),
     CatalogueEntry::text(ISSUE_RELATIVE),
     CatalogueEntry::text(ISSUE_QUOTED),
@@ -436,10 +450,10 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::text(DIALOG_SETTINGS),
     CatalogueEntry::text(SETTINGS_LANGUAGE),
     CatalogueEntry::text(SETTINGS_LANGUAGE_FOLLOWS_SYSTEM),
-    CatalogueEntry::text(SETTINGS_MAX_BACKUPS),
+    CatalogueEntry::text(SETTINGS_SNAPSHOTS_TO_KEEP),
     CatalogueEntry::text(REJECTED_FORBIDDEN_CHARACTER),
     CatalogueEntry::text(REJECTED_EMPTY),
-    CatalogueEntry::text(REJECTED_MAX_BACKUPS),
+    CatalogueEntry::text(REJECTED_SNAPSHOTS_TO_KEEP),
     CatalogueEntry::text(DIALOG_VAR_IN_REG_SZ),
     CatalogueEntry::text(BUTTON_CHANGE_VALUE_TYPE),
     CatalogueEntry::text(BUTTON_KEEP_LITERAL),

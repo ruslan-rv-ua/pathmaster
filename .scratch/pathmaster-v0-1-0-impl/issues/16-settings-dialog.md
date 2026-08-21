@@ -88,11 +88,62 @@ reads the budget from them at the moment it runs (ADR-0010), so recording the ch
 it. It is the one criterion with no live check — the success path of an Apply writes this machine's
 own `PATH` — and it is left to the Checklist.
 
-**A failed write earns one `WARN settings:` line and nothing else**, which is §13's rule for the
-shutdown writer applied to a writer the user did ask for. The reasoning is now in §13: no eighth
-Announcement exists to speak it, no dialog in §13's inventory exists to show it, a modal over the
-modal just dismissed would name a failure nobody can act on, and the setting is in force this run
-regardless — what is lost is that it does not survive a restart, and that is what the line says.
+Release Checklist steps **B12–B21** cover the dialog: the Tools order, its labels and buttons, the
+endonyms, the rejection, the two "only what changed" cases, the no-op OK, Cancel and Escape, the
+Read-only Data pass, the budget taking effect without a restart, clearing an unreadable `language`,
+and a failed write.
 
-Release Checklist steps **B12–B18** cover the dialog: its labels and buttons, the endonyms, the
-rejection, the two "only what changed" cases, the no-op OK and Escape, and the Read-only Data pass.
+## Review
+
+Two axes, run against `develop`. Both found something real.
+
+**The failure path was wrong, and it was wrong twice.** The first draft recorded the choices in
+memory and then wrote the file, saying no more about a failure than one `WARN settings:` line — the
+rule ticket 15 fixed for the geometry writer. The Spec axis took that apart. The justification
+("the setting they chose is in force this run either way; what they lose is that it does not
+survive a restart") is **false for half the dialog**: a language change only ever takes effect
+through the file, so a failed write loses it outright. And recording before writing left the change
+**unretryable** — memory already held the new values, so a second OK compared equal and wrote
+nothing, on a failure whose cause (§3: the other instance holding the file) is a *designed* state.
+
+So the order is now the other way round: the document is amended on a copy, written, and adopted
+into the run **only if the file took it**. The file and the run can never disagree, and a write
+that failed leaves the very difference that makes the next OK a change again. With nothing adopted,
+silence became indefensible — the user pressed OK and got a dialog closing — so a failed OK now
+earns **"Settings could not be written — nothing was changed"**, the mirror of the unreadable-file
+dialog §13 already has, beside the `WARN` line. The shutdown writer keeps its silence, and now for
+a reason that is only true there: nobody asked for it, and the window is already going. Both
+writers share one `App::record_settings`, which is where the rule is written down; the Standards
+axis had flagged the duplicated write-and-log as a smell independently.
+
+Verified live against a staged copy with `settings.json` held exclusively: the dialog appears, the
+log gains exactly one `WARN settings: … (os error 5)`, reopening Settings shows the **old** value,
+and releasing the file lets the same change through on the next OK.
+
+**A name the glossary reserves.** `SETTINGS_MAX_BACKUPS` / `REJECTED_MAX_BACKUPS` named a count of
+Snapshot files, which `CONTEXT.md` does not let "Backup" mean — and the doc comment directly above
+them made exactly that argument about the label text before naming the constants the other way.
+Now `SETTINGS_SNAPSHOTS_TO_KEEP` / `REJECTED_SNAPSHOTS_TO_KEEP`. The private `in_backup_budget`
+keeps its name: `develop`'s own `DEFAULT_MAX_BACKUPS` doc already says "the per-Scope backup
+budget", and renaming only the new helper would leave it disagreeing with the constant above it.
+
+**A rule left in the crate no test can reach.** `SELECTABLE`'s order had moved down a tier, but
+both halves of the position↔choice mapping stayed in the dialog — so the round trip the module
+calls load-bearing had no test, and this file's own "everything worth a test moved down" was an
+over-claim. `LanguageChoice::selector_index` and `::at_selector_index` now sit beside the array
+they walk, with a round-trip test over every choice and one past the end.
+
+**Named rather than fixed:** with `"language": "fr"` in the file, a user who *wants* the auto choice
+changes nothing by selecting it — it is already selected, being the fallback — so `"fr"` stands and
+its `WARN` recurs at every start. That is the "only what the user changed" rule working, not
+failing, and the alternative is writing the language on every OK, which deletes the rule. It is now
+written into §13 and given Checklist step **B20**, which is also how it is cleared: choose another
+language, OK, reopen, choose back.
+
+**Declined, with reasons:** a shared modal skeleton between this dialog and `entry_dialog` (the
+genuinely identical part is ~13 lines of sizer plumbing, and a helper parameterised over three
+dialogs' differing validation, focus and disabled rules would say less than the explicit versions —
+though the colliding `FIELD_WIDTH_DIP` became `BUDGET_WIDTH_DIP`); a newtype for the budget
+carrying "≥ 1" (real, but it ripples through `ApplyRun`, rotation and their tests for a value
+already checked at both entry points); and renaming `Choices`, whose sibling is `LanguageChoice`
+and whose module is `settings`.

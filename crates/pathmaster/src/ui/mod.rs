@@ -612,28 +612,53 @@ impl App {
         // not write its directory may not quietly change what it is doing
         // either, because the two would then disagree at the next start.
         let Some(data_dir) = data_dir else { return };
-        let mut settings = self.settings.borrow_mut();
-        if !settings.record_choices(chosen) {
+        // Amended on a copy, because what the file takes is what this run
+        // adopts (`record_settings`). The borrow dies with this statement.
+        let mut amended = self.settings.borrow().clone();
+        if !amended.record_choices(chosen) {
             return;
         }
-        // The atomic replace every write to this file goes through: the other
-        // instance (two are a designed state) never reads a half-written file,
-        // and a failed write leaves the previous one intact.
-        //
-        // **A failure earns one `WARN settings:` line and nothing else**, the
-        // rule the geometry write already follows (spec §13) — even though the
-        // user did ask for this one. There is no eighth Announcement to speak
-        // it with and no dialog in §13's inventory to show it in, a modal
-        // raised over the modal they have just dismissed would name a failure
-        // they can do nothing about, and the setting they chose is in force
-        // this run either way. What they lose is that it does not survive a
-        // restart, which is exactly what the line says.
-        if let Err(error) = settings::write(data_dir, &settings) {
+        // **A failed write is told, because nothing happened.** Nobody asked
+        // for the geometry write, and on that path the window is already
+        // going, so its `WARN` line stands alone (spec §13); this one the user
+        // did ask for, and since the run adopts nothing the file did not take,
+        // the whole of what they get for pressing OK is a dialog closing. The
+        // one stock [OK] and the whole message in the title, like every other
+        // dialog here — and not an Announcement: that catalogue is closed at
+        // seven, and this belongs beside the startup dialog its unreadable
+        // twin already earns.
+        if !self.record_settings(data_dir, amended) {
+            question::tell(&self.frame, &translate(msgids::DIALOG_SETTINGS_UNWRITABLE));
+        }
+    }
+
+    /// Writes an amended `settings.json` and adopts it into this run **only if
+    /// the file took it** — answering whether it did (spec §13).
+    ///
+    /// The order is the whole of it. The document is amended on a copy and
+    /// becomes what this window holds once the write has succeeded, so the file
+    /// and the run can never disagree about what the settings are — and a write
+    /// that failed leaves the very difference that makes the next attempt a
+    /// change again. Recording in memory first would make a second OK compare
+    /// equal and write nothing, which is the one state a user whose setting did
+    /// not persist must not be left in; and the condition that fails this write
+    /// is one §3 calls a designed state, the other instance holding the file.
+    ///
+    /// The write is the atomic replace every write to this file goes through:
+    /// the other instance never reads a half-written file, and a failure leaves
+    /// the previous one intact. It earns one `WARN settings:` line here,
+    /// whoever asked for it; what else a caller owes the user is the caller's,
+    /// because only the caller knows whether anyone asked.
+    fn record_settings(&self, data_dir: &Path, amended: SettingsFile) -> bool {
+        if let Err(error) = settings::write(data_dir, &amended) {
             self.run
                 .log(&Record::settings_write_failed(FailureCause::Io {
                     os_error: error.raw_os_error(),
                 }));
+            return false;
         }
+        *self.settings.borrow_mut() = amended;
+        true
     }
 
     /// Tools → Open Backups Folder: the Snapshots' own directory, handed to
@@ -1074,17 +1099,16 @@ impl App {
     /// only, and in Writable Data only (spec §12, §13).
     ///
     /// It amends the document rather than serialising the settings, so a hand
-    /// edit's unknown fields and its key order both survive, and the write is
-    /// the atomic replace every write to this file goes through: the other
-    /// instance (two are a designed state) never reads a half-written file,
-    /// and a write that fails leaves the previous one intact.
+    /// edit's unknown fields and its key order both survive; the write itself
+    /// is [`record_settings`](Self::record_settings)'s.
     ///
     /// **A failed write is not the user's problem to hear about.** They asked
     /// to close, and that is happening; the window is already going, so a
     /// dialog would outlive what it is about, and the Announcement catalogue
     /// is closed at seven. The log is the only witness there is room for, and
     /// it is the one a developer asked "why does it not remember where I put
-    /// it?" would reach for.
+    /// it?" would reach for — which is why this is the caller that drops the
+    /// answer the Settings dialog acts on.
     fn remember_geometry(&self) {
         let Some(data_dir) = self.writable_data_dir() else {
             return;
@@ -1102,10 +1126,10 @@ impl App {
         }
         let position = self.frame.get_position();
         let size = self.frame.get_size();
-        let mut settings = self.settings.borrow_mut();
+        let mut amended = self.settings.borrow().clone();
         // `pathmaster_core::settings::Window` spelled out: `Window` in a wx
         // module is wx's own, and this is the record in the file.
-        settings.set_window(pathmaster_core::settings::Window {
+        amended.set_window(pathmaster_core::settings::Window {
             x: position.x,
             y: position.y,
             width: size.width,
@@ -1116,12 +1140,11 @@ impl App {
             // of the screen rather than on nothing at all.
             maximised: self.frame.is_maximized(),
         });
-        if let Err(error) = settings::write(data_dir, &settings) {
-            self.run
-                .log(&Record::settings_write_failed(FailureCause::Io {
-                    os_error: error.raw_os_error(),
-                }));
-        }
+        // The answer is deliberately dropped: this is the one writer nobody
+        // asked for, and its `WARN` line — which `record_settings` has already
+        // written — is the only witness there is room for on a path where the
+        // window is already going.
+        self.record_settings(data_dir, amended);
     }
 
     /// The Data Directory this Run may **write**, which is not the same as the
