@@ -249,3 +249,26 @@ section or nowhere.
 **A10 gained its second half.** It checked the speech and not the focus, though §10 fixes both
 ("after Apply — stays on the current Entry"); it now ends with the `NVDA+Tab` confirmation step 7
 already carried. That is also the step that would catch a regression in `rescue_focus`.
+
+### Heard, not only seen
+
+The steps this ticket added were run on real NVDA by the user on 2026-08-21 and reported as
+passing: **A10** and **A11** (the Apply Announcement and the ", unsaved changes" suffix an undo
+across the barrier earns), **A14** (Apply and Cancel reading as unavailable on a clean Session), and
+**B6–B11** — the external-change dialog's three answers, the two over-length gates, and the backup
+failure that is the one row of §9's taxonomy an unelevated tester can stage.
+
+That closes the gap this ticket's own verification could not. Everything recorded above was
+*measured* — window titles read cross-process, the registry's bytes compared by hash, the log lines
+read back off disk — and a value that is right and a screen reader that speaks it are different
+claims. Only the second one is what this application is for.
+
+**C6 was not run, and could not have been.** It asks for "System PATH applied" on an elevated
+instance, and the Checklist's own route to one is Tools → Restart as Administrator, which impl
+ticket 17 builds. It also requires an *installed* NVDA, portable being deaf to elevated windows. The
+step stays in the Checklist with its box unticked, which is the honest state: Announcement 2's other
+string is implemented and tested in `pathmaster-platform`, and has not yet been heard.
+
+This is history, not a substitute for the release pass. §10.2 wants a filled copy naming the NVDA
+used, produced before every release; that copy is ticket 18's, and it will run these steps again
+against the shipped binary.
