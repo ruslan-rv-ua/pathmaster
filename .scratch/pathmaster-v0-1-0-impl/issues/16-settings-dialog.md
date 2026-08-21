@@ -147,3 +147,27 @@ though the colliding `FIELD_WIDTH_DIP` became `BUDGET_WIDTH_DIP`); a newtype for
 carrying "≥ 1" (real, but it ripples through `ApplyRun`, rotation and their tests for a value
 already checked at both entry points); and renaming `Choices`, whose sibling is `LanguageChoice`
 and whose module is `settings`.
+
+### Heard, not only seen
+
+The steps this ticket added were run on real NVDA by the user on 2026-08-21 and reported as
+passing: **B12–B21** — the Tools menu reading Settings… before Open Backups Folder, the dialog's
+title and its three labelled controls, the selector's three items with each language named in its
+own, the rejection whose title is the message and the field that keeps its text and its focus
+afterwards, the two "only what the user changed" cases, an OK over untouched controls and a
+[Cancel] and an Escape that each leave the file byte-for-byte alone with focus back where it came
+from, the Read-only Data run whose selector, field and [OK] all read as unavailable while the
+settings are still there to be read, a budget in force from the next rotation rather than the next
+run, an unreadable `language` that only two trips through the dialog can clear, and a failed write
+that says so and can be retried.
+
+That closes the gap this ticket's own verification could not. Everything recorded above was
+*measured* — the menu read off the live menu bar, the dialog's controls and their enabled states
+off the window tree, the focused control's class through `GetGUIThreadInfo`, the file byte-compared
+either side of each answer — and a control that is disabled and a screen reader that says
+«недоступно» are different claims. Only the second one is what this application is for.
+
+**One step reaches outside the staged copy.** B19 needs three Applies, and an Apply writes the
+machine's own `PATH`; the Data Directory is what a staged copy isolates, not the registry. It is
+the only step here that cannot be rehearsed against a throwaway file, which is why it names the
+files left in `dataackups\` rather than anything about the value it wrote.
