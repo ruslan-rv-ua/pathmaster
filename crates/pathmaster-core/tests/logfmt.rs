@@ -160,11 +160,11 @@ fn offsets_format_negative_zero_and_half_hour() {
 fn a_scope_that_could_not_be_read_logs_the_raw_cause_and_what_the_run_did() {
     // Startup reads a Scope it cannot decode into a Session; the run survives
     // (empty, non-writable) and this line is the developer's only witness.
-    use pathmaster_core::logfmt::ScopeReadCause;
+    use pathmaster_core::logfmt::FailureCause;
     assert_eq!(
         line(
             &spec_timestamp(),
-            &Record::scope_read_failed(Scope::System, ScopeReadCause::Io { os_error: Some(5) }),
+            &Record::scope_read_failed(Scope::System, FailureCause::Io { os_error: Some(5) }),
         ),
         "2026-08-19T15:36:31+03:00 WARN  registry: \
          System scope could not be read (os error 5), treated as empty and non-writable\n",
@@ -172,7 +172,7 @@ fn a_scope_that_could_not_be_read_logs_the_raw_cause_and_what_the_run_did() {
     assert_eq!(
         line(
             &spec_timestamp(),
-            &Record::scope_read_failed(Scope::User, ScopeReadCause::Io { os_error: None }),
+            &Record::scope_read_failed(Scope::User, FailureCause::Io { os_error: None }),
         ),
         "2026-08-19T15:36:31+03:00 WARN  registry: \
          User scope could not be read (io error), treated as empty and non-writable\n",
@@ -180,7 +180,7 @@ fn a_scope_that_could_not_be_read_logs_the_raw_cause_and_what_the_run_did() {
     assert_eq!(
         line(
             &spec_timestamp(),
-            &Record::scope_read_failed(Scope::User, ScopeReadCause::UnsupportedType { vtype: 3 }),
+            &Record::scope_read_failed(Scope::User, FailureCause::UnsupportedType { vtype: 3 }),
         ),
         "2026-08-19T15:36:31+03:00 WARN  registry: \
          User scope could not be read (unsupported registry type 3), treated as empty and non-writable\n",
@@ -210,4 +210,50 @@ fn read_only_startup_lines_name_the_reason_never_a_location() {
         assert!(text.contains(expected), "{text:?}");
         assert!(text.contains("elevated: yes"), "{text:?}");
     }
+}
+
+#[test]
+fn an_apply_that_failed_names_the_step_and_carries_the_raw_code() {
+    // §9's invariant: every failure lands one log record with the raw error
+    // code. The three failing rows are three steps of one fixed order, and the
+    // line says which — "nothing was written" reads the same in all three, and
+    // a developer needs to know where it stopped.
+    use pathmaster_core::logfmt::{ApplyStep, FailureCause};
+    for (step, cause, expected) in [
+        (
+            ApplyStep::ReRead,
+            FailureCause::UnsupportedType { vtype: 3 },
+            "System scope not applied, re-read failed (unsupported registry type 3)",
+        ),
+        (
+            ApplyStep::Snapshot,
+            FailureCause::Io { os_error: Some(5) },
+            "System scope not applied, backup failed (os error 5)",
+        ),
+        (
+            ApplyStep::Write,
+            FailureCause::Io { os_error: Some(5) },
+            "System scope not applied, registry write failed (os error 5)",
+        ),
+    ] {
+        assert_eq!(
+            line(
+                &spec_timestamp(),
+                &Record::apply_failed(Scope::System, step, cause),
+            ),
+            format!("2026-08-19T15:36:31+03:00 ERROR apply: {expected}\n"),
+        );
+    }
+}
+
+#[test]
+fn a_broadcast_that_timed_out_is_a_warn_and_never_an_error() {
+    // The write succeeded; only the notification did not land, and
+    // already-open shells never see it regardless (spec §4). ERROR is reserved
+    // for a user-requested operation that failed, and this one did not.
+    assert_eq!(
+        line(&spec_timestamp(), &Record::broadcast_timed_out()),
+        "2026-08-19T15:36:31+03:00 WARN  broadcast: \
+         WM_SETTINGCHANGE timed out, already-open processes keep the old value\n",
+    );
 }

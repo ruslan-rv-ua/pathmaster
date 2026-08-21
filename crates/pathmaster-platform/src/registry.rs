@@ -47,6 +47,20 @@ pub enum RawValue {
 }
 
 impl RawValue {
+    /// The value [`ScopeKey::write`] leaves in the registry for `value_type`
+    /// and `value` — the same encoder, so the two cannot drift.
+    ///
+    /// An Apply needs this: what it just wrote becomes the value the *next*
+    /// Apply compares against, and re-reading to learn it would put a second
+    /// failure point after the write that mattered, at the one moment nothing
+    /// can be done about it (spec §4, ADR-0008).
+    pub fn written(value_type: ValueType, value: &str) -> RawValue {
+        RawValue::Present {
+            value_type,
+            bytes: encode_utf16le_one_nul(value),
+        }
+    }
+
     /// The stored bytes as the editing model's `ScopeValue`: UTF-16LE decoded
     /// up to the first NUL — where every Windows reader of a registry string
     /// stops. The raw bytes stay authoritative for comparison and write-back;
@@ -74,13 +88,13 @@ impl RegistryError {
     /// The derived fact the startup log line carries — the raw OS error code
     /// or the raw vtype, never this error's display text (spec §14: records
     /// are built from derived facts, not free-form messages).
-    pub fn log_cause(&self) -> logfmt::ScopeReadCause {
+    pub fn log_cause(&self) -> logfmt::FailureCause {
         match self {
-            RegistryError::Io(err) => logfmt::ScopeReadCause::Io {
+            RegistryError::Io(err) => logfmt::FailureCause::Io {
                 os_error: err.raw_os_error(),
             },
             RegistryError::UnsupportedType(vtype) => {
-                logfmt::ScopeReadCause::UnsupportedType { vtype: *vtype }
+                logfmt::FailureCause::UnsupportedType { vtype: *vtype }
             }
         }
     }

@@ -751,10 +751,13 @@ ever links wxWidgets.
   the Announcement type, and everything composed out of the msgids — impl ticket 19, ADR-0009).
   Module names indicative; the inter-crate seams are what this spec fixes hard.
 - **`crates/pathmaster-platform`** — imperative shell, no wx: `registry` (adapter, **key path as a
-  constructor parameter**), `datadir`, `elevation`, `locale` (the system language, §11),
-  `logwriter`, `panic_hook` (writes past the logger; core supplies only the line format),
-  `settings` (the file in the Data Directory: read in both modes, set aside and written only in
-  Writable Data — core owns the parse), `broadcast`.
+  constructor parameter**), `datadir`, `diagnostics` (the pass's two adapters and its worker thread,
+  §7), `elevation`, `locale` (the system language, §11), `logwriter`, `panic_hook` (writes past the
+  logger; core supplies only the line format), `settings` (the file in the Data Directory: read in
+  both modes, set aside and written only in Writable Data — core owns the parse), `broadcast`,
+  `snapshots` (the Snapshot files: `data\backups\` spelled once, and the one listing both the next
+  name and the rotation are answered from — impl ticket 13), `apply` (the Apply Run — impl ticket 13,
+  [ADR-0008](../../docs/adr/0008-apply-sequence-lives-in-platform.md)).
 - **`crates/pathmaster`** — **bin-only, no lib target**: `ui/*`, `announce`, `pump` (Timer drain),
   `catalog` (TranslationsLoader), `main.rs` (panic hook → settings → language → window),
   `build.rs` (polib → `.mo`; llvm-rc → icon/VERSIONINFO), `i18n/*.po`.

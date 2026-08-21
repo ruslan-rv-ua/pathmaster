@@ -27,8 +27,12 @@ use pathmaster_core::diagnostics::{Diagnosis, Findings};
 use pathmaster_core::msgids;
 use pathmaster_core::normalize::has_variable_reference;
 use pathmaster_core::session::{EntryId, Operation, Scope, Session, ValueType};
+use pathmaster_core::settings::SettingsFile;
+use pathmaster_platform::apply::{self, Ask, ExternalChange, Run, ScopeInput, ScopeOutcome};
 use pathmaster_platform::datadir::ReadOnlyReason;
-use pathmaster_platform::registry::ScopeKey;
+use pathmaster_platform::diagnostics::ProcessEnvironment;
+use pathmaster_platform::logwriter;
+use pathmaster_platform::registry::{RawValue, ScopeKey};
 use wxdragon::prelude::*;
 
 use crate::announce::Announcer;
@@ -36,6 +40,7 @@ use crate::catalog::{self, translate};
 use crate::pump::Pump;
 use crate::ui::command::Command;
 use crate::ui::scope_page::ScopePage;
+use crate::{LoadedScope, RunFacts};
 
 /// The notebook's page order (spec §12): the two Scopes, then Backups —
 /// which is not a Scope, so activating it announces nothing and offers no
@@ -58,6 +63,15 @@ struct ScopeTab {
     /// that found nothing: the column reads both as empty, but the StatusBar
     /// must not claim "0 issues" about a Scope no pass has yet looked at.
     findings: RefCell<Option<Findings>>,
+    /// What this Scope's registry value was the last time it was read.
+    ///
+    /// The comparison subject external-change detection needs (spec §4): it is
+    /// `(vtype, bytes)` because decoding stops at the first NUL, so a decoded
+    /// copy would miss a real change. It cannot live in the `Session` —
+    /// `RawValue` is a `pathmaster-platform` type and core may not reach it —
+    /// so the window holds it, and three paths keep it current: startup,
+    /// Refresh, and whatever an Apply Run hands back (ADR-0008).
+    last_read: RefCell<RawValue>,
 }
 
 impl ScopeTab {
@@ -109,6 +123,23 @@ impl ScopeTab {
     fn row_of(&self, id: EntryId) -> Option<usize> {
         ScopePage::row_of(&self.session.borrow(), id)
     }
+
+    /// Takes a freshly read value as the truth: Working Copy and Baseline both
+    /// become it, the Undo/Redo stacks clear, and it becomes what the next
+    /// external-change comparison is made against.
+    ///
+    /// Both readers of a fresh value do exactly this — F5, and the
+    /// external-change dialog's middle answer — and the two halves must not
+    /// come apart: a Session refreshed from a value the tab did not keep would
+    /// report an external change at the very next Apply.
+    ///
+    /// Answers where focus lands: the same Entry if it survived, else its
+    /// nearest neighbour, else nothing (spec §5, FR-refresh).
+    fn adopt(&self, raw: RawValue, focus: Option<EntryId>) -> Option<EntryId> {
+        let landing = self.session.borrow_mut().refresh(raw.decode(), focus);
+        *self.last_read.borrow_mut() = raw;
+        landing
+    }
 }
 
 /// The window and everything an editing command needs to reach: the two Scope
@@ -150,6 +181,14 @@ struct App {
     /// keeps showing it until the next pass replaces it. `None` only before
     /// the first pass has landed.
     merged_length: Cell<Option<usize>>,
+    /// The Run's facts: the log and the Data Directory, decided once at
+    /// startup and handed to every Apply Run (ADR-0008).
+    facts: RunFacts,
+    /// The settings as they now stand. Held rather than read per Apply because
+    /// `maxBackups` is a setting the user changes while the application runs,
+    /// which is exactly why it is not one of the Run's facts (ADR-0010); the
+    /// Settings dialog replaces what is here.
+    settings: RefCell<SettingsFile>,
 }
 
 /// Builds and shows the main window over the two loaded Sessions, and hands it
@@ -157,9 +196,11 @@ struct App {
 /// back to. A Read-only Data run passes its reason; announcing it is the last
 /// step of startup (spec §11: … → UI → writability → announce).
 pub fn build_main_window(
-    user: Rc<RefCell<Session>>,
-    system: Rc<RefCell<Session>>,
+    user: LoadedScope,
+    system: LoadedScope,
     readonly: Option<ReadOnlyReason>,
+    facts: RunFacts,
+    settings: SettingsFile,
 ) -> Frame {
     let frame = Frame::builder()
         .with_title("PathMaster")
@@ -185,20 +226,22 @@ pub fn build_main_window(
     banner.set_min_size(Size::new(-1, banner.get_char_height()));
 
     let notebook = Notebook::builder(&root).build();
-    let user_page = ScopePage::build(&notebook, &catalogue, &user.borrow());
-    let system_page = ScopePage::build(&notebook, &catalogue, &system.borrow());
+    let user_page = ScopePage::build(&notebook, &catalogue, &user.session.borrow());
+    let system_page = ScopePage::build(&notebook, &catalogue, &system.session.borrow());
     let tabs = [
         ScopeTab {
             scope: Scope::User,
-            session: user,
+            session: user.session,
             page: user_page,
             findings: RefCell::new(None),
+            last_read: RefCell::new(user.last_read),
         },
         ScopeTab {
             scope: Scope::System,
-            session: system,
+            session: system.session,
             page: system_page,
             findings: RefCell::new(None),
+            last_read: RefCell::new(system.last_read),
         },
     ];
     // The Backups tab is not a Scope; its Snapshot list arrives with the backups ticket.
@@ -239,6 +282,8 @@ pub fn build_main_window(
         readonly,
         pump: Pump::new(&frame),
         merged_length: Cell::new(None),
+        facts,
+        settings: RefCell::new(settings),
     });
     app.bind();
     app.sync();
@@ -375,6 +420,7 @@ impl App {
             // bare `true` at this call site would say nothing.
             Command::MoveUp | Command::MoveDown => self.move_entry(tab, command),
             Command::Undo | Command::Redo => self.undo_redo(tab, command),
+            Command::Apply => self.apply(tab),
             Command::Cancel => self.cancel(tab),
             Command::Refresh => self.refresh(tab),
         }
@@ -522,7 +568,7 @@ impl App {
         let Ok(raw) = tab.key().read() else { return };
         let previous_row = tab.page.focused_row();
         let focused = tab.focused_entry().map(|(_, id)| id);
-        let landing = tab.session.borrow_mut().refresh(raw.decode(), focused);
+        let landing = tab.adopt(raw, focused);
         let row = landing.and_then(|id| tab.row_of(id)).or(previous_row);
         self.after_edit(tab, row);
         let count = tab.session.borrow().entries().len();
@@ -530,6 +576,127 @@ impl App {
             scope: tab.scope,
             count,
         });
+    }
+
+    /// Ctrl+S: the Apply Run over the active Scope (spec §5, FR-apply).
+    ///
+    /// Everything the run needs is copied out **before** it is called, and
+    /// nothing is borrowed across it: the run opens modal dialogs, a modal
+    /// dialog runs its own event loop, and the diagnostic Timer ticks inside
+    /// that loop — a Session borrow held across it would meet the pass's own
+    /// and panic (ADR-0008).
+    ///
+    /// A run with no Data Directory has nowhere to put the backup that must
+    /// precede any write, so there is nothing to do. It is unreachable in
+    /// practice — such a run is Read-only Data, whose Sessions are all
+    /// non-writable, and `Command::enabled` has already turned Apply off — but
+    /// the Data Directory is an `Option` and this is what its `None` means.
+    fn apply(&self, tab: &ScopeTab) {
+        let Some(data_dir) = self.facts.data_dir() else {
+            return;
+        };
+        // Read out here rather than in the struct below: a `Ref` taken inside
+        // the call expression would live until the call returned, which is to
+        // say across every dialog the run opens.
+        let max_backups = self.settings.borrow().max_backups();
+        let outcome = apply::apply(
+            Run {
+                scopes: [
+                    self.scope_input(Scope::User),
+                    self.scope_input(Scope::System),
+                ],
+                // Ctrl+S is a run of one Scope; the close-confirm's Save is a
+                // run over every dirty Scope, User first.
+                order: &[tab.scope],
+                data_dir,
+                log_path: self.facts.log_path(),
+                // Read here rather than inside the run, because a Snapshot's
+                // name and its collision suffix must both come from one
+                // reading of the clock (ADR-0008).
+                at: logwriter::now(),
+                // From the settings as they now stand, not from a copy taken
+                // at startup (ADR-0010).
+                max_backups,
+            },
+            &ProcessEnvironment,
+            &Dialogs {
+                frame: &self.frame,
+                catalogue: &self.catalogue,
+            },
+        );
+        self.absorb(outcome);
+    }
+
+    /// One Scope as the run takes it. Both are handed over however few are
+    /// being applied: the merged length the over-length gate reads is a fact
+    /// about the pair (spec §7).
+    ///
+    /// Every borrow it takes dies inside it, which is what lets the caller
+    /// hand the result to a sequence that opens dialogs.
+    fn scope_input(&self, scope: Scope) -> ScopeInput {
+        let tab = self.tab_of(scope);
+        ScopeInput {
+            scope,
+            key: tab.key(),
+            entries: tab.raw_entries(),
+            value_type: tab.session.borrow().value_type(),
+            last_read: tab.last_read.borrow().clone(),
+        }
+    }
+
+    /// The rest of FR-apply's fixed order, which is the window's half: move the
+    /// Baseline, re-run diagnostics, announce.
+    ///
+    /// A failure reaches none of it — the Working Copy is untouched and the
+    /// Baseline stays where it was, which is the taxonomy's first invariant
+    /// (spec §9) and is why the run is handed no Baseline at all.
+    fn absorb(&self, outcome: apply::Outcome) {
+        for record in &outcome.records {
+            self.facts.log(record);
+        }
+        for (scope, done) in outcome.scopes {
+            let tab = self.tab_of(scope);
+            match done {
+                ScopeOutcome::Applied { stored } => {
+                    // Apply is a barrier, not a flush: the Baseline moves and
+                    // the Undo stack survives, so Ctrl+Z afterwards re-dirties
+                    // the Session and says so (spec §5, §10.1 item 5).
+                    *tab.last_read.borrow_mut() = stored;
+                    tab.session.borrow_mut().mark_applied();
+                    // Focus stays on the current Entry (spec §10). The list is
+                    // not redrawn — nothing in it changed — but the focus is
+                    // still said out loud, because the control the command
+                    // came from may have been the Apply button, and Apply
+                    // disables itself the moment it succeeds.
+                    tab.page.keep_focus();
+                    self.announcer.announce(Announcement::Applied { scope });
+                }
+                ScopeOutcome::Refreshed { found } => {
+                    // The external-change dialog's middle answer: Working Copy
+                    // and Baseline both become what was just read, and the
+                    // stacks clear. Nothing was written and nothing is
+                    // announced — Apply did not happen.
+                    let previous_row = tab.page.focused_row();
+                    let focused = tab.focused_entry().map(|(_, id)| id);
+                    let landing = tab.adopt(found, focused);
+                    let row = landing.and_then(|id| tab.row_of(id)).or(previous_row);
+                    let session = tab.session.borrow();
+                    tab.page
+                        .render(&session, tab.findings.borrow().as_ref(), row);
+                }
+                // Nothing happened, and the user is the one who decided so.
+                ScopeOutcome::Cancelled => {}
+                ScopeOutcome::Failed(failure) => {
+                    self.announcer.announce(Announcement::ApplyFailed {
+                        cause: failure.catalogue_msgid(),
+                    });
+                }
+            }
+        }
+        self.sync();
+        // One pass covers both Scopes, so it is asked for once however many
+        // the run reached (spec §7, FR-diag-duplicate).
+        self.request_pass();
     }
 
     /// The `%VAR%`-into-`REG_SZ` question, asked between validation and the
@@ -630,6 +797,61 @@ impl App {
         );
         self.status
             .set_status_text(&self.catalogue.merged_length(self.merged_length.get()), 1);
+    }
+}
+
+/// The window's half of the Apply Run's question port: three dialogs, and
+/// nothing else (ADR-0008).
+///
+/// It is built for the length of one run and holds only what a dialog needs —
+/// a parent to sit on and the Catalogue that composes the two titles carrying
+/// a number. No Session and no `Rc<App>`: a dialog runs its own event loop,
+/// and everything reachable from here must already be free of borrows.
+struct Dialogs<'a> {
+    frame: &'a Frame,
+    catalogue: &'a Catalogue,
+}
+
+impl Ask for Dialogs<'_> {
+    /// The value moved under the Session since it was last read (spec §5,
+    /// FR-apply). All three answers are legal, so all three are buttons; the
+    /// last is Cancel, which is where Escape and the default land.
+    fn external_change(&self, _scope: Scope) -> ExternalChange {
+        match question::choose(
+            self.frame,
+            &translate(msgids::DIALOG_EXTERNAL_CHANGE),
+            &[
+                &translate(msgids::BUTTON_OVERWRITE),
+                &translate(msgids::BUTTON_REFRESH_AND_DISCARD),
+                &translate(msgids::BUTTON_DIALOG_CANCEL),
+            ],
+        ) {
+            0 => ExternalChange::Overwrite,
+            1 => ExternalChange::RefreshAndDiscard,
+            _ => ExternalChange::Cancel,
+        }
+    }
+
+    /// Past 8,191 (spec §7). Proceeding is legal and the button says so; the
+    /// title carries the number, because a `MessageDialog`'s body is never
+    /// spoken.
+    fn cmd_limit(&self, length: usize) -> bool {
+        question::ask(
+            self.frame,
+            &self.catalogue.cmd_limit_dialog(length),
+            &translate(msgids::BUTTON_APPLY_ANYWAY),
+            &translate(msgids::BUTTON_DIALOG_CANCEL),
+        )
+    }
+
+    /// At 32,767 there is nothing to offer but Cancel, so this dialog has one
+    /// button and this function has no answer to give (spec §7).
+    fn hard_cap(&self, length: usize) {
+        question::choose(
+            self.frame,
+            &self.catalogue.hard_cap_dialog(length),
+            &[&translate(msgids::BUTTON_DIALOG_CANCEL)],
+        );
     }
 }
 

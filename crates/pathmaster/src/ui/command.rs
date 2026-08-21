@@ -1,13 +1,14 @@
-//! The nine editing commands, and the Edit menu that carries them
+//! The ten commands the window carries, and the menus they live in
 //! (spec §15, §5, §6).
 //!
-//! One enum is the whole map: it names the menu items, the ids the menu events
-//! arrive under, the accelerators, the per-Scope buttons, and — in one
-//! `match` — when each is available. That matters more than tidiness here,
-//! because `wxAcceleratorTable` is absent from wxdragon at every level: a
-//! keyboard shortcut can only exist as a menu item's label, so **every
-//! shortcut in PathMaster must have a menu home**, and the menu's enabled
-//! state is therefore also the shortcut's.
+//! One enum is the whole map: it names the menu items, the menu each belongs
+//! to, the ids the menu events arrive under, the accelerators, the per-Scope
+//! buttons, and — in one `match` — when each is available. That matters more
+//! than tidiness here, because `wxAcceleratorTable` is absent from wxdragon at
+//! every level: a keyboard shortcut can only exist as a menu item's label, so
+//! **every shortcut in PathMaster must have a menu home**, and the menu's
+//! enabled state is therefore also the shortcut's. Ctrl+S is why Apply is in
+//! this enum at all rather than being a button the window binds on its own.
 //!
 //! Accelerators are appended by this code and never typed into the Catalogue:
 //! a translated `"\tCtrl+Я"` would not misread, it would delete the shortcut
@@ -19,7 +20,7 @@ use wxdragon::prelude::*;
 
 use crate::catalog::translate;
 
-/// One user-visible editing command.
+/// One user-visible command.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Command {
     Add,
@@ -29,13 +30,16 @@ pub enum Command {
     MoveDown,
     Undo,
     Redo,
+    Apply,
     Cancel,
     Refresh,
 }
 
 impl Command {
-    /// The Edit menu, in the order §15 fixes.
-    pub const ALL: [Command; 9] = [
+    /// Every command, in **button** order — §15's Add, Edit, Delete, Move Up,
+    /// Move Down, Apply, Cancel — which is also the order each menu takes its
+    /// own items in, since [`menu`](Self::menu) preserves it.
+    pub const ALL: [Command; 10] = [
         Command::Add,
         Command::Edit,
         Command::Delete,
@@ -43,8 +47,16 @@ impl Command {
         Command::MoveDown,
         Command::Undo,
         Command::Redo,
+        Command::Apply,
         Command::Cancel,
         Command::Refresh,
+    ];
+
+    /// The menus, in menu-bar order. Tools and Help arrive with the tickets
+    /// that fill them (spec §15).
+    const MENUS: [(&'static str, &'static str); 2] = [
+        (msgids::MENU_TITLE_FILE, msgids::MENU_GROUP_FILE),
+        (msgids::MENU_TITLE_EDIT, msgids::MENU_GROUP_EDIT),
     ];
 
     /// The id this command's menu item is appended under, and the id its
@@ -65,9 +77,21 @@ impl Command {
         Self::ALL.into_iter().find(|command| command.id() == id)
     }
 
+    /// The menu this command's item lives under. §15 puts Apply in File and
+    /// everything else in Edit — and the mnemonic gate reads the same grouping
+    /// through [`msgids::REGISTRY`], so an item cannot sit in one menu and be
+    /// gated against another's siblings.
+    pub fn menu(self) -> &'static str {
+        match self {
+            Command::Apply => msgids::MENU_GROUP_FILE,
+            _ => msgids::MENU_GROUP_EDIT,
+        }
+    }
+
     /// The menu item's label: Catalogue text with its accelerator appended.
     pub fn menu_label(self) -> String {
         let label = translate(match self {
+            Command::Apply => msgids::MENU_APPLY,
             Command::Add => msgids::MENU_ADD_ENTRY,
             Command::Edit => msgids::MENU_EDIT_ENTRY,
             Command::Delete => msgids::MENU_DELETE_ENTRY,
@@ -99,6 +123,7 @@ impl Command {
             Command::Delete => msgids::BUTTON_DELETE,
             Command::MoveUp => msgids::BUTTON_MOVE_UP,
             Command::MoveDown => msgids::BUTTON_MOVE_DOWN,
+            Command::Apply => msgids::BUTTON_APPLY,
             Command::Cancel => msgids::BUTTON_CANCEL,
             Command::Undo | Command::Redo | Command::Refresh => return None,
         };
@@ -116,6 +141,7 @@ impl Command {
             Command::MoveDown => Some("Alt+Down"),
             Command::Undo => Some("Ctrl+Z"),
             Command::Redo => Some("Ctrl+Y"),
+            Command::Apply => Some("Ctrl+S"),
             Command::Refresh => Some("F5"),
             Command::Add | Command::Cancel => None,
         }
@@ -141,25 +167,35 @@ impl Command {
             }
             Command::Undo => session.can_undo(),
             Command::Redo => session.can_redo(),
-            Command::Cancel => session.is_dirty(),
+            // Both are disabled while clean, and read as disabled (spec §5).
+            // Apply asks nothing about whether the Data Directory can be
+            // written: startup predicts, Apply verifies at write time
+            // (ADR-0002) — and a Read-only Data run has already reached this
+            // `match` through the non-writable Session above.
+            Command::Apply | Command::Cancel => session.is_dirty(),
         }
     }
 }
 
-/// Builds the menu bar. File, Tools and Help arrive with the tickets that fill
-/// them; the Edit menu is complete here.
+/// Builds the menu bar from [`Command::MENUS`] and [`Command::menu`], so a
+/// command with no menu is a command with no shortcut — which for Ctrl+S would
+/// be a command with no way to reach it at all. Tools and Help arrive with the
+/// tickets that fill them; File is Apply alone until the close-confirm ticket
+/// adds Exit.
 ///
 /// Every item's help string is deliberately empty: wx writes it to the status
 /// bar as the user moves through the menu, and the status bar is command-only
 /// — nothing must-hear goes there (spec §10, §12).
 pub fn build_menu_bar() -> MenuBar {
-    let mut edit = Menu::builder();
-    for command in Command::ALL {
-        edit = edit.append_item(command.id(), &command.menu_label(), "");
+    let mut bar = MenuBar::builder();
+    for (title, group) in Command::MENUS {
+        let mut menu = Menu::builder();
+        for command in Command::ALL.into_iter().filter(|c| c.menu() == group) {
+            menu = menu.append_item(command.id(), &command.menu_label(), "");
+        }
+        bar = bar.append(menu.build(), &translate(title));
     }
-    MenuBar::builder()
-        .append(edit.build(), &translate(msgids::MENU_TITLE_EDIT))
-        .build()
+    bar.build()
 }
 
 /// Points every menu item at the active Session's state. Called after every

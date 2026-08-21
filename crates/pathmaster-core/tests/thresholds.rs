@@ -5,7 +5,18 @@
 //! Copies, and two numbers that mean different things — 8,191 is a warning a
 //! user may walk past, 32,767 is a wall.
 
+use pathmaster_core::normalize::Environment;
 use pathmaster_core::thresholds::{self, Overlength, CMD_LIMIT, HARD_CAP};
+
+/// One defined variable, so the formula's expansion step is visible in the
+/// number it produces.
+struct Env;
+
+impl Environment for Env {
+    fn lookup(&self, name: &str) -> Option<String> {
+        (name.eq_ignore_ascii_case("SystemRoot")).then(|| r"C:\Windows".to_string())
+    }
+}
 
 // ---- The length ----
 
@@ -29,6 +40,35 @@ fn the_unit_is_utf16_code_units_not_bytes_or_characters() {
     // is one `char` and two code units — the number Windows counts.
     assert_eq!(thresholds::merged_length("Програми", ""), 9);
     assert_eq!(thresholds::merged_length("\u{1D11E}", ""), 3);
+}
+
+#[test]
+fn the_formula_joins_each_scope_with_semicolons_and_expands_it_once() {
+    // `len(expand(System WC) + ";" + expand(User WC))`, from the Entries
+    // themselves — the whole of spec §7's formula, which both the diagnostic
+    // pass and an Apply Run ask for and must get one answer to.
+    //
+    // System expands and joins to `C:\Windows;C:\a`, which is 15; User is
+    // `C:\b`, which is 4; and the `;` Windows joins the two with is the
+    // twentieth character.
+    assert_eq!(
+        thresholds::merged_length_of(&[r"%SystemRoot%", r"C:\a"], &[r"C:\b"], &Env),
+        20
+    );
+}
+
+#[test]
+fn an_undefined_reference_is_counted_as_the_literal_text_it_stays() {
+    // Expansion leaves an unknown name alone, so the length counts what
+    // Windows would actually materialise — a `PATH` with `%NOPE%` still in
+    // it: six characters, plus the separator.
+    assert_eq!(thresholds::merged_length_of(&[r"%NOPE%"], &[""], &Env), 7);
+}
+
+#[test]
+fn a_scope_with_no_entries_contributes_nothing_but_the_separator() {
+    let empty: [&str; 0] = [];
+    assert_eq!(thresholds::merged_length_of(&empty, &empty, &Env), 1);
 }
 
 // ---- The two numbers ----

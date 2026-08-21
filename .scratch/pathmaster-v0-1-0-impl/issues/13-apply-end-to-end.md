@@ -10,31 +10,31 @@ The run is a function in `pathmaster-platform`, not a method on the window — [
 
 19 blocks this one by number order rather than by dependency: Apply could be written without it. But this ticket adds Announcements 2 and 3 and the five taxonomy texts, and until the seam exists every one of them composes in the crate ADR-0007 leaves untested — so doing 19 first is the difference between landing them tested and moving them by hand afterwards.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Order fixed: re-read → compare `(vtype, bytes)` → (external-change dialog) → back up the re-read value, never the Baseline → write → move Baseline → re-run diagnostics; detection lives only in Apply — no watcher, no polling
-- [ ] External-change dialog: title "PATH was modified externally since last refresh", buttons [Overwrite] (proceed; Undo stack survives) / [Refresh and discard my changes] (Working Copy and Baseline become the new value, stacks cleared, nothing written, no backup) / [Cancel] (nothing happens; Session stays dirty and knowingly stale)
-- [ ] Over-length gates at Apply: past 8,191 post-write merged length → warning dialog (title per spec, [Apply Anyway] [Cancel]); at ≥ 32,767 → hard-cap dialog, single [Cancel], no proceed
-- [ ] Snapshot written to `data\backups\` per the ticket-10 schema and filename rules, temp+rename with `.tmp` mid-write; rotation runs per-Scope after the write
-- [ ] Registry write raw via the adapter; first Apply over an Absent Scope creates `REG_EXPAND_SZ`; zero Entries over Present writes an empty string
-- [ ] Broadcast off the UI thread: `SendMessageTimeoutW(HWND_BROADCAST, WM_SETTINGCHANGE, 0, L"Environment", SMTO_ABORTIFHUNG, 1000–2000, …)`, lParam UTF-16LE NUL-terminated and outliving the call; a 0 return / timeout is not a failure — one `WARN` line, never surfaced
-- [ ] Failure taxonomy with exact texts: snapshot-write failure → "Apply failed — could not write a backup, no changes were made."; registry-write failure → "Apply failed — {cause}"; no failure mutates the Working Copy or moves the Baseline; every failure lands one log record with the raw error code
-- [ ] Success announces "User PATH applied" / "System PATH applied" (Announcement 2); focus stays on the current Entry; Apply disabled while clean; one `INFO apply:` audit line (Scope, entry count, chars, Value Type — no PATH text)
-- [ ] Undo after Apply re-dirties the Session with the ", unsaved changes" suffix (barrier behaviour observable in the UI)
-- [ ] Apply never consults the startup writability prediction — it verifies at write time (startup predicts, Apply verifies)
+- [x] Order fixed: re-read → compare `(vtype, bytes)` → (external-change dialog) → back up the re-read value, never the Baseline → write → move Baseline → re-run diagnostics; detection lives only in Apply — no watcher, no polling
+- [x] External-change dialog: title "PATH was modified externally since last refresh", buttons [Overwrite] (proceed; Undo stack survives) / [Refresh and discard my changes] (Working Copy and Baseline become the new value, stacks cleared, nothing written, no backup) / [Cancel] (nothing happens; Session stays dirty and knowingly stale)
+- [x] Over-length gates at Apply: past 8,191 post-write merged length → warning dialog (title per spec, [Apply Anyway] [Cancel]); at ≥ 32,767 → hard-cap dialog, single [Cancel], no proceed
+- [x] Snapshot written to `data\backups\` per the ticket-10 schema and filename rules, temp+rename with `.tmp` mid-write; rotation runs per-Scope after the write
+- [x] Registry write raw via the adapter; first Apply over an Absent Scope creates `REG_EXPAND_SZ`; zero Entries over Present writes an empty string
+- [x] Broadcast off the UI thread: `SendMessageTimeoutW(HWND_BROADCAST, WM_SETTINGCHANGE, 0, L"Environment", SMTO_ABORTIFHUNG, 1000–2000, …)`, lParam UTF-16LE NUL-terminated and outliving the call; a 0 return / timeout is not a failure — one `WARN` line, never surfaced
+- [x] Failure taxonomy with exact texts: snapshot-write failure → "Apply failed — could not write a backup, no changes were made."; registry-write failure → "Apply failed — {cause}"; no failure mutates the Working Copy or moves the Baseline; every failure lands one log record with the raw error code
+- [x] Success announces "User PATH applied" / "System PATH applied" (Announcement 2); focus stays on the current Entry; Apply disabled while clean; one `INFO apply:` audit line (Scope, entry count, chars, Value Type — no PATH text)
+- [x] Undo after Apply re-dirties the Session with the ", unsaved changes" suffix (barrier behaviour observable in the UI)
+- [x] Apply never consults the startup writability prediction — it verifies at write time (startup predicts, Apply verifies)
 
 The spec's own requirements end there. These seven are [ADR-0008](../../../docs/adr/0008-apply-sequence-lives-in-platform.md)'s consequences, plus the two gaps the design pass found:
 
-- [ ] The sequence is an **Apply Run** in `pathmaster-platform`, not a window method: Scopes in, one outcome out, no Editing Session held. The three questions arrive through a port with two adapters — the window's dialogs, scripted answers in the tests. `Timestamp` and the Data Directory (`DataDirState::dir()`, never a `Writable` path) are parameters
-- [ ] Snapshot files get their own `pathmaster-platform` module: `data\backups\` spelled once, written through `datadir::write_replace`, and one listing serving both `SnapshotName::next` and `rotation::overflow`. Ticket 14 lists, reads and deletes through the same module
-- [ ] `logfmt` gains the two records this needs — the Apply failure line carrying the raw error code, and the broadcast `WARN`. `Record::apply_written` is already there and gets its first caller
-- [ ] Announcements 2–3 and the taxonomy's texts enter the Catalogue with Ukrainian; the completeness gate passes
-- [ ] §9's fifth row is implemented: a re-read that fails takes the registry-write row's text
-- [ ] `Command::Apply` with a menu home and Ctrl+S (ADR-0004: a shortcut can only live on a menu item's label), disabled while clean
-- [ ] The window holds what the run needs: the Run's facts — `Logger` and Data Directory — as one struct built in `main`, and the last-read `RawValue` per Scope in `ScopeTab`, replaced from what each run hands back. The **backup budget is not one of them**: `maxBackups` changes while the application runs (ticket 16), so the window holds the current `SettingsFile` and each Apply Run reads the budget from it ([ADR-0010](../../../docs/adr/0010-run-properties-decided-in-one-place.md))
-- [ ] Spec §17's `pathmaster-platform` module list gains this ticket's Snapshot-files module
-- [ ] The over-length gate reads a length the run computes itself, from both Working Copies by spec §7's formula through the `Environment` port — never the last `Diagnosis`, which lags by a Timer tick and would be a second definition of the number the StatusBar already speaks
-- [ ] Noted, not built here: once §9's fifth row exists, `refresh` moves onto it and stops failing silently (spec §5, FR-refresh)
+- [x] The sequence is an **Apply Run** in `pathmaster-platform`, not a window method: Scopes in, one outcome out, no Editing Session held. The three questions arrive through a port with two adapters — the window's dialogs, scripted answers in the tests. `Timestamp` and the Data Directory (`DataDirState::dir()`, never a `Writable` path) are parameters
+- [x] Snapshot files get their own `pathmaster-platform` module: `data\backups\` spelled once, written through `datadir::write_replace`, and one listing serving both `SnapshotName::next` and `rotation::overflow`. Ticket 14 lists, reads and deletes through the same module
+- [x] `logfmt` gains the two records this needs — the Apply failure line carrying the raw error code, and the broadcast `WARN`. `Record::apply_written` is already there and gets its first caller
+- [x] Announcements 2–3 and the taxonomy's texts enter the Catalogue with Ukrainian; the completeness gate passes
+- [x] §9's fifth row is implemented: a re-read that fails takes the registry-write row's text
+- [x] `Command::Apply` with a menu home and Ctrl+S (ADR-0004: a shortcut can only live on a menu item's label), disabled while clean
+- [x] The window holds what the run needs: the Run's facts — `Logger` and Data Directory — as one struct built in `main`, and the last-read `RawValue` per Scope in `ScopeTab`, replaced from what each run hands back. The **backup budget is not one of them**: `maxBackups` changes while the application runs (ticket 16), so the window holds the current `SettingsFile` and each Apply Run reads the budget from it ([ADR-0010](../../../docs/adr/0010-run-properties-decided-in-one-place.md))
+- [x] Spec §17's `pathmaster-platform` module list gains this ticket's Snapshot-files module
+- [x] The over-length gate reads a length the run computes itself, from both Working Copies by spec §7's formula through the `Environment` port — never the last `Diagnosis`, which lags by a Timer tick and would be a second definition of the number the StatusBar already speaks
+- [x] Noted, not built here: once §9's fifth row exists, `refresh` moves onto it and stops failing silently (spec §5, FR-refresh)
 
 ## Comments
 
@@ -67,3 +67,91 @@ parameter rather than a `logwriter::now()` call inside, because a Snapshot name'
 depends on what its second already holds: a test that cannot fix the clock cannot reach the rule that a
 freed suffix is never reissued, which is the rule stopping the rotation after an Apply from deleting the
 backup that Apply just took.
+
+---
+
+Implemented 2026-08-21 on `feature/catalogue-lookup-seam`. `pathmaster-platform` gains three
+modules — `apply` (the Apply Run), `snapshots` (the files, `data\backups\` spelled once) and
+`broadcast` — with 31 tests behind them, none of which link wxWidgets. `ui/mod.rs` grows by about
+120 lines, all of it wiring: the run's inputs copied out, its outcome absorbed, and the three
+dialogs behind the question port.
+
+**The order is the whole of what the tests assert.** Not "which rule fired" but "did the order hold
+when something went wrong": a re-read that fails leaves no Snapshot and no write; a backup that
+cannot be written leaves the registry byte-for-byte as it was found; a registry write that fails
+leaves the backup it had already taken, because that file is a true record of what the Scope held
+and the one thing a user whose Apply just failed might want. The taxonomy's first invariant — no
+failure moves the Baseline — needed no test at all: the run is handed no Baseline, so it has no
+means to break it.
+
+**Two shapes the ticket left open, both now closed the way ticket 19 predicted.**
+
+- **`Announcement::Applied` carries a `Scope`, not a msgid.** Ticket 19 could not narrow it because
+  §10.1's two strings were not registered and that ticket added no Catalogue text. This one
+  registers them, so the variant narrows and the choice between "User PATH applied" and "System PATH
+  applied" becomes a rule of the Catalogue rather than of the calling code. ADR-0009's msgid rule is
+  untouched: it covers the Announcements whose cause is a *platform type*, and item 2's cause is a
+  `Scope`, which is core's own.
+- **`ApplyFailed` carries a cause, and the sentence around it moved down too.** §9's rows all say
+  "Apply failed" and then name their own reason, so there is one frame — `"Apply failed — {cause}."`
+  — and three cause phrases, filled in exactly as Announcement 7's `{reason}` already was. The frame
+  carries the final stop, which is what makes the composed strings come out as §8 and §9 write them
+  verbatim ("Apply failed — access denied.", "Apply failed — could not write a backup, no changes
+  were made.") while leaving each cause a phrase a translator may reorder. The typed failure stays
+  in `pathmaster-platform` and contributes only its `catalogue_msgid()`, which is ADR-0009's rule
+  unchanged.
+
+**Four decisions a reviewer would otherwise have to reconstruct:**
+
+- **The over-length gates run once per run, before any Scope is touched.** The merged length is a
+  fact about *both* Working Copies, so a two-Scope run asking twice would be asking twice about one
+  number — and a gate opening after the first Scope had been written would be a warning about
+  something that had already happened. A gate the user refuses stops the run at its first Scope,
+  recorded as that Scope's `Cancelled`, so `Outcome::completed()` is one fold and the close-confirm
+  ticket has one question to ask.
+- **The three questions are three methods, and the hard cap answers nothing.** `Ask::hard_cap`
+  returns `()`. §7's "single [Cancel] — no proceed" is then not a rule anyone has to remember; it is
+  the only thing the signature can express.
+- **`thresholds::merged_length_of` is new, and `diagnostics` now calls it.** The gate must compute
+  the length itself — the last `Diagnosis` lags by a Timer tick, and the number in the dialog is the
+  one the user is being asked to accept — but "compute it itself" must not mean a second definition
+  of §7's formula. So the formula moved into `thresholds` whole, and both callers ask it.
+- **One broadcast per run that wrote anything.** The `lParam` names the environment block rather
+  than a variable, so two Scopes are still one change. It is spawned and its handle dropped; the
+  handle exists at all so that ticket 15, which ends the process, has something to wait on.
+
+**Three things this ticket touched that were not strictly its own**, each named so the diff does not
+look wider than it is. `logfmt::ScopeReadCause` is now `FailureCause`: an Apply failure and a failed
+startup read have the same two things to say — an OS error code, or a registry type we do not
+support — and a near-duplicate enum is what the rename avoids. `question.rs` grew a `choose` over a
+slice of labels, because the external-change dialog needs three buttons and the hard cap needs one;
+`ask` is now two lines over it. And spec §17's platform module list gained `diagnostics` as well as
+this ticket's two — it was missing, in the very list this ticket was amending, and the convention
+that each module is named as it lands exists to stop exactly that.
+
+**`refresh` still fails silently, deliberately.** §9's fifth row now exists, which is what
+FR-refresh has been waiting on since impl ticket 11 — but moving Refresh onto it is a change to a
+different command, and the ticket says "noted, not built here".
+
+**Verified live, in Ukrainian, on this machine's real PATH.** Two runs of the debug build, driven
+cross-process.
+
+The first touched nothing: the File menu is there beside Edit («Файл(F)» / «Редагування(E)»), the
+Apply button sits between Move Down and Cancel Changes as §15 orders it, and both read as disabled
+while the Session is clean. One 9,000-character Entry and Ctrl+S raised «cmd.exe ігноруватиме PATH,
+довший за 8 191 символ (11230 після цього застосування)» with [Усе одно застосувати] [Скасувати];
+editing it to 40,000 raised «PATH не може перевищувати 32 767 символів (42230 після цього
+застосування)» with one button. Both cancelled, and `HKCU\Environment\Path` came out of the run
+byte-identical with `data\backups\` never created — the gate really does stop before anything is
+written.
+
+The second wrote, twice, and put the machine back exactly where it started (the original
+`(vtype, bytes)` were captured first and compared by SHA-256 afterwards: 3,098 bytes in, 3,098 bytes
+out, same hash). Adding `C:\PathMasterLiveCheck` and pressing Ctrl+S put «PATH користувача
+застосовано» in the Banner and `INFO apply: User scope written, 43 entries, 1571 chars,
+REG_EXPAND_SZ` in the log — derived facts, no PATH text. Ctrl+Z then read «Скасовано: Додавання
+запису, незбережені зміни»: Announcement 5, the Apply barrier, observable exactly as the ticket
+asks. The second Ctrl+S wrote the original value back and raised **no** external-change dialog,
+which is the hand-off working — the first run's outcome had already replaced the tab's last-read
+value, so the second run's re-read matched it. Two Snapshots landed in `data\backups\`, the second
+larger than the first: each is of the value that was *re-read*, not of the one being written.

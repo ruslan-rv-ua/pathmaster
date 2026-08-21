@@ -9,6 +9,9 @@
 //! Two numbers, measured rather than inherited (research/13). Both are counted
 //! in UTF-16 code units, because that is the unit Windows stores a value in.
 
+use crate::normalize::{expand, Environment};
+use crate::path::join;
+
 /// Past this, `cmd.exe` ignores the inherited variable entirely — the `PATH`
 /// is simply absent inside a command prompt (KB 830473). A real consequence,
 /// and a legal thing for a user to choose knowingly.
@@ -37,14 +40,36 @@ impl Overlength {
     }
 }
 
-/// The merged length in UTF-16 code units:
-/// `len(expand(System WC) + ";" + expand(User WC))`.
+/// The merged length of both Working Copies, in UTF-16 code units:
+/// `len(expand(System WC) + ";" + expand(User WC))` — spec §7's formula, end
+/// to end.
 ///
-/// Both arguments are already-expanded Scope values — what Windows will
-/// materialise, not what the registry stores. The separator counts even when a
-/// Scope is empty: the formula is the spec's, taken literally.
+/// **Two callers ask this at different moments and must get one answer.** The
+/// diagnostic pass asks after every edit, for the StatusBar; an Apply Run asks
+/// again at the gate, because the pass's answer lags by a Timer tick and the
+/// number in the dialog is the one the user is being asked to accept. Two
+/// moments, one formula — which is why the formula is here rather than at
+/// either of them.
+pub fn merged_length_of(
+    system: &[impl AsRef<str>],
+    user: &[impl AsRef<str>],
+    env: &dyn Environment,
+) -> usize {
+    merged_length(&expanded_value(system, env), &expanded_value(user, env))
+}
+
+/// The arithmetic half of [`merged_length_of`], over Scope values that are
+/// already expanded — what Windows will materialise, not what the registry
+/// stores. The separator counts even when a Scope is empty: the formula is the
+/// spec's, taken literally.
 pub fn merged_length(system_expanded: &str, user_expanded: &str) -> usize {
     utf16_len(system_expanded) + 1 + utf16_len(user_expanded)
+}
+
+/// One Scope's Working Copy as Windows will materialise it: the Entries joined
+/// with `;`, expanded once.
+fn expanded_value(entries: &[impl AsRef<str>], env: &dyn Environment) -> String {
+    expand(&join(entries), env).text
 }
 
 /// Which side of the two thresholds a length falls.

@@ -26,7 +26,6 @@
 use std::collections::HashSet;
 
 use crate::normalize::{expand, strip_quotes, Environment, Normalised};
-use crate::path::join;
 use crate::session::{Entry, EntryId, Scope};
 use crate::thresholds::{self, Overlength};
 
@@ -262,10 +261,7 @@ pub fn diagnose(
     Diagnosis {
         system: diagnose_scope(system, env, fs, &mut seen),
         user: diagnose_scope(user, env, fs, &mut seen),
-        merged_length: thresholds::merged_length(
-            &expanded_value(system, env),
-            &expanded_value(user, env),
-        ),
+        merged_length: thresholds::merged_length_of(system, user, env),
     }
 }
 
@@ -359,10 +355,4 @@ fn is_fully_qualified(path: &str) -> bool {
 
 fn is_separator(c: char) -> bool {
     c == '\\' || c == '/'
-}
-
-/// One Scope's Working Copy as Windows will materialise it: the Entries joined
-/// with `;`, expanded once.
-fn expanded_value(entries: &[impl AsRef<str>], env: &dyn Environment) -> String {
-    expand(&join(entries), env).text
 }

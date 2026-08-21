@@ -66,6 +66,37 @@ msgstr[2] "PATH системи: {n} записів"
 msgid "System PATH: no entries"
 msgstr "PATH системи: немає записів"
 
+#. Announcement: spoken after this Scope's entries reached the registry. Two
+#. strings rather than one with the Scope filled in — the sentence agrees with
+#. its subject, and a name dropped into a shared frame would not.
+msgid "User PATH applied"
+msgstr "PATH користувача застосовано"
+
+#. Announcement: spoken after this Scope's entries reached the registry.
+msgid "System PATH applied"
+msgstr "PATH системи застосовано"
+
+#. Announcement: an Apply did not complete. {cause} is one of the three cause
+#. phrases below, translated before it is filled in. The frame carries the
+#. final stop, so a cause stays a phrase you may move within the sentence.
+msgid "Apply failed — {cause}."
+msgstr "Не вдалося застосувати — {cause}."
+
+#. Apply failure cause: the backup could not be written, so nothing was
+#. written at all — the registry was never touched.
+msgid "could not write a backup, no changes were made"
+msgstr "не вдалося створити резервну копію, зміни не внесено"
+
+#. Apply failure cause: the registry refused the write (an unelevated System
+#. scope, most often).
+msgid "access denied"
+msgstr "відмовлено в доступі"
+
+#. Apply failure cause: every other way the registry can fail — a key that
+#. will not open, a value locked by another process, a re-read that failed.
+msgid "the registry could not be written"
+msgstr "не вдалося записати до реєстру"
+
 #. Announcement: a Read-only Data run names its reason once at startup, and
 #. the same text stands in StatusBar field 0. {reason} is one of the three
 #. reason strings below, translated before it is filled in.
@@ -138,6 +169,15 @@ msgstr " — перевищує 8 191 (ліміт cmd.exe)"
 msgid "&Edit"
 msgstr "Редагування(&E)"
 
+#. Menu bar title. The mnemonic letter is Latin in every language.
+msgid "&File"
+msgstr "Файл(&F)"
+
+#. File menu item: writes the active Scope's entries to the registry (Ctrl+S).
+#. The code appends its accelerator.
+msgid "&Apply"
+msgstr "Застосувати(&A)"
+
 #. Edit menu item: opens the Add dialog. The code appends its accelerator.
 msgid "&Add Entry…"
 msgstr "Додати запис(&A)…"
@@ -197,6 +237,11 @@ msgstr "Перемістити вгору"
 #. Button under a Scope's list: moves the focused entry one place later.
 msgid "Move Down"
 msgstr "Перемістити вниз"
+
+#. Button under a Scope's list: writes this Scope's entries to the registry.
+#. Disabled while there is nothing unsaved.
+msgid "Apply"
+msgstr "Застосувати"
 
 #. Button under a Scope's list: the Cancel command — discards this Scope's
 #. unsaved changes. Disabled while there are none.
@@ -269,6 +314,36 @@ msgstr "Відхилити зміни?"
 #. Confirmation title for Refresh, which unlike Cancel cannot be undone.
 msgid "Refresh discards your unsaved changes and the undo history — continue?"
 msgstr "Оновлення відхилить незбережені зміни та історію скасувань — продовжити?"
+
+#. Dialog title: the registry value changed under us between the last read
+#. and this Apply. The whole message is the title.
+msgid "PATH was modified externally since last refresh"
+msgstr "PATH було змінено ззовні після останнього оновлення"
+
+#. Button of that dialog: write anyway, over the value just found.
+msgid "Overwrite"
+msgstr "Перезаписати"
+
+#. Button of that dialog: adopt the value just found and write nothing, losing
+#. the unsaved changes and the undo history with it.
+msgid "Refresh and discard my changes"
+msgstr "Оновити й відхилити мої зміни"
+
+#. Dialog title at Apply: past this length cmd.exe ignores PATH entirely.
+#. 8,191 is a measured Windows limit and must survive translation; localise its
+#. digit grouping if your language groups differently. {n} is the length this
+#. Apply would leave behind.
+msgid "cmd.exe will ignore a PATH longer than 8,191 characters ({n} after this Apply)"
+msgstr "cmd.exe ігноруватиме PATH, довший за 8 191 символ ({n} після цього застосування)"
+
+#. Button of that dialog: proceed knowingly. Legal — the limit is cmd.exe's.
+msgid "Apply Anyway"
+msgstr "Усе одно застосувати"
+
+#. Dialog title at Apply: the hard cap, which nothing can proceed past. Its
+#. only button is "Cancel". 32,767 is a measured Windows limit.
+msgid "PATH cannot exceed 32,767 characters ({n} after this Apply)"
+msgstr "PATH не може перевищувати 32 767 символів ({n} після цього застосування)"
 
 #. Announcement: spoken after Ctrl+Z. {operation} is one of the operation
 #. names in this file, translated as a verbal noun.

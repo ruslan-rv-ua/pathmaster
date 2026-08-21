@@ -67,14 +67,16 @@ pub enum Announcement {
     /// **1** — a Scope tab was activated, or Refreshed: how many Entries it
     /// holds.
     EntryCount { scope: Scope, count: usize },
-    /// **2** — a Scope's Working Copy reached the registry. Wired by impl
-    /// ticket 13, which registers the two strings §10.1 gives it and picks
-    /// between them by Scope.
-    Applied { msgid: &'static str },
-    /// **3** — an Apply did not complete: the §9 taxonomy text naming why.
-    /// Wired by impl ticket 13, whose typed failure lives in
-    /// `pathmaster-platform` and so contributes its `catalogue_msgid()`.
-    ApplyFailed { msgid: &'static str },
+    /// **2** — a Scope's Working Copy reached the registry. §10.1 gives it two
+    /// strings, one per Scope, and which is spoken is decided here rather than
+    /// by the caller: the Scope is core's own type, so the choice is a rule the
+    /// Catalogue can hold.
+    Applied { scope: Scope },
+    /// **3** — an Apply did not complete: the §9 taxonomy's sentence, naming
+    /// why. `cause` is the msgid of the phrase filled into it — the typed
+    /// failure lives in `pathmaster-platform`, which core cannot name, so it
+    /// contributes its `catalogue_msgid()` exactly as a Read-only reason does.
+    ApplyFailed { cause: &'static str },
     /// **4**, and **5** when the restored Checkpoint was taken before the last
     /// Apply: what was undone or redone. No path text — focus lands on the row
     /// and NVDA reads it for free.
@@ -141,9 +143,14 @@ impl Catalogue {
     pub fn announcement(&self, announcement: Announcement) -> String {
         match announcement {
             Announcement::EntryCount { scope, count } => self.entry_count(scope, count),
-            Announcement::Applied { msgid } | Announcement::ApplyFailed { msgid } => {
-                self.lookup.translate(msgid)
-            }
+            Announcement::Applied { scope } => self.lookup.translate(match scope {
+                Scope::User => msgids::APPLIED_USER,
+                Scope::System => msgids::APPLIED_SYSTEM,
+            }),
+            Announcement::ApplyFailed { cause } => fill(
+                &self.lookup.translate(msgids::APPLY_FAILED),
+                &[("cause", &self.lookup.translate(cause))],
+            ),
             Announcement::UndoRedo { direction, outcome } => self.undo_redo(direction, outcome),
             Announcement::ChangesDiscarded => self.lookup.translate(msgids::CHANGES_DISCARDED),
             Announcement::ReadOnly { reason } => self.read_only(reason),
@@ -228,6 +235,32 @@ impl Catalogue {
             text.push_str(&self.lookup.translate(msgids::MERGED_LENGTH_EXCEEDS));
         }
         text
+    }
+
+    /// The warning an Apply past 8,191 earns, which is the whole of that
+    /// dialog — NVDA never speaks a `MessageDialog`'s body (spec §7,
+    /// FR-diag-overlength; §10).
+    ///
+    /// `length` is the merged length **this Apply would leave behind**, which
+    /// is what the title says and why it is passed rather than read off a
+    /// field. Which of the two titles a length earns is not decided here: the
+    /// run has already classified it, and classifying again would be a second
+    /// answer to the same question.
+    pub fn cmd_limit_dialog(&self, length: usize) -> String {
+        self.overlength(msgids::DIALOG_OVER_CMD_LIMIT, length)
+    }
+
+    /// The hard cap's dialog at 32,767 — the same shape as
+    /// [`cmd_limit_dialog`](Self::cmd_limit_dialog) and a different sentence,
+    /// because this one has no way past it.
+    pub fn hard_cap_dialog(&self, length: usize) -> String {
+        self.overlength(msgids::DIALOG_OVER_HARD_CAP, length)
+    }
+
+    /// The number both over-length titles name, filled into whichever of them
+    /// is being spoken.
+    fn overlength(&self, msgid: &str, length: usize) -> String {
+        fill(&self.lookup.translate(msgid), &[("n", &length.to_string())])
     }
 
     /// One Scope's half of StatusBar field 0.

@@ -73,6 +73,32 @@ pub const ENTRIES_SYSTEM: &str = "System PATH: {n} entry";
 pub const ENTRIES_SYSTEM_PLURAL: &str = "System PATH: {n} entries";
 pub const ENTRIES_SYSTEM_NONE: &str = "System PATH: no entries";
 
+/// Announcement 2 (spec §10.1 item 2): a Scope's Working Copy reached the
+/// registry. Two whole strings rather than one frame with the Scope filled in:
+/// «PATH користувача застосовано» agrees with its subject, and a Scope name
+/// dropped into a shared frame would not. Which of the two is spoken is the
+/// Catalogue's own rule, decided from the [`Scope`](crate::session::Scope) the
+/// Announcement carries.
+pub const APPLIED_USER: &str = "User PATH applied";
+pub const APPLIED_SYSTEM: &str = "System PATH applied";
+
+/// Announcement 3 (spec §10.1 item 3): the §9 taxonomy's texts — one frame and
+/// the three causes it is filled with.
+///
+/// Every row of the taxonomy says "Apply failed" and then names its own reason,
+/// so the sentence is written once. The frame carries the final stop, which
+/// leaves each cause a phrase a translator may reorder; `{cause}` is itself
+/// Catalogue text, translated before it is filled in, exactly as
+/// [`READONLY`]'s `{reason}` is.
+///
+/// A **failed re-read takes the registry row's cause** and not one of its own
+/// (spec §9's fifth row): nothing was written either way, which is the whole of
+/// what the user needs to know.
+pub const APPLY_FAILED: &str = "Apply failed — {cause}.";
+pub const APPLY_FAILED_BACKUP: &str = "could not write a backup, no changes were made";
+pub const APPLY_FAILED_ACCESS_DENIED: &str = "access denied";
+pub const APPLY_FAILED_REGISTRY: &str = "the registry could not be written";
+
 /// Announcement 7 (spec §10.1): a Read-only Data run names its reason once at
 /// startup. `{reason}` is itself Catalogue text — one of the three §3 reasons
 /// below — translated before it is filled in. The same assembled string is
@@ -118,20 +144,28 @@ pub const MERGED_LENGTH: &str = "Merged PATH: {n} char";
 pub const MERGED_LENGTH_PLURAL: &str = "Merged PATH: {n} chars";
 pub const MERGED_LENGTH_EXCEEDS: &str = " — exceeds 8,191 (cmd.exe limit)";
 
-/// The two mnemonic groups the menus so far form: the menu bar's own titles,
-/// and the Edit menu's items. A group is a set of siblings whose `&` letters
-/// must not repeat; the gate walks each one (spec §15).
+/// The mnemonic groups the menus so far form: the menu bar's own titles, the
+/// Edit menu's items, and the File menu's. A group is a set of siblings whose
+/// `&` letters must not repeat; the gate walks each one (spec §15).
 ///
 /// These are **not** Catalogue strings and are never translated — they are
 /// group keys, and the only thing that reads them is the gate. Nothing here
-/// reaches a user, which is why they are the two `MENU_` constants absent
-/// from [`REGISTRY`].
+/// reaches a user, which is why they are the three `MENU_GROUP_` constants
+/// absent from [`REGISTRY`].
 pub const MENU_GROUP_BAR: &str = "menu bar";
 pub const MENU_GROUP_EDIT: &str = "Edit";
+pub const MENU_GROUP_FILE: &str = "File";
 
-/// The menu bar's titles. The Edit menu is the first to land; File, Tools and
-/// Help arrive with the tickets that fill them (spec §15).
+/// The menu bar's titles. Tools and Help arrive with the tickets that fill
+/// them (spec §15).
 pub const MENU_TITLE_EDIT: &str = "&Edit";
+pub const MENU_TITLE_FILE: &str = "&File";
+
+/// The File menu's items (spec §15). Exit arrives with the ticket that owns
+/// the close-confirm; Apply is here because Ctrl+S can only live on a menu
+/// item's label — wxdragon binds no accelerator table at any level, so **every
+/// shortcut has a menu home** (ADR-0004).
+pub const MENU_APPLY: &str = "&Apply";
 
 /// The Edit menu's items (spec §15). Accelerators are **not** here: the code
 /// appends `"\tCtrl+Z"` to the translated label, because a translated tab
@@ -157,6 +191,7 @@ pub const BUTTON_EDIT: &str = "Edit…";
 pub const BUTTON_DELETE: &str = "Delete";
 pub const BUTTON_MOVE_UP: &str = "Move Up";
 pub const BUTTON_MOVE_DOWN: &str = "Move Down";
+pub const BUTTON_APPLY: &str = "Apply";
 pub const BUTTON_CANCEL: &str = "Cancel Changes";
 
 /// The Add/Edit dialog (spec §6, FR-edit-f2). The titles double as the
@@ -206,6 +241,31 @@ pub const DIALOG_DISCARD_CHANGES: &str = "Discard changes?";
 pub const DIALOG_REFRESH_DISCARDS: &str =
     "Refresh discards your unsaved changes and the undo history — continue?";
 
+/// The external-change dialog (spec §5, FR-apply): the value moved under the
+/// Session between the last read and this Apply. All three answers are legal,
+/// so all three are named — the middle one adopts what was just read and
+/// writes nothing, which is why its label says both halves of what it does.
+///
+/// [`BUTTON_DIALOG_CANCEL`] is the third button: here too it means "do not
+/// commit", which is exactly what it says everywhere else.
+pub const DIALOG_EXTERNAL_CHANGE: &str = "PATH was modified externally since last refresh";
+pub const BUTTON_OVERWRITE: &str = "Overwrite";
+pub const BUTTON_REFRESH_AND_DISCARD: &str = "Refresh and discard my changes";
+
+/// The two over-length gates at Apply (spec §7, FR-diag-overlength). Each is a
+/// title and nothing else — NVDA never speaks a `MessageDialog`'s body — and
+/// each names both numbers: the threshold, which is a measured constant of the
+/// OS and so literal text, and `{n}`, the length this Apply would leave behind.
+///
+/// The first is a warning with a way past it; the second has a single
+/// [`BUTTON_DIALOG_CANCEL`] and no way past at all, which is why it offers no
+/// affirmative button to name.
+pub const DIALOG_OVER_CMD_LIMIT: &str =
+    "cmd.exe will ignore a PATH longer than 8,191 characters ({n} after this Apply)";
+pub const BUTTON_APPLY_ANYWAY: &str = "Apply Anyway";
+pub const DIALOG_OVER_HARD_CAP: &str =
+    "PATH cannot exceed 32,767 characters ({n} after this Apply)";
+
 /// Announcements 4, 5 and 6 (spec §10.1). `{operation}` is itself Catalogue
 /// text — one of the [`Operation`](crate::session::Operation) names below,
 /// translated before it is filled in, and translated as a verbal noun so the
@@ -238,6 +298,12 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::text(ENTRIES_USER_NONE),
     CatalogueEntry::plural(ENTRIES_SYSTEM, ENTRIES_SYSTEM_PLURAL),
     CatalogueEntry::text(ENTRIES_SYSTEM_NONE),
+    CatalogueEntry::text(APPLIED_USER),
+    CatalogueEntry::text(APPLIED_SYSTEM),
+    CatalogueEntry::text(APPLY_FAILED),
+    CatalogueEntry::text(APPLY_FAILED_BACKUP),
+    CatalogueEntry::text(APPLY_FAILED_ACCESS_DENIED),
+    CatalogueEntry::text(APPLY_FAILED_REGISTRY),
     CatalogueEntry::text(READONLY),
     CatalogueEntry::text(READONLY_REASON_OWN_LOCATION_UNKNOWN),
     CatalogueEntry::text(READONLY_REASON_CANNOT_CREATE),
@@ -252,6 +318,8 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::plural(MERGED_LENGTH, MERGED_LENGTH_PLURAL),
     CatalogueEntry::text(MERGED_LENGTH_EXCEEDS),
     CatalogueEntry::menu_item(MENU_TITLE_EDIT, MENU_GROUP_BAR),
+    CatalogueEntry::menu_item(MENU_TITLE_FILE, MENU_GROUP_BAR),
+    CatalogueEntry::menu_item(MENU_APPLY, MENU_GROUP_FILE),
     CatalogueEntry::menu_item(MENU_ADD_ENTRY, MENU_GROUP_EDIT),
     CatalogueEntry::menu_item(MENU_EDIT_ENTRY, MENU_GROUP_EDIT),
     CatalogueEntry::menu_item(MENU_DELETE_ENTRY, MENU_GROUP_EDIT),
@@ -266,6 +334,7 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::text(BUTTON_DELETE),
     CatalogueEntry::text(BUTTON_MOVE_UP),
     CatalogueEntry::text(BUTTON_MOVE_DOWN),
+    CatalogueEntry::text(BUTTON_APPLY),
     CatalogueEntry::text(BUTTON_CANCEL),
     CatalogueEntry::text(DIALOG_EDIT_ENTRY),
     CatalogueEntry::text(DIALOG_ADD_ENTRY),
@@ -282,6 +351,12 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::text(BUTTON_KEEP_LITERAL),
     CatalogueEntry::text(DIALOG_DISCARD_CHANGES),
     CatalogueEntry::text(DIALOG_REFRESH_DISCARDS),
+    CatalogueEntry::text(DIALOG_EXTERNAL_CHANGE),
+    CatalogueEntry::text(BUTTON_OVERWRITE),
+    CatalogueEntry::text(BUTTON_REFRESH_AND_DISCARD),
+    CatalogueEntry::text(DIALOG_OVER_CMD_LIMIT),
+    CatalogueEntry::text(BUTTON_APPLY_ANYWAY),
+    CatalogueEntry::text(DIALOG_OVER_HARD_CAP),
     CatalogueEntry::text(UNDONE),
     CatalogueEntry::text(REDONE),
     CatalogueEntry::text(UNSAVED_CHANGES_SUFFIX),

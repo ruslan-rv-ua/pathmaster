@@ -192,15 +192,6 @@ fn every_operation_name_reaches_the_sentence_that_undoes_it() {
 
 // ---- The rest of the closed seven (spec §10.1 items 2, 3, 6, 7) ----
 
-/// Announcement 2's two strings and Announcement 3's taxonomy are impl ticket
-/// 13's, and this ticket adds no Catalogue text. What is fixed here is the
-/// shape: both carry a **msgid**, because the typed Apply failure they name
-/// lives in `pathmaster-platform` and core cannot name a platform type
-/// (ADR-0009). Ticket 13 constructs these with registered msgids; here they
-/// stand for themselves.
-const APPLIED: &str = "User PATH applied";
-const APPLY_FAILED: &str = "Access denied";
-
 #[test]
 fn a_cancel_speaks_one_string_and_composes_nothing() {
     assert_eq!(
@@ -223,16 +214,47 @@ fn a_read_only_run_names_its_reason_in_the_slot_kept_for_it() {
 }
 
 #[test]
-fn the_two_apply_announcements_speak_the_msgid_they_were_given() {
+fn a_successful_apply_names_the_scope_it_wrote() {
+    // §10.1 item 2 is two strings, and choosing between them is the
+    // Catalogue's rule rather than the caller's: the Announcement carries a
+    // Scope, which is core's own type, so nothing outside can pick the wrong
+    // sentence for the Scope it just wrote.
     assert_eq!(
-        the_catalogue().announcement(Announcement::Applied { msgid: APPLIED }),
-        APPLIED
+        the_catalogue().announcement(Announcement::Applied { scope: Scope::User }),
+        "User PATH applied"
+    );
+    assert_eq!(
+        the_catalogue().announcement(Announcement::Applied {
+            scope: Scope::System
+        }),
+        "System PATH applied"
+    );
+}
+
+#[test]
+fn a_failed_apply_fills_the_cause_into_the_one_sentence_the_taxonomy_speaks() {
+    // §9's rows share a sentence and differ only in the phrase filled into it,
+    // so `{cause}` is Catalogue text translated before it is filled in — the
+    // shape Announcement 7's `{reason}` already has. The cause arrives as the
+    // msgid `pathmaster-platform`'s typed failure returns, because core cannot
+    // name a platform type (ADR-0009).
+    assert_eq!(
+        the_catalogue().announcement(Announcement::ApplyFailed {
+            cause: msgids::APPLY_FAILED_ACCESS_DENIED,
+        }),
+        "Apply failed — access denied."
     );
     assert_eq!(
         the_catalogue().announcement(Announcement::ApplyFailed {
-            msgid: APPLY_FAILED
+            cause: msgids::APPLY_FAILED_BACKUP,
         }),
-        APPLY_FAILED
+        "Apply failed — could not write a backup, no changes were made."
+    );
+    assert_eq!(
+        the_catalogue().announcement(Announcement::ApplyFailed {
+            cause: msgids::APPLY_FAILED_REGISTRY,
+        }),
+        "Apply failed — the registry could not be written."
     );
 }
 
@@ -279,11 +301,11 @@ fn every_announcement() -> Vec<(u8, Announcement)> {
                 count: 3,
             },
         ),
-        (2, Announcement::Applied { msgid: APPLIED }),
+        (2, Announcement::Applied { scope: Scope::User }),
         (
             3,
             Announcement::ApplyFailed {
-                msgid: APPLY_FAILED,
+                cause: msgids::APPLY_FAILED_REGISTRY,
             },
         ),
         (
@@ -312,6 +334,40 @@ fn every_announcement() -> Vec<(u8, Announcement)> {
         }
     }
     catalogue
+}
+
+// ---- The Apply-time over-length dialog (spec §7, FR-diag-overlength) ----
+
+#[test]
+fn each_over_length_gate_names_its_own_threshold_and_the_length_after_this_apply() {
+    // Two sentences and not one with the threshold filled in: each threshold
+    // is a measured constant of the OS, and the one fact each warning exists
+    // to carry must not be droppable by a translation.
+    let catalogue = the_catalogue();
+    assert_eq!(
+        catalogue.cmd_limit_dialog(9_000),
+        "cmd.exe will ignore a PATH longer than 8,191 characters (9000 after this Apply)"
+    );
+    assert_eq!(
+        catalogue.hard_cap_dialog(40_000),
+        "PATH cannot exceed 32,767 characters (40000 after this Apply)"
+    );
+}
+
+#[test]
+fn both_over_length_titles_speak_the_length_they_were_given() {
+    // The number is the merged length this Apply would leave behind, and a
+    // title that dropped it would be a warning about nothing in particular.
+    let catalogue = the_catalogue();
+    for length in [thresholds::CMD_LIMIT + 1, thresholds::HARD_CAP, 123_456] {
+        for title in [
+            catalogue.cmd_limit_dialog(length),
+            catalogue.hard_cap_dialog(length),
+        ] {
+            assert!(title.contains(&length.to_string()), "{length}: {title:?}");
+            assert!(msgids::placeholders(&title).is_empty(), "{title:?}");
+        }
+    }
 }
 
 // ---- The Status column (spec §7, FR-diag-status) ----

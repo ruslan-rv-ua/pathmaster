@@ -175,6 +175,21 @@ impl ScopePage {
         self.list.ensure_visible(row);
     }
 
+    /// Gives the list the keyboard focus without moving the row it is on —
+    /// what "focus stays on the current Entry" means after an Apply (spec §10).
+    ///
+    /// It has to be said rather than assumed, because the command may have
+    /// arrived from the Apply button, and Apply disables itself the moment it
+    /// succeeds: focus left on a disabled button is focus nowhere, which for
+    /// this application is the same as silence. A list nobody has reached yet
+    /// takes the focus without a row being chosen for them.
+    pub fn keep_focus(&self) {
+        match self.focused_row() {
+            Some(row) => self.focus_row(row),
+            None => self.list.set_focus(),
+        }
+    }
+
     /// The index of the last row, or `None` over an empty list.
     ///
     /// The count is asked for as an `i32`, so the empty case has to be caught

@@ -94,27 +94,60 @@ impl DataState {
     }
 }
 
-/// Why a Scope's startup read returned no value to build a Session over —
-/// the raw fact for the log line, never a free-form message. The platform's
-/// registry error maps onto this; core stays ignorant of `io::Error`.
+/// The raw fact behind a failure — the OS error code, or the registry type
+/// this application does not support — never a free-form message. The
+/// platform's registry and file errors map onto this; core stays ignorant of
+/// `io::Error`.
+///
+/// One enum for two callers on purpose: a startup read that failed and an
+/// Apply that failed have the same two things to say, and §9's "every failure
+/// lands one log record with the raw error code" is one rule, not two.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ScopeReadCause {
-    /// The read itself failed; the OS error code when the OS gave one.
+pub enum FailureCause {
+    /// The call itself failed; the OS error code when the OS gave one.
     Io { os_error: Option<i32> },
     /// The value exists but is neither `REG_SZ` nor `REG_EXPAND_SZ`.
     UnsupportedType { vtype: u32 },
 }
 
-impl ScopeReadCause {
+impl FailureCause {
     fn describe(self) -> String {
         match self {
-            ScopeReadCause::Io {
+            FailureCause::Io {
                 os_error: Some(code),
             } => format!("os error {code}"),
-            ScopeReadCause::Io { os_error: None } => "io error".to_string(),
-            ScopeReadCause::UnsupportedType { vtype } => {
+            FailureCause::Io { os_error: None } => "io error".to_string(),
+            FailureCause::UnsupportedType { vtype } => {
                 format!("unsupported registry type {vtype}")
             }
+        }
+    }
+}
+
+/// Which step of FR-apply's fixed order failed — the whole of what an Apply
+/// failure line has to say beyond the error code (spec §5, §9).
+///
+/// The three are the taxonomy's three failing rows. The fourth row is the
+/// external-change dialog, which is a question rather than a failure, and the
+/// fifth is the broadcast, which is not a failure at all
+/// ([`Record::broadcast_timed_out`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ApplyStep {
+    /// The re-read that opens the sequence (§9's fifth row).
+    ReRead,
+    /// The Snapshot of what was just re-read, which is written before the
+    /// registry is touched.
+    Snapshot,
+    /// The registry write itself.
+    Write,
+}
+
+impl ApplyStep {
+    fn describe(self) -> &'static str {
+        match self {
+            ApplyStep::ReRead => "re-read",
+            ApplyStep::Snapshot => "backup",
+            ApplyStep::Write => "registry write",
         }
     }
 }
@@ -160,6 +193,44 @@ impl Record {
                 scope_name(scope),
                 value_type_name(value_type),
             ),
+        }
+    }
+
+    /// The Apply failure line (spec §9): which step of the fixed order failed
+    /// and the raw code behind it. The taxonomy requires exactly one of these
+    /// per failure, and it is `ERROR` because a user-requested operation did
+    /// not happen.
+    ///
+    /// The Scope and the step are all the context there is: no path text, no
+    /// entry count — nothing was written, so there is nothing to audit.
+    pub fn apply_failed(scope: Scope, step: ApplyStep, cause: FailureCause) -> Self {
+        Record {
+            level: Level::Error,
+            area: "apply",
+            message: format!(
+                "{} scope not applied, {} failed ({})",
+                scope_name(scope),
+                step.describe(),
+                cause.describe(),
+            ),
+        }
+    }
+
+    /// The `WM_SETTINGCHANGE` broadcast that no window answered in time
+    /// (spec §4, TC-wm-settingchange).
+    ///
+    /// Emphatically **not** an Apply failure: the write succeeded, and
+    /// already-open shells never see the change regardless — only newly
+    /// launched processes do. So it is never surfaced, and this line is its
+    /// only trace. It is appended past the `Logger` by the thread that made
+    /// the call, which may still be blocked when the Apply that started it has
+    /// long since returned (ADR-0008).
+    pub fn broadcast_timed_out() -> Self {
+        Record {
+            level: Level::Warn,
+            area: "broadcast",
+            message: "WM_SETTINGCHANGE timed out, already-open processes keep the old value"
+                .to_string(),
         }
     }
 
@@ -225,7 +296,7 @@ impl Record {
     /// run takes the degraded road: an empty, non-writable Session — nothing
     /// can be written over a value that was never read). This line is the
     /// developer's only witness; the UI shows the consequence, not the cause.
-    pub fn scope_read_failed(scope: Scope, cause: ScopeReadCause) -> Self {
+    pub fn scope_read_failed(scope: Scope, cause: FailureCause) -> Self {
         Record {
             level: Level::Warn,
             area: "registry",
