@@ -1,14 +1,14 @@
-//! The Backups list: one row per Snapshot in the directory, what each row
-//! says, and what restoring one loads (spec §8, FR-backup-ui; ADR-0006).
+//! The Backups list: one line per Snapshot file in the directory, what each one
+//! says, and what restoring it loads (spec §8, FR-backup-ui; ADR-0006).
 //!
-//! A row is a Snapshot's **name** married to what reading its file turned out
-//! to be, and that pairing is the whole of the module. The name is the one part
-//! of a Corrupted Snapshot that still speaks, so a file failing validation is
-//! still dated and still shows its Scope; what it has is nothing to restore.
+//! A [`SnapshotFile`] is a Snapshot's **name** married to what reading it turned
+//! out to be, and that pairing is the whole of the module. The name is the one
+//! part of a Corrupted Snapshot that still speaks, so a file failing validation
+//! is still dated and still shows its Scope; what it has is nothing to restore.
 //!
 //! Restoring loads a Snapshot into a Working Copy and never into the registry,
-//! so what a row hands over is exactly what one ordinary Checkpoint captures:
-//! the Entries, and the Value Type they were stored under.
+//! so what one hands over is exactly what one ordinary Checkpoint captures: the
+//! Entries, and the Value Type they were stored under.
 //!
 //! Reading the files is the caller's, in the imperative shell. This module is
 //! handed what a directory turned out to hold; it never opens one.
@@ -16,19 +16,19 @@
 use crate::session::{Scope, ValueType, ABSENT_VALUE_TYPE};
 use crate::snapshot::{Captured, Decoded, SnapshotName};
 
-/// One row of the Backups list: a Snapshot's name, and what reading its file
+/// One Snapshot file as the Backups tab shows it: its name, and what reading it
 /// turned out to be.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Row {
+pub struct SnapshotFile {
     name: SnapshotName,
     decoded: Decoded,
 }
 
-impl Row {
+impl SnapshotFile {
     /// The Scope this Snapshot holds, and so the Scope a Restore targets — a
     /// Snapshot goes back into the Scope it was taken from and nowhere else.
     ///
-    /// Read from the name, which is what lets a Corrupted row answer at all.
+    /// Read from the name, which is what lets a Corrupted file answer at all.
     pub fn scope(&self) -> Scope {
         self.name.scope()
     }
@@ -62,7 +62,9 @@ impl Row {
     /// [`ABSENT_VALUE_TYPE`]: it recorded no Value Type, because an Absent
     /// Scope has none (ADR-0006), and a Working Copy has no Absent state to
     /// restore it into — so what comes back is what a Session loaded from an
-    /// Absent Scope already takes.
+    /// Absent Scope already takes. Applying it therefore creates a present and
+    /// empty value rather than an Absent Scope; the file keeps the distinction
+    /// the Working Copy cannot (spec §8).
     pub fn restores(&self) -> Option<(&[String], ValueType)> {
         match &self.decoded {
             Decoded::Corrupted => None,
@@ -77,18 +79,18 @@ impl Row {
     }
 }
 
-/// The Backups list's rows, **newest first**.
+/// The Snapshot files a directory turned out to hold, **newest first**.
 ///
 /// That is the reverse of [`snapshot::listing`](crate::snapshot::listing)'s
 /// order, and deliberately: rotation asks the directory for its oldest, and
 /// someone restoring wants the backup they took last. Both orders are the one
 /// [`SnapshotName`] ordering, so the suffix that separates two Snapshots of a
 /// single second is read as the number it is at either end.
-pub fn rows(read: impl IntoIterator<Item = (SnapshotName, Decoded)>) -> Vec<Row> {
-    let mut rows: Vec<Row> = read
+pub fn newest_first(read: impl IntoIterator<Item = (SnapshotName, Decoded)>) -> Vec<SnapshotFile> {
+    let mut files: Vec<SnapshotFile> = read
         .into_iter()
-        .map(|(name, decoded)| Row { name, decoded })
+        .map(|(name, decoded)| SnapshotFile { name, decoded })
         .collect();
-    rows.sort_by(|row, other| other.name.cmp(&row.name));
-    rows
+    files.sort_by(|file, other| other.name.cmp(&file.name));
+    files
 }

@@ -107,9 +107,12 @@ what actually writes it.
 _Avoid_: Backup (reserve that for the act of taking one and for the directory they live in)
 
 **Corrupted**:
-The state of a Snapshot file that fails schema validation — unparsable JSON, or a missing or mistyped field.
-Shown as passive text in the Backups list, the same free ride NVDA already gets on other list columns; never
-spoken as an Announcement. A Corrupted Snapshot still counts toward its Scope's rotation budget.
+The state of a Snapshot file nothing can be restored from — one that fails schema validation (unparsable
+JSON, or a missing or mistyped field), or that cannot be read at all. It is one state and not three because
+there is one thing to say about all of them, and the file is still there to say it about: a file that merely
+*is not* a Snapshot — a foreign name, the `.tmp` of a write in progress — is invisible instead. Shown as
+passive text in the Backups list, the same free ride NVDA already gets on other list columns; never spoken as
+an Announcement. A Corrupted Snapshot still counts toward its Scope's rotation budget.
 _Avoid_: Invalid, Broken, Damaged
 
 ### Speaking to the user

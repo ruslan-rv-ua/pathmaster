@@ -38,6 +38,11 @@ not "does it reproduce a byte buffer no other part of the application ever touch
   a backup format to be in the first place.
 - **Absent and zero-Entries are distinct, representable states**, matching the Working Copy's own model
   (`CONTEXT.md`, **Absent**) rather than collapsing them into "no file" or "empty array" by accident.
+  **The distinction survives in the file and not through a Restore** (impl ticket 14): a Working Copy has
+  no Absent state, so restoring an `absent: true` Snapshot loads no Entries typed `REG_EXPAND_SZ` — exactly
+  what reading an Absent Scope already gives (spec §4) — and applying that creates a present, empty value.
+  The file still says which it was, to a person and to any later version that grows a delete path; what
+  v0.1.0 does not have is a way to put "Absent" back into a Session.
 - **This schema cannot represent a value that fails to round-trip through decode/split/join.** Not observed for
   `PATH` — a `REG_SZ`/`REG_EXPAND_SZ` payload is well-formed UTF-16 text by definition of the type — and
   accepted rather than defended against, because raw bytes appear nowhere outside the registry adapter,

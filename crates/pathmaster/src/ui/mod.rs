@@ -182,7 +182,7 @@ impl ScopeTab {
 /// `&self`: the Sessions' interior mutability is the `RefCell`'s, and **no
 /// borrow is ever held across a call that can run someone else's code**.
 ///
-/// Two kinds of call can. A modal dialog runs its own event loop, and
+/// Four kinds of call can. A modal dialog runs its own event loop, and
 /// `ScopePage::render` fires the list's own events synchronously — of which
 /// only `on_item_activated` is bound, so `render` cannot re-enter. The second
 /// arrived with diagnostics and is the sharper one: **the Timer ticks inside a
@@ -194,6 +194,17 @@ impl ScopeTab {
 /// `convert_or_keep` drops the Session before it asks. What a pass landing
 /// under an open dialog does is write the Status column and re-sync controls
 /// the dialog has disabled anyway — invisible, and correct once it closes.
+///
+/// The Backups tab added the other two, and unlike `render`'s these **are**
+/// bound. `BackupsPage::show` rebuilds a list under a live `on_item_focused`,
+/// whose handler is `sync` — so it reads every Session *and* the page's own
+/// cell of Snapshot files; `show` therefore fills the widget first and replaces
+/// that cell last, holding no borrow of it across either. And
+/// `Notebook::set_selection`, which `restore` calls to activate the target
+/// Scope's tab, runs the page-changed handler synchronously, which borrows
+/// every Session — so `restore` copies what it needs out of the page before it
+/// touches one, and the `borrow_mut` that performs the Restore is a temporary
+/// that dies with the `if` that tests it.
 struct App {
     frame: Frame,
     notebook: Notebook,
@@ -541,12 +552,12 @@ impl App {
     /// them is about a list, and the only run that can reach it is one whose
     /// Data Directory the user has taken away underneath it.
     fn reload_backups(&self) {
-        let rows = self
+        let files = self
             .run
             .data_dir()
             .and_then(|data_dir| snapshots::load(&snapshots::dir(data_dir)).ok())
             .unwrap_or_default();
-        self.backups.show(rows);
+        self.backups.show(files);
     }
 
     /// Add is dialog-first: the dialog opens empty, and OK appends at the end

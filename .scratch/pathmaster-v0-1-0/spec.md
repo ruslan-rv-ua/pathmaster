@@ -433,6 +433,13 @@ Snapshot is or what Restore does:
 - **Restoring a Snapshot of an Absent Scope loads no Entries, typed `REG_EXPAND_SZ`** — the type
   the first Apply will create (§4), because an Absent Scope recorded no Value Type and a Working
   Copy has no Absent state to restore into. Its entry-count column therefore reads `0`.
+  **That round trip is lossy, and knowingly so**: `absent: true` keeps Absent and
+  present-but-empty distinct *in the file*, which is what ADR-0006 added it for and what a person
+  reading the file still gets — but restoring one and applying it creates a present, empty value
+  rather than deleting the Scope's. It is the same loss reading an Absent Scope already takes (§4:
+  the Working Copy is empty and typed `REG_EXPAND_SZ`), and closing it would mean an Absent state
+  in the Working Copy and a delete path in Apply, neither of which v0.1.0 has. Recorded here rather
+  than left for someone to rediscover from the code.
 
 Apply-time backup failure (Announcement): "Apply failed — could not write a backup, no changes
 were made." `winget uninstall` deletes `data\`, Snapshots included; `winget upgrade` keeps it —

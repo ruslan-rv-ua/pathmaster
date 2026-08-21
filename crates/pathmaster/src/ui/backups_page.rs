@@ -16,7 +16,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use pathmaster_core::backups::Row;
+use pathmaster_core::backups::SnapshotFile;
 use pathmaster_core::catalogue::Catalogue;
 use pathmaster_core::msgids;
 use pathmaster_core::session::{Scope, ValueType};
@@ -46,7 +46,7 @@ pub struct BackupsPage {
     /// already opened every file to build this list, so restoring from what
     /// was read is one fewer read that can fail — and it cannot disagree with
     /// the row the user is looking at.
-    rows: RefCell<Vec<Row>>,
+    files: RefCell<Vec<SnapshotFile>>,
     /// The one Catalogue, for the three columns this tab composes (ADR-0009).
     catalogue: Rc<Catalogue>,
 }
@@ -104,34 +104,34 @@ impl BackupsPage {
             panel,
             list,
             restore,
-            rows: RefCell::new(Vec::new()),
+            files: RefCell::new(Vec::new()),
             catalogue: Rc::clone(catalogue),
         }
     }
 
-    /// Redraws the list over `rows`, newest first as they arrive.
+    /// Redraws the list over `files`, newest first as they arrive.
     ///
     /// Focus is left exactly where it is. Nothing here is an operation, so
     /// there is no row an operation points at — the user Tabs into the list and
     /// arrows through it, and a rebuild that moved them would be a rebuild they
     /// did not ask for.
     ///
-    /// The widget is filled first and [`rows`](Self::rows) replaced last, and
+    /// The widget is filled first and [`files`](Self::files) replaced last, and
     /// **no borrow of it is held across either**: a list fires its own events
     /// synchronously, `on_item_focused` among them, and that handler reads this
     /// cell. The window re-syncs the button immediately afterwards, so a row
     /// focused mid-rebuild is a stale answer for the length of one call and not
     /// a panic.
-    pub fn show(&self, rows: Vec<Row>) {
+    pub fn show(&self, files: Vec<SnapshotFile>) {
         self.list.delete_all_items();
-        for (index, row) in rows.iter().enumerate() {
-            let [taken, scope, entries] = self.catalogue.backup_row(row);
+        for (index, file) in files.iter().enumerate() {
+            let [taken, scope, entries] = self.catalogue.snapshot_columns(file);
             self.list.insert_item(index as i64, &taken, None);
             self.list.set_item_text_by_column(index as i64, 1, &scope);
             self.list.set_item_text_by_column(index as i64, 2, &entries);
         }
         fit_columns(&self.list);
-        *self.rows.borrow_mut() = rows;
+        *self.files.borrow_mut() = files;
     }
 
     /// The Scope the focused row would be restored into, or `None` when there
@@ -143,9 +143,7 @@ impl BackupsPage {
     /// into the Scope it was taken from, and a Session that cannot be written
     /// is the second reason Restore reads as disabled.
     pub fn restore_target(&self) -> Option<Scope> {
-        let rows = self.rows.borrow();
-        let row = rows.get(list::focused_row(&self.list)?)?;
-        row.restores().is_some().then_some(row.scope())
+        self.focused(|file| file.restores().is_some().then_some(file.scope()))?
     }
 
     /// What restoring the focused row loads: the Scope it goes into, its
@@ -153,16 +151,27 @@ impl BackupsPage {
     /// caller is about to hand it to a Session that this page's borrow must
     /// not still be open across.
     pub fn restore_payload(&self) -> Option<(Scope, Vec<String>, ValueType)> {
-        let rows = self.rows.borrow();
-        let row = rows.get(list::focused_row(&self.list)?)?;
-        let (entries, value_type) = row.restores()?;
-        Some((row.scope(), entries.to_vec(), value_type))
+        self.focused(|file| {
+            let (entries, value_type) = file.restores()?;
+            Some((file.scope(), entries.to_vec(), value_type))
+        })?
     }
 
     /// Points the Restore button at what the focused row is worth — the same
     /// shape as a Scope tab's `sync_buttons`, over the one button this tab has.
     pub fn sync_button(&self, restorable: bool) {
         self.restore.enable(restorable);
+    }
+
+    /// Reads the Snapshot file the list is on, if the user is on a row at all.
+    ///
+    /// A closure rather than a returned reference, and the only place this
+    /// page's cell is borrowed for reading: both callers run while a list event
+    /// could arrive, so the borrow must die with the answer rather than travel
+    /// out with it.
+    fn focused<T>(&self, read: impl FnOnce(&SnapshotFile) -> T) -> Option<T> {
+        let files = self.files.borrow();
+        Some(read(files.get(list::focused_row(&self.list)?)?))
     }
 }
 

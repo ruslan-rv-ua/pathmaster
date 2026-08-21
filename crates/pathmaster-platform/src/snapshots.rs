@@ -3,8 +3,8 @@
 //!
 //! Two callers, one module. An Apply Run writes a Snapshot and rotates the
 //! Scope's budget; the Backups tab reads them all and shows the user where they
-//! live. So `data\backups\`
-//! is spelled once, and — more usefully — **one listing serves both questions
+//! live. So `data\backups\` is spelled once, and — more usefully —
+//! **one listing serves both questions
 //! the write asks of the directory**: what name the next Snapshot gets
 //! ([`SnapshotName::next`]) and which files no longer fit the budget
 //! ([`rotation::overflow`]). Those two must see the same set of files, because
@@ -20,7 +20,7 @@ use std::io;
 use std::os::windows::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 
-use pathmaster_core::backups::{self, Row};
+use pathmaster_core::backups::{self, SnapshotFile};
 use pathmaster_core::rotation;
 use pathmaster_core::session::Scope;
 use pathmaster_core::snapshot::{self, Decoded, Snapshot, SnapshotName};
@@ -76,9 +76,9 @@ pub fn listing(dir: &Path) -> io::Result<Vec<SnapshotName>> {
 /// disabled Restore have to say. Passing it over instead would make the list
 /// disagree with the directory — the file is there, and it counts toward its
 /// Scope's rotation budget either way.
-pub fn load(dir: &Path) -> io::Result<Vec<Row>> {
+pub fn load(dir: &Path) -> io::Result<Vec<SnapshotFile>> {
     let names = listing(dir)?;
-    Ok(backups::rows(names.into_iter().map(|name| {
+    Ok(backups::newest_first(names.into_iter().map(|name| {
         let decoded = match fs::read_to_string(dir.join(name.file_name())) {
             Ok(text) => Snapshot::decode(&text),
             Err(_) => Decoded::Corrupted,
@@ -95,7 +95,7 @@ pub fn load(dir: &Path) -> io::Result<Vec<Row>> {
 /// the catalogue is closed at seven — and none to give: the only run this can
 /// happen in is one whose Data Directory does not exist either.
 pub fn open_folder(data_dir: &Path) {
-    let folder = nul_terminated_wide(&folder_to_open(data_dir));
+    let folder = nul_terminated_wide(&ensure_folder(data_dir));
     let open: Vec<u16> = OPEN.encode_utf16().chain(std::iter::once(0)).collect();
     // SAFETY: both pointers are NUL-terminated UTF-16 buffers that outlive the
     // call, and the three nulls are the documented "no parameters, no working
@@ -112,15 +112,21 @@ pub fn open_folder(data_dir: &Path) {
     }
 }
 
-/// The folder [`open_folder`] shows: `data\backups\`, created when this Run has
-/// not yet taken a Snapshot, and the Data Directory itself when it cannot be.
+/// **Creates** `data\backups\` if it is not there, and answers the folder
+/// [`open_folder`] then shows: that directory, or the Data Directory itself
+/// when it could not be created.
 ///
-/// Creating it is not a side effect smuggled onto a menu item. It is the
-/// directory this application writes its own backups into, and the next Apply
-/// creates it anyway ([`write`]). What the fallback buys is that a menu item
-/// reading as available opens *something*: a Read-only Data run cannot create
-/// it, and the directory it would have lived in says more than nothing at all.
-pub fn folder_to_open(data_dir: &Path) -> PathBuf {
+/// The creation is why this is not the pure query its answer looks like. It is
+/// not a side effect smuggled onto a menu item, though: this is the directory
+/// the application writes its own backups into, and the next Apply creates it
+/// anyway ([`write`]). What the fallback buys is that a menu item reading as
+/// available opens *something* — a Read-only Data run cannot create it, and the
+/// directory it would have lived in says more than nothing at all.
+///
+/// Both this and [`open_folder`] take the **Data** Directory rather than the
+/// backups directory the rest of the module takes, because choosing between the
+/// two is the question they answer.
+pub fn ensure_folder(data_dir: &Path) -> PathBuf {
     let backups = dir(data_dir);
     match fs::create_dir_all(&backups) {
         Ok(()) => backups,

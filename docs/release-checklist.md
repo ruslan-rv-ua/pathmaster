@@ -61,6 +61,7 @@ interface expect the Catalogue's Ukrainian equivalents.
 | 22 | Ctrl+Z after step 21 | "Undone: Restore snapshot", and the list is back to what it held | |
 | 23 | Arrow to a **System** Snapshot, unelevated | Restore reads as unavailable — the System Session cannot be written, whatever the file holds | |
 | 24 | Tools → Open Backups Folder | The menu item is spoken; `data\backups\` opens in Explorer — a folder, **not** a file-picker dialog | |
+| 25 | Continue step 17's unwritable-`data\` run: Backups tab, arrow to any Snapshot | The list still **shows** every Snapshot — Read-only Data still reads — and Restore reads as unavailable on all of them, this Scope included: an Apply could not take the backup it must take first | |
 
 Steps 20 and 21 need Snapshots to exist. Apply once to make a real one (step 10), or hand-place
 files in `data\backups\`: `YYYY-MM-DDTHH-MM-SS-User.json` holding

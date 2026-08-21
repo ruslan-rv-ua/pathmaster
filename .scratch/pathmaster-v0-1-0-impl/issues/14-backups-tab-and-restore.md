@@ -25,11 +25,11 @@ filesystem: read them all, and show the user where they live. The binary gains `
 and the four lines of wiring that make Restore an edit like any other. Twenty new tests, none of
 which link wxWidgets.
 
-**A row is a name plus a verdict, and that pairing is the whole module.** The name is the one part
-of a Corrupted Snapshot that still speaks, so a file that fails validation is still dated and still
-shows its Scope; what it has is nothing to restore. That makes `Row::restores()` — `Option<(&[String],
-ValueType)>` — answer both of the tab's questions at once: what Restore loads, and whether the
-button is worth anything. `None` *is* Corrupted, so the two cannot drift.
+**A `SnapshotFile` is a name plus a verdict, and that pairing is the whole module.** The name is the
+one part of a Corrupted Snapshot that still speaks, so a file that fails validation is still dated
+and still shows its Scope; what it has is nothing to restore. That makes `SnapshotFile::restores()`
+— `Option<(&[String], ValueType)>` — answer both of the tab's questions at once: what Restore loads,
+and whether the button is worth anything. `None` *is* Corrupted, so the two cannot drift.
 
 **Four rules the ticket left open, all four now in spec §8:**
 
@@ -71,7 +71,7 @@ one, which is what the old signature already did and what the struct now says ou
   Snapshots into it too — two instances are a designed state — and this tab is the only place they
   are shown. A rebuild leaves focus exactly where it is: nothing here is an operation, so there is
   no row an operation points at.
-- **`folder_to_open` creates `data\backups\` when it can** and falls back to the Data Directory
+- **`ensure_folder` creates `data\backups\` when it can** and falls back to the Data Directory
   when it cannot. That is not a side effect smuggled onto a menu item: it is the directory this
   application writes its own backups into, and the next Apply creates it anyway. What the fallback
   buys is that a menu item reading as available opens *something*.
@@ -111,3 +111,71 @@ Tools → Open Backups Folder («Інструменти(T)») opened Explorer at
 `…\live\data\backups` — confirmed through the shell's own window list, not from the screen. And a
 Snapshot written into the directory while the app was running appeared at the top of the list the
 next time the tab was activated.
+
+### The review
+
+Both axes ran against `a117d8e`, the last of ticket 20. **Spec** confirmed all six checkboxes and
+walked each of the seven behaviours most worth doubting — that `[Corrupted]` is composed only into a
+column and never reaches `announce()`, that foreign files are filtered by name before a file is ever
+opened, that `Session::restore` touches nothing but the Working Copy, and that Read-only Data both
+lists and refuses. **Standards** read the diff against `CONTEXT.md`, the ADRs and the borrow rule.
+
+Seven findings applied:
+
+- **`Row` was a word the glossary reserves.** `CONTEXT.md`'s **Entry** puts *Row* on its `_Avoid_`
+  list, and a `pub` type in the pure core is the strongest form of that drift — ticket 20's review
+  renamed `Startup` for exactly this reason. It is **`SnapshotFile`** now, which needs no new
+  glossary concept: it is the file a Snapshot lives in, plus what reading it gave.
+  `backups::rows` is `newest_first`, which names the rule it exists for, and
+  `Catalogue::backup_row` is `snapshot_columns`.
+- **The `App` doc comment had gone stale**, and it is the repo's stated home of the "no borrow across
+  a call that runs someone else's code" rule. It said *two* kinds of call can re-enter; this ticket
+  added two more, and unlike `render`'s these are **bound**: `BackupsPage::show` rebuilds a list under
+  a live `on_item_focused` whose handler reads every Session *and* the page's own cell, and
+  `Notebook::set_selection` runs the page-changed handler synchronously. Both were already safe —
+  `show` replaces its cell last, `restore` copies out before it borrows — and the comment now says so,
+  because that comment is what the next author checks.
+- **`Command::enabled` wrote `available.data_dir` twice**, the second arm unreachable. It is one
+  `match` over two kinds of command now — the one that answers to the Run, and the ten that answer to
+  a Scope through `over()` — still exhaustive, so the next command added has to say which it is.
+- **`restore_target` and `restore_payload` shared their two opening lines.** Both go through one
+  private `focused()` now, which is also the only place the page's cell is borrowed for reading —
+  worth more than the deduplication, since both callers run where a list event can arrive.
+- **`folder_to_open` read as a pure query and ran `create_dir_all`.** It is `ensure_folder`, and its
+  doc leads with the creation.
+- **`CONTEXT.md`'s Corrupted was not amended**, though this ticket widened it to files the OS will not
+  open — ticket 10 set the precedent by amending the glossary alongside §8. Done, and it now also
+  says what Corrupted is *not*: a file that never claimed to be a Snapshot is invisible instead.
+- **Nothing covered the Read-only Data half of checkbox 4.** The System-unelevated half is exercised
+  live and by Checklist step 23; the other half is now step 25, continuing step 17's staging — the
+  list still shows every Snapshot and Restore is unavailable on all of them.
+
+**Three findings declined, with the reasoning, and one recorded rather than fixed.**
+
+- **`(entries, ValueType)` as a Data Clump** — the pair the glossary already calls a **Working Copy**.
+  True, but that is `Session::restore`'s signature, which predates this ticket; giving it a type is a
+  change to the editing model, not to this tab.
+- **`ScopePage::focused_row` is now a one-line forwarder** to `ui::list`. Cutting it would trade a
+  Middle Man for a Message Chain — three call sites in the window would reach `tab.page.list`
+  themselves — so it stays.
+- **`sync_button` could disable Restore while Restore holds focus**, the case `ScopePage::rescue_focus`
+  exists for. Traced, and unreachable: the only thing that changes the answer is which row is focused,
+  and every way of reaching another row moves focus onto the list first. The one path that clears the
+  list without the user touching it — `show()` — runs only from the page-changed handler, which fires
+  after focus has already left the page, and it disables the button *before* wx restores focus into
+  it, which Windows will not do to a disabled control. Named here so it is not re-raised from scratch.
+- **Restoring an Absent Snapshot is a lossy round trip.** The sharpest finding: design ticket 14 added
+  `absent: true` because a Snapshot "needs to distinguish an Absent Scope from a present-but-empty
+  one… otherwise restore cannot reproduce what it saved" — and restoring one produces an empty Working
+  Copy, which Apply writes as a present, empty value. It is the same loss *reading* an Absent Scope
+  already takes (spec §4), so it is not this tab's to introduce or to close: closing it needs an Absent
+  state in the Working Copy and a delete path in Apply, neither of which v0.1.0 has. **Recorded rather
+  than papered over** — spec §8 and ADR-0006's Consequences both now say the file keeps the
+  distinction and the Restore does not.
+
+**Open Backups Folder's create-and-fall-back was flagged as scope creep and kept.** §15 asked for "a
+shell invocation, not a file dialog" and left open what happens when the folder is not there; something
+must. Of the four answers — do nothing, disable the item on a filesystem check in every sync, create,
+or create and fall back — the last is the only one where a menu item that reads as available always
+opens something, and the fallback fires only when there are no Snapshots at all. It is now written into
+§15 rather than living in the code alone, which is the half of the finding that was right.

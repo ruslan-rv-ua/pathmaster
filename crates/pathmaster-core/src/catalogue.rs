@@ -23,7 +23,7 @@
 //! happens, handed to the one thing that speaks, and counted by a test — so
 //! the set is closed by the compiler.
 
-use crate::backups::Row;
+use crate::backups::SnapshotFile;
 use crate::diagnostics::Issue;
 use crate::msgids::{self, fill};
 use crate::path::Rejection;
@@ -308,9 +308,9 @@ impl Catalogue {
             .join(", ")
     }
 
-    /// One row of the Backups list, in the tab's three columns: when the
-    /// Snapshot was taken, the Scope it holds, and how many Entries restoring
-    /// it would load (spec §8, FR-backup-ui).
+    /// One Snapshot file in the Backups tab's three columns: when it was
+    /// taken, the Scope it holds, and how many Entries restoring it would load
+    /// (spec §8, FR-backup-ui).
     ///
     /// A Corrupted file's third column is `[Corrupted]` where the count would
     /// stand, because that is the answer to the same question for a file that
@@ -321,14 +321,14 @@ impl Catalogue {
     /// The Scope is named with its tab's own label: a Scope has one name, and
     /// a second English for it would be a second translation to keep in step
     /// (ADR-0004).
-    pub fn backup_row(&self, row: &Row) -> [String; 3] {
+    pub fn snapshot_columns(&self, file: &SnapshotFile) -> [String; 3] {
         [
-            row.taken(),
-            self.lookup.translate(match row.scope() {
+            file.taken(),
+            self.lookup.translate(match file.scope() {
                 Scope::User => msgids::TAB_USER,
                 Scope::System => msgids::TAB_SYSTEM,
             }),
-            match row.restores() {
+            match file.restores() {
                 Some((entries, _)) => entries.len().to_string(),
                 None => self.lookup.translate(msgids::SNAPSHOT_CORRUPTED),
             },

@@ -204,15 +204,28 @@ impl Command {
     /// lists", and an unelevated System tab would otherwise never see an
     /// external change without a restart.
     pub fn enabled(self, available: &Availability) -> bool {
-        // The one command that is not about a Scope, answered before a Session
-        // is asked for — it is available on the Backups tab, where there is
-        // none, and a Read-only Data run still lists what it cannot write.
-        if self == Command::OpenBackupsFolder {
-            return available.data_dir;
+        // Exhaustive, like every `match` over this enum: the split is between
+        // the one command that answers to the Run and the ten that answer to a
+        // Scope, and the next command someone adds has to say which it is.
+        match self {
+            // Not about a Scope: it shows this Run's own directory, so it is
+            // available on the Backups tab, where there is no Session at all.
+            Command::OpenBackupsFolder => available.data_dir,
+            Command::Add
+            | Command::Edit
+            | Command::Delete
+            | Command::MoveUp
+            | Command::MoveDown
+            | Command::Undo
+            | Command::Redo
+            | Command::Apply
+            | Command::Cancel
+            | Command::Refresh => available.session.is_some_and(|session| self.over(session)),
         }
-        let Some(session) = available.session else {
-            return false;
-        };
+    }
+
+    /// What a Scope command asks of the Session it would act on.
+    fn over(self, session: &Session) -> bool {
         match self {
             Command::Refresh => true,
             _ if !session.writable() => false,
@@ -228,11 +241,9 @@ impl Command {
             // (ADR-0002) — and a Read-only Data run has already reached this
             // `match` through the non-writable Session above.
             Command::Apply | Command::Cancel => session.is_dirty(),
-            // Answered above, before there was a Session to answer it over. An
-            // arm all the same, so the next command someone adds has to say
-            // what it is worth rather than inherit a catch-all — the rule
-            // `menu()` already keeps.
-            Command::OpenBackupsFolder => available.data_dir,
+            // Not a Scope command, and never routed here — but answered rather
+            // than caught, so that adding one cannot inherit a default.
+            Command::OpenBackupsFolder => false,
         }
     }
 }

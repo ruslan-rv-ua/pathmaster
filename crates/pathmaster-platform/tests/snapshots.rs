@@ -13,7 +13,7 @@
 use std::fs;
 use std::path::Path;
 
-use pathmaster_core::backups::Row;
+use pathmaster_core::backups::SnapshotFile;
 use pathmaster_core::logfmt::Timestamp;
 use pathmaster_core::session::{Scope, ValueType};
 use pathmaster_core::snapshot::{Captured, Snapshot, SnapshotName};
@@ -185,18 +185,24 @@ fn a_load_reads_every_snapshot_and_hands_them_back_newest_first() {
     fs::write(dir.join("notes.txt"), b"hello").unwrap();
     fs::write(dir.join("2026-08-21T14-32-08-User.json.4242.tmp"), b"{}").unwrap();
 
-    let rows = snapshots::load(&dir).expect("a load");
+    let files = snapshots::load(&dir).expect("a load");
 
     assert_eq!(
-        rows.iter().map(Row::taken).collect::<Vec<String>>(),
+        files
+            .iter()
+            .map(SnapshotFile::taken)
+            .collect::<Vec<String>>(),
         ["2026-08-21 14:32:09", "2026-08-21 14:32:07"],
     );
     assert_eq!(
-        rows.iter().map(Row::scope).collect::<Vec<Scope>>(),
+        files
+            .iter()
+            .map(SnapshotFile::scope)
+            .collect::<Vec<Scope>>(),
         [Scope::System, Scope::User],
     );
     assert_eq!(
-        rows[1].restores().expect("a valid Snapshot").0,
+        files[1].restores().expect("a valid Snapshot").0,
         [r"C:\bin".to_string()],
     );
 }
@@ -211,13 +217,13 @@ fn a_snapshot_that_fails_validation_loads_as_corrupted_and_keeps_its_row() {
     let broken = SnapshotName::next(at(9), Scope::System, &[valid]);
     fs::write(dir.join(broken.file_name()), b"{ not json at all").unwrap();
 
-    let rows = snapshots::load(&dir).expect("a load");
+    let files = snapshots::load(&dir).expect("a load");
 
-    assert_eq!(rows.len(), 2);
-    assert_eq!(rows[0].scope(), Scope::System);
-    assert_eq!(rows[0].taken(), "2026-08-21 14:32:09");
-    assert_eq!(rows[0].restores(), None);
-    assert!(rows[1].restores().is_some(), "the good one is untouched");
+    assert_eq!(files.len(), 2);
+    assert_eq!(files[0].scope(), Scope::System);
+    assert_eq!(files[0].taken(), "2026-08-21 14:32:09");
+    assert_eq!(files[0].restores(), None);
+    assert!(files[1].restores().is_some(), "the good one is untouched");
 }
 
 #[test]
@@ -230,10 +236,10 @@ fn a_snapshot_that_cannot_be_read_at_all_is_corrupted_too() {
     let unreadable = SnapshotName::next(at(7), Scope::User, &[]);
     fs::create_dir_all(dir.join(unreadable.file_name())).unwrap();
 
-    let rows = snapshots::load(&dir).expect("a load");
+    let files = snapshots::load(&dir).expect("a load");
 
-    assert_eq!(rows.len(), 1);
-    assert_eq!(rows[0].restores(), None);
+    assert_eq!(files.len(), 1);
+    assert_eq!(files[0].restores(), None);
 }
 
 #[test]
@@ -251,11 +257,11 @@ fn a_directory_that_does_not_exist_yet_loads_as_no_rows() {
 // ---- Tools → Open Backups Folder (spec §15) ----
 
 #[test]
-fn the_folder_to_open_is_the_backups_directory_created_if_it_is_not_there_yet() {
+fn the_folder_to_show_is_the_backups_directory_created_if_it_is_not_there_yet() {
     let temp = tempfile::tempdir().unwrap();
     let backups = snapshots::dir(temp.path());
 
-    assert_eq!(snapshots::folder_to_open(temp.path()), backups);
+    assert_eq!(snapshots::ensure_folder(temp.path()), backups);
     assert!(
         backups.is_dir(),
         "a menu item that reads as available must open something"
@@ -270,5 +276,5 @@ fn a_backups_directory_that_cannot_be_created_falls_back_to_the_data_directory()
     let temp = tempfile::tempdir().unwrap();
     fs::write(snapshots::dir(temp.path()), b"not a directory").unwrap();
 
-    assert_eq!(snapshots::folder_to_open(temp.path()), temp.path());
+    assert_eq!(snapshots::ensure_folder(temp.path()), temp.path());
 }
