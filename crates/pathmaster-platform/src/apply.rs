@@ -123,6 +123,9 @@ pub trait Ask {
     /// dialog's only button is Cancel, and a hard cap that could return `true`
     /// would be a rule somebody has to remember rather than one the signature
     /// keeps (spec §7).
+    ///
+    /// "The warning is walkable, the cap is not" lives here now, in the one
+    /// place that cannot state it and then be ignored.
     fn hard_cap(&self, length: usize);
 }
 
@@ -305,17 +308,50 @@ pub fn apply(run: ApplyRun<'_>, env: &dyn Environment, ask: &dyn Ask) -> Outcome
 /// one lags by a Timer tick, and the number in the dialog is the one the user
 /// is being asked to accept. Both readings go through the same formula, which
 /// is why the formula is in `pathmaster-core` and not at either of them.
+///
+/// **The number is the post-write one**, which is what §7 asks for and is not
+/// the same as the StatusBar's. That field previews both Working Copies,
+/// because previewing what you are editing is its job; this gate must answer a
+/// different question — what the machine will hold once this run is done — and
+/// a Working Copy nobody is applying is not part of that answer. The limits are
+/// limits on a materialised environment variable, so a Scope's edits weigh
+/// nothing until they reach the registry.
 fn gate(run: &ApplyRun<'_>, env: &dyn Environment, ask: &dyn Ask) -> bool {
-    let system = &input_for(&run.scopes, Scope::System).entries;
-    let user = &input_for(&run.scopes, Scope::User).entries;
-    let length = thresholds::merged_length(system, user, env);
+    let length = thresholds::merged_length(
+        &after_this_run(run, Scope::System),
+        &after_this_run(run, Scope::User),
+        env,
+    );
     match thresholds::classify(length) {
         Overlength::Within => true,
         Overlength::CmdLimit => ask.cmd_limit(length),
+        // The one threshold with nothing to offer but Cancel. It is written
+        // here and enforced by `Ask::hard_cap` having no answer to give.
         Overlength::HardCap => {
             ask.hard_cap(length);
             false
         }
+    }
+}
+
+/// The Entries `scope` will hold once this run is done: its Working Copy when
+/// the run is applying it, and otherwise the value the registry last gave us.
+///
+/// The second half is the whole of the post-write rule. An unapplied Working
+/// Copy has never reached any process's `PATH` and may never — so counting it
+/// would let a large unsaved System edit block a User Apply on a length that
+/// does not exist, which is a lockout rather than a warning. `last_read` is
+/// used rather than a fresh read because it is already the value this
+/// application believes the registry holds, and asking again would add a
+/// failure to a step that has nothing to do if it fails.
+fn after_this_run(run: &ApplyRun<'_>, scope: Scope) -> Vec<String> {
+    let input = input_for(&run.scopes, scope);
+    if run.order.contains(&scope) {
+        return input.entries.clone();
+    }
+    match input.last_read.decode() {
+        ScopeValue::Absent => Vec::new(),
+        ScopeValue::Present { raw, .. } => split(&raw).into_iter().map(str::to_owned).collect(),
     }
 }
 

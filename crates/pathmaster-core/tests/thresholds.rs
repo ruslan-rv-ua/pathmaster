@@ -99,7 +99,6 @@ fn past_8191_cmd_ignores_the_variable_and_apply_may_still_proceed() {
     // consequence, and a legal thing to choose.
     assert_eq!(thresholds::classify(CMD_LIMIT + 1), Overlength::CmdLimit);
     assert_eq!(thresholds::classify(HARD_CAP - 1), Overlength::CmdLimit);
-    assert!(thresholds::classify(CMD_LIMIT + 1).may_proceed());
 }
 
 #[test]
@@ -108,13 +107,6 @@ fn at_32767_the_cap_is_hard_and_nothing_may_proceed() {
     // is no proceed button to offer.
     assert_eq!(thresholds::classify(HARD_CAP), Overlength::HardCap);
     assert_eq!(thresholds::classify(HARD_CAP + 1), Overlength::HardCap);
-    assert!(!thresholds::classify(HARD_CAP).may_proceed());
-}
-
-#[test]
-fn the_healthy_lengths_may_proceed() {
-    assert!(thresholds::classify(0).may_proceed());
-    assert!(thresholds::classify(CMD_LIMIT).may_proceed());
 }
 
 #[test]

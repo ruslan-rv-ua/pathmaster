@@ -33,7 +33,7 @@ The spec's own requirements end there. These seven are [ADR-0008](../../../docs/
 - [x] `Command::Apply` with a menu home and Ctrl+S (ADR-0004: a shortcut can only live on a menu item's label), disabled while clean
 - [x] The window holds what the run needs: the Run's facts — `Logger` and Data Directory — as one struct built in `main`, and the last-read `RawValue` per Scope in `ScopeTab`, replaced from what each run hands back. The **backup budget is not one of them**: `maxBackups` changes while the application runs (ticket 16), so the window holds the current `SettingsFile` and each Apply Run reads the budget from it ([ADR-0010](../../../docs/adr/0010-run-properties-decided-in-one-place.md))
 - [x] Spec §17's `pathmaster-platform` module list gains this ticket's Snapshot-files module
-- [x] The over-length gate reads a length the run computes itself, from both Working Copies by spec §7's formula through the `Environment` port — never the last `Diagnosis`, which lags by a Timer tick and would be a second definition of the number the StatusBar already speaks
+- [x] The over-length gate reads a length the run computes itself, by spec §7's formula through the `Environment` port — never the last `Diagnosis`, which lags by a Timer tick and would be a second definition of the number the StatusBar already speaks. *Amended after the review: this line first said "from both Working Copies", which §7 contradicts for a Scope the run is not applying — see "The gate's number" below*
 - [x] Noted, not built here: once §9's fifth row exists, `refresh` moves onto it and stops failing silently (spec §5, FR-refresh)
 
 ## Comments
@@ -272,3 +272,46 @@ string is implemented and tested in `pathmaster-platform`, and has not yet been 
 This is history, not a substitute for the release pass. §10.2 wants a filled copy naming the NVDA
 used, produced before every release; that copy is ticket 18's, and it will run these steps again
 against the shipped binary.
+
+### The gate's number
+
+The review found this ticket's own checkbox arguing with the spec, and the spec is right.
+
+§7 asks the Apply gate for the **post-write** merged length; the checkbox said "from both Working
+Copies". Those agree for a run over every dirty Scope and disagree for a run over one, and the
+disagreement is not cosmetic: with a large unapplied System edit open, the old reading let a hard cap
+block a perfectly legal User Apply on a length that would never exist. That is a lockout, not a
+warning — the one outcome a gate must never produce.
+
+**What settled it is what the limits are limits on.** Both numbers govern a *materialised
+environment variable*, not an editor's buffer: 8,191 is the length past which `cmd.exe` drops an
+inherited variable ([KB 830473](https://learn.microsoft.com/en-us/troubleshoot/windows-client/shell-experience/command-line-string-limitation)),
+and 32,767 is the documented maximum size of one user-defined variable
+([Environment Variables](https://learn.microsoft.com/en-us/windows/win32/procthread/environment-variables));
+the environment *block* limit that Raymond Chen's
+[2010 post](https://devblogs.microsoft.com/oldnewthing/20100203-00/?p=15083) describes was lifted at
+Vista and is not a modern constraint. The merged `PATH` a process receives is one variable, composed
+System first then User, out of **what the registry holds**. A Working Copy nobody has applied has
+never been part of it and may never be. So it weighs nothing, and the gate now says so:
+`after_this_run` takes each Scope's Working Copy when the run is applying it and its `last_read`
+otherwise.
+
+`last_read` rather than a fresh read, deliberately. It is already the value this application
+believes the registry holds — the same value the external-change comparison is made against — and a
+read here would add a failure mode to a step that has nothing to do when it fails.
+
+**The StatusBar's number does not change, and is now allowed to differ.** §12 gives that field both
+Working Copies because previewing what you are editing is its job. Two fields, two questions: "what
+am I editing" and "what will this Apply leave behind". They part company only when the Scope you are
+not applying has unsaved edits, and each is right about its own question. Nothing here should be
+"fixed" later to make them agree.
+
+**`Overlength::may_proceed` is deleted rather than called.** It was the review's other open item —
+a tested core interface with no production caller, which is the exact smell ADR-0008 was written
+about. It could not honestly get one: the gate does three different things with `classify`'s three
+variants — say nothing, ask, tell — and a `bool` collapses two of them. Its sentence, "the warning is
+walkable, the cap is not", now lives on `Ask::hard_cap`, which does not merely state the rule but has
+no answer to give.
+
+Two tests pin both halves: an unapplied Working Copy of 40,000 characters raises nothing at all, and
+a System *registry value* of 9,000 raises the warning during a User Apply.

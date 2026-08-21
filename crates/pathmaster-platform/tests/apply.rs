@@ -868,14 +868,47 @@ fn a_length_at_the_hard_cap_is_told_and_never_asked() {
 }
 
 #[test]
-fn the_gate_measures_both_working_copies_however_few_scopes_are_applied() {
-    // The merged length is a fact about the pair. A User Apply that adds one
-    // character to an already-enormous System Scope is still the Apply that
-    // takes the machine past the limit, and the dialog says so.
-    let world = World::new("gate-both");
+fn the_gate_counts_what_a_scope_it_is_not_applying_actually_holds() {
+    // The merged length is a fact about the pair, so a User Apply that adds one
+    // character to an already-enormous System *registry value* is still the
+    // Apply that takes the machine past the limit, and the dialog says so.
+    let world = World::new("gate-registry");
     let ask = Scripted::new();
+    // System is not in the run's order, so what counts is the value the
+    // registry holds — here, a Scope someone has already made enormous.
+    let system_holds = world
+        .system
+        .plant(ValueType::RegExpandSz, &long_entry(9_000));
 
     apply::apply(
+        run(
+            &world,
+            [
+                input(Scope::User, &world.user, &[r"C:\a"], RawValue::Absent),
+                input(Scope::System, &world.system, &[], system_holds),
+            ],
+            &[Scope::User],
+        ),
+        &Env,
+        &ask,
+    );
+
+    assert_eq!(ask.asked(), vec![Asked::CmdLimit(9_005)]);
+}
+
+#[test]
+fn an_unapplied_working_copy_never_blocks_the_scope_that_is_being_applied() {
+    // §7 asks for the **post-write** merged length, and a Working Copy nobody
+    // is applying has never reached any process's `PATH`. Counting it would let
+    // a large unsaved System edit lock a perfectly legal User Apply out behind
+    // a hard cap on a length that does not exist — a lockout, not a warning.
+    //
+    // The System Scope here is Absent in the registry and enormous in its
+    // Working Copy, which is the exact shape that used to raise the dialog.
+    let world = World::new("gate-unapplied");
+    let ask = Scripted::new();
+
+    let outcome = apply::apply(
         run(
             &world,
             [
@@ -883,7 +916,7 @@ fn the_gate_measures_both_working_copies_however_few_scopes_are_applied() {
                 input(
                     Scope::System,
                     &world.system,
-                    &[&long_entry(9_000)],
+                    &[&long_entry(40_000)],
                     RawValue::Absent,
                 ),
             ],
@@ -893,7 +926,8 @@ fn the_gate_measures_both_working_copies_however_few_scopes_are_applied() {
         &ask,
     );
 
-    assert_eq!(ask.asked(), vec![Asked::CmdLimit(9_005)]);
+    assert_eq!(ask.asked(), Vec::new(), "not even the walkable warning");
+    assert_eq!(words(&outcome), vec![(Scope::User, "applied")]);
 }
 
 // ---- A run covers Scopes, not a Scope (ADR-0008) ----

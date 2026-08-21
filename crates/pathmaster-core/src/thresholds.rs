@@ -29,15 +29,14 @@ pub enum Overlength {
     /// Past [`CMD_LIMIT`]: a warning dialog with a proceed button.
     CmdLimit,
     /// At or past [`HARD_CAP`]: a dialog with no proceed button.
+    ///
+    /// "The warning is walkable, the cap is not" was once a `may_proceed`
+    /// predicate here. It had no caller and could not honestly get one: an
+    /// Apply Run does three different things with these three variants — say
+    /// nothing, ask, tell — and a `bool` collapses two of them. The rule is
+    /// stated where it is now also *enforced*, on the Apply port's `hard_cap`,
+    /// which has no answer to give.
     HardCap,
-}
-
-impl Overlength {
-    /// Whether an Apply may go ahead. The one place "the warning is walkable,
-    /// the cap is not" is written down.
-    pub fn may_proceed(self) -> bool {
-        !matches!(self, Overlength::HardCap)
-    }
 }
 
 /// The merged length of both Working Copies, in UTF-16 code units:
