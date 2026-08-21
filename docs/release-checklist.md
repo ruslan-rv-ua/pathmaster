@@ -46,7 +46,7 @@ interface expect the Catalogue's Ukrainian equivalents.
 | 7 | Refresh (F5) | "{scope}: {n} entries"; `NVDA+Tab` confirms focus kept the Entry | |
 | 8 | Edit an entry, Ctrl+Z | "Undone: Edit entry"; focus lands on the row | |
 | 9 | Ctrl+Y | "Redone: Edit entry" | |
-| 10 | Apply | "User PATH applied" | |
+| 10 | Apply | "User PATH applied"; `NVDA+Tab` confirms focus stayed on the Entry | |
 | 11 | Ctrl+Z after Apply | "Undone: Edit entry, unsaved changes" | |
 | 12 | Cancel | "Changes discarded" | |
 | 13 | Close with a dirty Session | Dialog title names the dirty Scopes ("Unsaved changes in: …"); title + buttons spoken | |
@@ -64,6 +64,12 @@ interface expect the Catalogue's Ukrainian equivalents.
 | B3 | Browse in the Edit dialog | Standard Windows folder picker, operable by keyboard; chosen folder replaces the field text, focus returns to the field | |
 | B4 | OK on an entry using `%VAR%` in a `REG_SZ` Scope | Convert-or-keep dialog: title spoken, both buttons spoken; either answer commits, one Ctrl+Z takes it back | |
 | B5 | Cancel while dirty, then F5 while dirty | Each confirmation's title spoken and its two buttons; focus starts on the safe button, and Escape answers with it | |
+| B6 | Edit an Entry, then change `HKCU\Environment\Path` in `regedit`, then Apply | External-change dialog: title "PATH was modified externally since last refresh" and **all three** buttons spoken; Escape answers with [Cancel]; nothing written, Session still dirty | |
+| B7 | Stage B6 again, answer [Refresh and discard my changes] | List becomes the value `regedit` left; nothing written and no new file in `data\backups\`; Ctrl+Z brings nothing back — the stacks were cleared | |
+| B8 | Stage B6 again, answer [Overwrite] | "User PATH applied"; the newest file in `data\backups\` holds the value `regedit` left, **not** the one the Session remembered | |
+| B9 | Add an Entry long enough to take the StatusBar's merged length past 8,191, then Apply | Warning dialog: title names 8,191 and the length this Apply would leave; both buttons spoken; [Cancel] writes nothing, [Apply Anyway] proceeds to "User PATH applied" | |
+| B10 | Lengthen it past 32,767, then Apply | Hard-cap dialog: title names 32,767 and the length; **exactly one button**, Cancel, which Escape also answers; nothing written | |
+| B11 | Delete `data\backups\`, put a *file* of that name in its place, then Apply | "Apply failed — could not write a backup, no changes were made."; the registry value is unchanged and the Session is still dirty | |
 
 ## C. Elevated instance (ticket 12)
 
@@ -77,6 +83,7 @@ the header. Elevate via Tools → Restart as Administrator.
 | C3 | Arrow one list row, elevated | Row read with columns, as in step 3 | |
 | C4 | One Announcement, elevated (e.g. F5) | "{scope}: {n} entries" | |
 | C5 | Decline the UAC prompt (separate attempt) | Dialog title "Elevation was cancelled — still running without administrator rights"; original instance stays functional | |
+| C6 | Edit and Apply on the System tab, elevated | "System PATH applied" — Announcement 2's other string, which no unelevated run can reach: unelevated, the System Session is non-writable and Apply reads as unavailable | |
 
 ## D. Layout and environment
 

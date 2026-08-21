@@ -218,3 +218,34 @@ Apply can be stopped by a length that would never have existed. The narrowness i
 Session is non-writable unless elevated, so an unelevated run cannot reach it) and so is the
 conflict, and resolving it means choosing between the ticket's wording and §7's. Left as the ticket
 specifies it, named here rather than changed quietly.
+
+### The Release Checklist
+
+§10.2 makes the Checklist the whole of this application's GUI coverage, and this ticket added three
+dialogs and an Announcement that had no step in it. It gains six, appended to section B the way
+impl ticket 11 appended B4 and B5 — no section re-lettered, so a filled copy from an earlier release
+still means what it said.
+
+**B6-B8** are the external-change dialog's three answers, staged by editing
+`HKCU\Environment\Path` in `regedit` while the app is open: that the dialog is spoken with all
+three buttons and Escape answers with Cancel; that [Refresh and discard my changes] writes nothing
+and leaves Ctrl+Z with nothing to take back, because the stacks were cleared; and that [Overwrite]
+backs up **the value `regedit` left**, not the one the Session remembered — which is the one thing
+about the order a reader cannot check by looking at the screen.
+
+**B9 and B10** are the two over-length gates, and the StatusBar's own length field is what tells the
+person running them when they have gone far enough. B10 names the count of buttons, because "no way
+past" is the whole of what the hard cap is.
+
+**B11 reaches the failure taxonomy from the keyboard**, which nothing else in the Checklist does: a
+*file* named `backups` inside `data\` cannot be turned into the directory the Snapshot needs, so
+Apply stops before it writes and says so. It is the only one of §9's rows an unelevated tester can
+stage — access denied needs a System Scope, and a System Scope needs elevation.
+
+**C6** is Announcement 2's other string. "System PATH applied" is unreachable unelevated by
+construction, since a non-writable Session reads Apply as unavailable, so it belongs in the elevated
+section or nowhere.
+
+**A10 gained its second half.** It checked the speech and not the focus, though §10 fixes both
+("after Apply — stays on the current Entry"); it now ends with the `NVDA+Tab` confirmation step 7
+already carried. That is also the step that would catch a regression in `rescue_focus`.
