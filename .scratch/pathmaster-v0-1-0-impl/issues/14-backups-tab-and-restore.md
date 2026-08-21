@@ -179,3 +179,27 @@ must. Of the four answers — do nothing, disable the item on a filesystem check
 or create and fall back — the last is the only one where a menu item that reads as available always
 opens something, and the fallback fires only when there are no Snapshots at all. It is now written into
 §15 rather than living in the code alone, which is the half of the finding that was right.
+
+### Heard, not only seen
+
+The steps this ticket added were run on real NVDA by the user on 2026-08-21 and reported as
+passing: **A18–A25** — the Backups tab announcing nothing on activation, a row read by its three
+columns, `[Пошкоджено]` heard as part of a row with Restore reading as unavailable, a Restore that
+opens no dialog and lands focus in the restored list, «Скасовано: Відновлення знімка» on Ctrl+Z,
+a System Snapshot unrestorable unelevated, Tools → Open Backups Folder, and the Read-only Data run
+that still lists every Snapshot while refusing to restore any of them.
+
+That closes the gap this ticket's own verification could not. Everything recorded above was
+*measured* — each button's enabled state read cross-process through Win32, the list's contents read
+off a screenshot, the opened folder confirmed through the shell's own window list — and a control
+that is correct and a screen reader that says so are different claims. Only the second one is what
+this application is for.
+
+**C7 was not run, and could not have been.** It asks for a System Snapshot restored on an elevated
+instance, and the Checklist's own route to one is Tools → Restart as Administrator, which impl
+ticket 17 builds; it also needs an *installed* NVDA, portable being deaf to elevated windows. The
+step stays in the Checklist with its box unticked, which is the honest state — the same place
+ticket 13 left C6.
+
+This is history, not a substitute for the release pass: §10.2 wants a filled copy naming the NVDA
+used, produced before every release, and that copy is ticket 18's.
