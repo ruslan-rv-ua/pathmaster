@@ -202,6 +202,12 @@ msgstr "Інструменти(&T)"
 msgid "&Apply"
 msgstr "Застосувати(&A)"
 
+#. File menu item: closes the application, raising the close-confirm dialog
+#. first when a scope has unsaved changes. The code appends its accelerator.
+#. Keep the mnemonic on the Latin "x".
+msgid "E&xit"
+msgstr "Вихід(&X)"
+
 #. Edit menu item: opens the Add dialog. The code appends its accelerator.
 msgid "&Add Entry…"
 msgstr "Додати запис(&A)…"
@@ -349,6 +355,25 @@ msgstr "Відхилити зміни?"
 #. Confirmation title for Refresh, which unlike Cancel cannot be undone.
 msgid "Refresh discards your unsaved changes and the undo history — continue?"
 msgstr "Оновлення відхилить незбережені зміни та історію скасувань — продовжити?"
+
+#. Title of the one dialog raised when the application is closed with unsaved
+#. changes. {scopes} is filled with the dirty scopes' own tab labels, joined
+#. with a comma — use the same tab labels this file already translates.
+msgid "Unsaved changes in: {scopes} — save before closing?"
+msgstr "Незбережені зміни: {scopes} — зберегти перед закриттям?"
+
+#. Button of that dialog: apply every dirty scope, then close. The domain word
+#. for what it performs is "apply"; this button says "save" because that is
+#. what a close-confirm is expected to say.
+msgid "Save"
+msgstr "Зберегти"
+
+#. Button of that dialog: close without writing anything. Distinct from the
+#. "Cancel Changes" command ("Відхилити зміни") and from the "Discard
+#. changes" operation name ("Відхилення змін") — three meanings, three
+#. strings.
+msgid "Discard"
+msgstr "Відхилити"
 
 #. Dialog title: the registry value changed under us between the last read
 #. and this Apply. The whole message is the title.

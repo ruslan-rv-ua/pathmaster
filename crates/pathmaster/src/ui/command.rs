@@ -1,4 +1,4 @@
-//! The eleven commands the window carries, and the menus they live in
+//! The twelve commands the window carries, and the menus they live in
 //! (spec §15, §5, §6).
 //!
 //! One enum is the whole map: it names the menu items, the menu each belongs
@@ -22,8 +22,8 @@ use crate::catalog::translate;
 
 /// One user-visible command.
 ///
-/// Every one of them but the last is about a Scope, and the last is here for
-/// the reason the enum exists at all: it is a menu item, and a menu item's id,
+/// Ten of them are about a Scope; the last two are not, and are here for the
+/// reason the enum exists at all: they are menu items, and a menu item's id,
 /// label and enabled state are answered in one place or in three.
 ///
 /// **Restore is deliberately not one of them.** §15 gives it no menu item and
@@ -44,15 +44,18 @@ pub enum Command {
     Cancel,
     Refresh,
     OpenBackupsFolder,
+    Exit,
 }
 
 /// What a command's availability is decided from.
 ///
 /// The active Scope's Editing Session answers for the ten that edit one, and
 /// `None` — the Backups tab, which is not a Scope — closes every one of them.
-/// The Run's own facts answer for the eleventh, which is not about a Scope and
-/// is available on that tab precisely because it is not. Tickets 16 and 17 add
-/// their Tools items to the same shape.
+/// The Run's own facts answer for Open Backups Folder, and nothing at all
+/// answers for Exit: a way out of the application is available on every tab
+/// and in every state, dirty Sessions included — that is what the
+/// close-confirm is for. Tickets 16 and 17 add their Tools items to the same
+/// shape.
 pub struct Availability<'a> {
     pub session: Option<&'a Session>,
     /// Whether this Run has a Data Directory at all. The one Run that has none
@@ -65,7 +68,7 @@ impl Command {
     /// Every command, in **button** order — §15's Add, Edit, Delete, Move Up,
     /// Move Down, Apply, Cancel — which is also the order each menu takes its
     /// own items in, since [`menu`](Self::menu) preserves it.
-    pub const ALL: [Command; 11] = [
+    pub const ALL: [Command; 12] = [
         Command::Add,
         Command::Edit,
         Command::Delete,
@@ -77,6 +80,7 @@ impl Command {
         Command::Cancel,
         Command::Refresh,
         Command::OpenBackupsFolder,
+        Command::Exit,
     ];
 
     /// The menus, in menu-bar order. Help arrives with the ticket that fills
@@ -113,10 +117,9 @@ impl Command {
     pub fn menu(self) -> &'static str {
         // Exhaustive, like every other `match` over this enum: a catch-all
         // would land the next command someone adds in whichever menu happened
-        // to be the default, silently. Exit is arriving, and it belongs in
-        // File.
+        // to be the default, silently.
         match self {
-            Command::Apply => msgids::MENU_GROUP_FILE,
+            Command::Apply | Command::Exit => msgids::MENU_GROUP_FILE,
             Command::Add
             | Command::Edit
             | Command::Delete
@@ -134,6 +137,7 @@ impl Command {
     pub fn menu_label(self) -> String {
         let label = translate(match self {
             Command::Apply => msgids::MENU_APPLY,
+            Command::Exit => msgids::MENU_EXIT,
             Command::Add => msgids::MENU_ADD_ENTRY,
             Command::Edit => msgids::MENU_EDIT_ENTRY,
             Command::Delete => msgids::MENU_DELETE_ENTRY,
@@ -169,9 +173,11 @@ impl Command {
             Command::MoveDown => msgids::BUTTON_MOVE_DOWN,
             Command::Apply => msgids::BUTTON_APPLY,
             Command::Cancel => msgids::BUTTON_CANCEL,
-            Command::Undo | Command::Redo | Command::Refresh | Command::OpenBackupsFolder => {
-                return None
-            }
+            Command::Undo
+            | Command::Redo
+            | Command::Refresh
+            | Command::OpenBackupsFolder
+            | Command::Exit => return None,
         };
         Some(translate(msgid))
     }
@@ -179,6 +185,11 @@ impl Command {
     /// The keystroke wx parses out of the label. F2 and Del are the list's own
     /// gestures given a menu home; Enter and double-click reach the same
     /// dialog through the list's activation event instead (spec §6, §15).
+    ///
+    /// Alt+F4 is Windows' own gesture given one too. Naming it here does not
+    /// create it — the system closes a window on Alt+F4 whatever any menu
+    /// says — it makes the item **read** as the shortcut it already is, which
+    /// is the only way a screen-reader user learns of one (ADR-0004).
     fn accelerator(self) -> Option<&'static str> {
         match self {
             Command::Edit => Some("F2"),
@@ -188,6 +199,7 @@ impl Command {
             Command::Undo => Some("Ctrl+Z"),
             Command::Redo => Some("Ctrl+Y"),
             Command::Apply => Some("Ctrl+S"),
+            Command::Exit => Some("Alt+F4"),
             Command::Refresh => Some("F5"),
             Command::Add | Command::Cancel | Command::OpenBackupsFolder => None,
         }
@@ -205,12 +217,16 @@ impl Command {
     /// external change without a restart.
     pub fn enabled(self, available: &Availability) -> bool {
         // Exhaustive, like every `match` over this enum: the split is between
-        // the one command that answers to the Run and the ten that answer to a
+        // the two commands that answer to the Run and the ten that answer to a
         // Scope, and the next command someone adds has to say which it is.
         match self {
             // Not about a Scope: it shows this Run's own directory, so it is
             // available on the Backups tab, where there is no Session at all.
             Command::OpenBackupsFolder => available.data_dir,
+            // Not about anything. An application a dirty Session could disable
+            // the way out of is one the user has to kill, and the whole of the
+            // close-confirm is that they do not have to.
+            Command::Exit => true,
             Command::Add
             | Command::Edit
             | Command::Delete
@@ -241,9 +257,9 @@ impl Command {
             // (ADR-0002) — and a Read-only Data run has already reached this
             // `match` through the non-writable Session above.
             Command::Apply | Command::Cancel => session.is_dirty(),
-            // Not a Scope command, and never routed here — but answered rather
+            // Not Scope commands, and never routed here — but answered rather
             // than caught, so that adding one cannot inherit a default.
-            Command::OpenBackupsFolder => false,
+            Command::OpenBackupsFolder | Command::Exit => false,
         }
     }
 }
@@ -251,8 +267,7 @@ impl Command {
 /// Builds the menu bar from [`Command::MENUS`] and [`Command::menu`], so a
 /// command with no menu is a command with no shortcut — which for Ctrl+S would
 /// be a command with no way to reach it at all. Help arrives with the ticket
-/// that fills it; File is Apply alone until the close-confirm ticket adds Exit,
-/// and Tools is one item until tickets 16 and 17 add theirs.
+/// that fills it; Tools is one item until tickets 16 and 17 add theirs.
 ///
 /// Every item's help string is deliberately empty: wx writes it to the status
 /// bar as the user moves through the menu, and the status bar is command-only

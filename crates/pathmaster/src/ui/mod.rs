@@ -22,10 +22,12 @@ mod question;
 mod scope_page;
 
 use std::cell::{Cell, RefCell};
+use std::path::Path;
 use std::rc::Rc;
 
 use pathmaster_core::catalogue::{Announcement, Catalogue, ScopeCounts, UndoDirection};
 use pathmaster_core::diagnostics::{Diagnosis, Findings};
+use pathmaster_core::logfmt::{FailureCause, Record};
 use pathmaster_core::msgids;
 use pathmaster_core::normalize::has_variable_reference;
 use pathmaster_core::session::{EntryId, Operation, Scope, Session, ValueType};
@@ -33,8 +35,12 @@ use pathmaster_core::settings::SettingsFile;
 use pathmaster_platform::apply::{self, ApplyRun, Ask, ExternalChange, ScopeInput, ScopeOutcome};
 use pathmaster_platform::datadir::ReadOnlyReason;
 use pathmaster_platform::diagnostics::ProcessEnvironment;
+use pathmaster_platform::geometry::{self, Placement};
 use pathmaster_platform::logwriter;
 use pathmaster_platform::registry::{RawValue, ScopeKey};
+// The file in the Data Directory. `pathmaster_core::settings` above contributes
+// the type it holds; this contributes the atomic replace that rewrites it.
+use pathmaster_platform::settings;
 use pathmaster_platform::snapshots;
 use pathmaster_platform::startup::Run;
 use wxdragon::prelude::*;
@@ -319,6 +325,10 @@ pub fn build_main_window(
     let status = frame.create_status_bar(2, 0, ID_ANY as Id, "");
     status.set_status_widths(&[-3, -2]);
 
+    // Read before the settings move into the window, and used below: where
+    // this window opens is decided from the file, once, before it is shown.
+    let remembered = settings.window();
+
     let app = Rc::new(App {
         frame,
         notebook,
@@ -337,7 +347,26 @@ pub fn build_main_window(
     app.bind();
     app.sync();
 
-    frame.centre();
+    // Where the window opens (spec §12): what the file remembered, clamped
+    // onto the monitors plugged in now — decided before `show`, so it opens
+    // where it belongs rather than jumping once the user can see it.
+    match geometry::place(remembered, &geometry::work_areas()) {
+        // The builder's 900×650 stands, and wx centres it. Both already
+        // happened, which is why this arm carries no numbers.
+        Placement::Centred => frame.centre(),
+        Placement::Remembered(window) => {
+            // Physical pixels, set on the built frame: wxdragon routes a
+            // *builder's* size through an implicit `FromDIP` and this call
+            // through nothing, so what was measured on the way out is what is
+            // set on the way back in (spec §12).
+            frame.set_size_with_pos(window.x, window.y, window.width, window.height);
+            // After the geometry, never instead of it: what is set above is
+            // where the window goes the moment the user restores it.
+            if window.maximised {
+                frame.maximize(true);
+            }
+        }
+    }
     frame.show(true);
 
     // The pass at load (spec §7, FR-diag-async). Asked for after show, so the
@@ -421,6 +450,28 @@ impl App {
             event.base.skip(true);
         });
 
+        // Closing the application, however it was asked for: the title bar's
+        // [X], Alt+F4, File → Exit and the taskbar's own Close all arrive here
+        // as one event, so the close-confirm is asked once, in one place
+        // (spec §5, FR-close-confirm).
+        let app = Rc::clone(self);
+        self.frame.on_close(move |event| {
+            if app.closing() {
+                // Nothing here destroys the window. Skipping hands the event
+                // on to wx's own top-level handler, which is what does — a
+                // handler that neither skips nor vetoes leaves the window open
+                // and says nothing about why.
+                event.skip(true);
+                return;
+            }
+            // A close event is never one of the typed variants, so this always
+            // matches; vetoing rather than merely not skipping is what also
+            // answers a Windows session end, which asks before it closes.
+            if let WindowEventData::General(close) = &event {
+                close.veto();
+            }
+        });
+
         // The one place a finished pass crosses onto the UI thread (spec §7,
         // FR-diag-async).
         let app = Rc::clone(self);
@@ -482,10 +533,15 @@ impl App {
         if !available {
             return;
         }
-        // The one command that is not about a Scope — and the one reachable
-        // from the Backups tab, where there is no Scope tab to hand it.
-        if command == Command::OpenBackupsFolder {
-            return self.open_backups_folder();
+        // The two commands that are not about a Scope — and so the two
+        // reachable from the Backups tab, where there is no Scope tab to hand
+        // one.
+        match command {
+            Command::OpenBackupsFolder => return self.open_backups_folder(),
+            // `false`, never `true`: a forced close would be a way past the
+            // very dialog the close-confirm exists to ask (spec §5).
+            Command::Exit => return self.frame.close(false),
+            _ => {}
         }
         let Some(tab) = active else { return };
         match command {
@@ -499,8 +555,8 @@ impl App {
             Command::Apply => self.apply(tab),
             Command::Cancel => self.cancel(tab),
             Command::Refresh => self.refresh(tab),
-            // Answered above, before there was a Scope to answer it over.
-            Command::OpenBackupsFolder => {}
+            // Answered above, before there was a Scope to answer them over.
+            Command::OpenBackupsFolder | Command::Exit => {}
         }
     }
 
@@ -709,7 +765,17 @@ impl App {
         });
     }
 
-    /// Ctrl+S: the Apply Run over the active Scope (spec §5, FR-apply).
+    /// Ctrl+S: the Apply Run over the active Scope alone (spec §5, FR-apply).
+    fn apply(&self, tab: &ScopeTab) {
+        if let Some(outcome) = self.apply_scopes(&[tab.scope]) {
+            self.after_apply(outcome);
+        }
+    }
+
+    /// One Apply Run over `order`, in that order, stopping at the first Scope
+    /// that does not complete (spec §5, FR-apply; ADR-0008). Ctrl+S is a run
+    /// of one; the close-confirm's Save is a run over every dirty Scope, User
+    /// first.
     ///
     /// Everything the run needs is copied out **before** it is called, and
     /// nothing is borrowed across it: the run opens modal dialogs, a modal
@@ -718,27 +784,24 @@ impl App {
     /// and panic (ADR-0008).
     ///
     /// A run with no Data Directory has nowhere to put the backup that must
-    /// precede any write, so there is nothing to do. It is unreachable in
+    /// precede any write, so there is no run to make. It is unreachable in
     /// practice — such a run is Read-only Data, whose Sessions are all
-    /// non-writable, and `Command::enabled` has already turned Apply off — but
-    /// the Data Directory is an `Option` and this is what its `None` means.
-    fn apply(&self, tab: &ScopeTab) {
-        let Some(data_dir) = self.run.data_dir() else {
-            return;
-        };
+    /// non-writable, so nothing is dirty and neither Ctrl+S nor the
+    /// close-confirm can reach here — but the Data Directory is an `Option`
+    /// and this is what its `None` means.
+    fn apply_scopes(&self, order: &[Scope]) -> Option<apply::Outcome> {
+        let data_dir = self.run.data_dir()?;
         // Read out here rather than in the struct below: a `Ref` taken inside
         // the call expression would live until the call returned, which is to
         // say across every dialog the run opens.
         let max_backups = self.settings.borrow().max_backups();
-        let outcome = apply::apply(
+        Some(apply::apply(
             ApplyRun {
                 scopes: [
                     self.scope_input(Scope::User),
                     self.scope_input(Scope::System),
                 ],
-                // Ctrl+S is a run of one Scope; the close-confirm's Save is a
-                // run over every dirty Scope, User first.
-                order: &[tab.scope],
+                order,
                 data_dir,
                 log_path: self.run.log_path(),
                 // Read here rather than inside the run, because a Snapshot's
@@ -754,8 +817,7 @@ impl App {
                 frame: &self.frame,
                 catalogue: &self.catalogue,
             },
-        );
-        self.after_apply(outcome);
+        ))
     }
 
     /// One Scope as the run takes it. Both are handed over however few are
@@ -826,6 +888,165 @@ impl App {
         // One pass covers both Scopes, so it is asked for once however many
         // the run reached (spec §7, FR-diag-duplicate).
         self.request_pass();
+    }
+
+    /// Everything closing the application has to get right (spec §5
+    /// FR-close-confirm, §12, §14). `true` lets the close proceed.
+    ///
+    /// The order is the whole of it. The user's answer comes first, because a
+    /// [Cancel] means none of the rest happens; the geometry is written only
+    /// once the close is certain, which is what "on clean shutdown only"
+    /// means; and the shutdown line is last, so its presence in the log says
+    /// every step above it ran. A killed process shows as that line's absence.
+    fn closing(&self) -> bool {
+        if !self.save_or_discard() {
+            return false;
+        }
+        self.remember_geometry();
+        self.run.log(&Record::shutdown_clean());
+        true
+    }
+
+    /// The close-confirm: one dialog for the application, raised only when a
+    /// Session is dirty (spec §5, FR-close-confirm). `true` lets the close
+    /// proceed.
+    ///
+    /// **Clean Sessions close with no dialog** — dirty is a comparison, so an
+    /// edit and its exact reversal are not something to ask about.
+    ///
+    /// One list of dirty Scopes, read once: it is what the title names and
+    /// what the Apply Run is handed, so the sentence cannot promise an order
+    /// the sequence does not keep. The borrows it takes die inside it, before
+    /// the dialog's own event loop starts.
+    fn save_or_discard(&self) -> bool {
+        let dirty = self.dirty_scopes();
+        if dirty.is_empty() {
+            return true;
+        }
+        match question::choose(
+            &self.frame,
+            &self.catalogue.close_confirm_dialog(&dirty),
+            &[
+                &translate(msgids::BUTTON_SAVE),
+                &translate(msgids::BUTTON_DISCARD),
+                &translate(msgids::BUTTON_DIALOG_CANCEL),
+            ],
+        ) {
+            0 => self.save_then_close(&dirty),
+            // Close without writing. The Sessions die with the process, which
+            // is what makes this the cheap answer to give: nothing on the
+            // machine changes.
+            1 => true,
+            // [Cancel], which is also Escape, the default and the close box:
+            // the outcome that changes least (`question::choose`).
+            _ => false,
+        }
+    }
+
+    /// [Save]: one Apply Run over every dirty Scope, User first, each through
+    /// the full Apply path — external-change detection, backup, taxonomy and
+    /// all (spec §5, FR-close-confirm). `true` lets the close proceed.
+    ///
+    /// **Partial failure aborts the close.** A run that did not complete
+    /// leaves the window open, and a run that *failed* also sends focus to the
+    /// tab it failed on — activated **before** the outcome is applied, because
+    /// activating a tab speaks its entry count while the failure's reason is
+    /// spoken by `after_apply`: last spoken is what the user hears, and the
+    /// reason is what they need (spec §10.1 items 1 and 3). A [Cancel] inside
+    /// the run stops the close just as a failure does and moves nothing: the
+    /// user chose it, and there is nothing to announce.
+    fn save_then_close(&self, dirty: &[Scope]) -> bool {
+        // Unreachable: a dirty Session is a writable one, and the only Run
+        // without a Data Directory is Read-only Data, whose Sessions are both
+        // non-writable. Answered anyway, and answered by staying open —
+        // nothing was saved, so nothing may be thrown away.
+        let Some(outcome) = self.apply_scopes(dirty) else {
+            return false;
+        };
+        let completed = outcome.completed();
+        if let Some(scope) = outcome.failed_scope() {
+            self.notebook.set_selection(tab_index(scope) as usize);
+        }
+        self.after_apply(outcome);
+        completed
+    }
+
+    /// The Scopes whose Sessions are dirty, **in tab order** — which is User
+    /// first, and so is the order FR-close-confirm's Save applies them in
+    /// (spec §5, §12).
+    ///
+    /// One constant answers both: `TAB_INDEX_USER` is 0, so the tab the user
+    /// reads first and the Scope the run writes first cannot come apart.
+    fn dirty_scopes(&self) -> Vec<Scope> {
+        let mut dirty: Vec<Scope> = self
+            .tabs
+            .iter()
+            .filter(|tab| tab.session.borrow().is_dirty())
+            .map(|tab| tab.scope)
+            .collect();
+        dirty.sort_by_key(|scope| tab_index(*scope));
+        dirty
+    }
+
+    /// Writes where the window is into `settings.json` — on a clean shutdown
+    /// only, and in Writable Data only (spec §12, §13).
+    ///
+    /// It amends the document rather than serialising the settings, so a hand
+    /// edit's unknown fields and its key order both survive, and the write is
+    /// the atomic replace every write to this file goes through: the other
+    /// instance (two are a designed state) never reads a half-written file,
+    /// and a write that fails leaves the previous one intact.
+    ///
+    /// **A failed write is not the user's problem to hear about.** They asked
+    /// to close, and that is happening; the window is already going, so a
+    /// dialog would outlive what it is about, and the Announcement catalogue
+    /// is closed at seven. The log is the only witness there is room for, and
+    /// it is the one a developer asked "why does it not remember where I put
+    /// it?" would reach for.
+    fn remember_geometry(&self) {
+        let Some(data_dir) = self.writable_data_dir() else {
+            return;
+        };
+        let position = self.frame.get_position();
+        let size = self.frame.get_size();
+        let mut settings = self.settings.borrow_mut();
+        // `pathmaster_core::settings::Window` spelled out: `Window` in a wx
+        // module is wx's own, and this is the record in the file.
+        settings.set_window(pathmaster_core::settings::Window {
+            x: position.x,
+            y: position.y,
+            width: size.width,
+            height: size.height,
+            // Recorded beside the geometry wx reports **while** maximised,
+            // never instead of it: restoring sets that geometry and maximises
+            // over it, so an un-maximise afterwards lands on a window the size
+            // of the screen rather than on nothing at all.
+            maximised: self.frame.is_maximized(),
+        });
+        if let Err(error) = settings::write(data_dir, &settings) {
+            self.run
+                .log(&Record::settings_write_failed(FailureCause::Io {
+                    os_error: error.raw_os_error(),
+                }));
+        }
+    }
+
+    /// The Data Directory this Run may **write**, which is not the same as the
+    /// one it can name: `Run::data_dir` is `DataDirState::dir()`, and a
+    /// Read-only Data run has one of those too. `readonly` is the UI's own
+    /// record of the state that decided both, and it is `None` in exactly one
+    /// case — `DataDirState::Writable`.
+    ///
+    /// Apply deliberately does not ask this question: startup predicts, Apply
+    /// verifies at write time (ADR-0002). Geometry is the other side of that
+    /// rule — nobody asked for it, so a run that could only find out by
+    /// failing does not try, and "not written in Read-only Data" is visible
+    /// here rather than left to a `write` that would have refused anyway.
+    fn writable_data_dir(&self) -> Option<&Path> {
+        match self.readonly {
+            Some(_) => None,
+            None => self.run.data_dir(),
+        }
     }
 
     /// The `%VAR%`-into-`REG_SZ` question, asked between validation and the

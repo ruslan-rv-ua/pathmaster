@@ -246,6 +246,26 @@ impl Outcome {
     pub fn completed(&self) -> bool {
         self.scopes.iter().all(|(_, outcome)| outcome.completed())
     }
+
+    /// The Scope this run **failed** on, for the close-confirm to move focus
+    /// to (spec §5, FR-close-confirm).
+    ///
+    /// Deliberately a second question rather than the negation of the first.
+    /// [`completed`](Self::completed) decides whether the close proceeds, and
+    /// a [Cancel] answers it exactly as a failure does — the window stays open
+    /// either way. But a Cancel is *not* a failure: the user chose it, so
+    /// there is nothing to announce and no tab to be sent to. Folding the two
+    /// into one answer would send the user to a tab they had just declined to
+    /// write, with an empty Banner to explain it.
+    ///
+    /// The run stops at the first Scope that does not complete, so there is at
+    /// most one.
+    pub fn failed_scope(&self) -> Option<Scope> {
+        self.scopes
+            .iter()
+            .find(|(_, outcome)| matches!(outcome, ScopeOutcome::Failed(_)))
+            .map(|(scope, _)| *scope)
+    }
 }
 
 /// Runs the Apply sequence over `run.order`, in that order, stopping at the

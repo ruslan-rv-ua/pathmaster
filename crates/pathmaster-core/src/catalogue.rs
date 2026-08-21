@@ -170,6 +170,31 @@ impl Catalogue {
         }
     }
 
+    /// The close-confirm's title, which is the whole of that dialog: the
+    /// Scopes whose Sessions are dirty, named in one sentence (spec §5,
+    /// FR-close-confirm; §10's dialog discipline).
+    ///
+    /// **The order is the caller's**, deliberately unlike
+    /// [`general_status`](Self::general_status)'s. That field reads both
+    /// Scopes whatever order it is handed, because it is a reading of the two
+    /// tabs; this title reads the very list the Apply Run is about to take,
+    /// User first. One reading of which Sessions are dirty therefore feeds the
+    /// sentence and the sequence alike, and a second ordering rule here could
+    /// only promise an order the run does not keep.
+    ///
+    /// An empty list is not a state this composes for: a run with nothing
+    /// dirty closes with no dialog at all.
+    pub fn close_confirm_dialog(&self, dirty: &[Scope]) -> String {
+        let scopes: Vec<String> = dirty
+            .iter()
+            .map(|scope| self.lookup.translate(tab_msgid(*scope)))
+            .collect();
+        fill(
+            &self.lookup.translate(msgids::DIALOG_CLOSE_CONFIRM),
+            &[("scopes", &scopes.join(", "))],
+        )
+    }
+
     /// StatusBar field 0, the general status (spec §12): each Scope's entry
     /// count and the issues the last pass found there — or, in a Read-only
     /// Data run, the mode and its reason in their place.
@@ -324,10 +349,7 @@ impl Catalogue {
     pub fn snapshot_columns(&self, file: &SnapshotFile) -> [String; 3] {
         [
             file.taken(),
-            self.lookup.translate(match file.scope() {
-                Scope::User => msgids::TAB_USER,
-                Scope::System => msgids::TAB_SYSTEM,
-            }),
+            self.lookup.translate(tab_msgid(file.scope())),
             match file.restores() {
                 Some((entries, _)) => entries.len().to_string(),
                 None => self.lookup.translate(msgids::SNAPSHOT_CORRUPTED),
@@ -392,5 +414,16 @@ impl Catalogue {
             &self.lookup.translate(msgids::READONLY),
             &[("reason", &self.lookup.translate(reason))],
         )
+    }
+}
+
+/// A Scope's one name: the label its own tab already carries (ADR-0004). Both
+/// surfaces that name a Scope in prose — the Backups list's Scope column and
+/// the close-confirm's title — ask here, so a second English for one Scope
+/// would be a second translation to keep in step.
+fn tab_msgid(scope: Scope) -> &'static str {
+    match scope {
+        Scope::User => msgids::TAB_USER,
+        Scope::System => msgids::TAB_SYSTEM,
     }
 }

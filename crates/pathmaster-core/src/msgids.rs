@@ -178,11 +178,15 @@ pub const MENU_TITLE_EDIT: &str = "&Edit";
 pub const MENU_TITLE_FILE: &str = "&File";
 pub const MENU_TITLE_TOOLS: &str = "&Tools";
 
-/// The File menu's items (spec §15). Exit arrives with the ticket that owns
-/// the close-confirm; Apply is here because Ctrl+S can only live on a menu
-/// item's label — wxdragon binds no accelerator table at any level, so **every
-/// shortcut has a menu home** (ADR-0004).
+/// The File menu's items (spec §15). Apply is here because Ctrl+S can only
+/// live on a menu item's label — wxdragon binds no accelerator table at any
+/// level, so **every shortcut has a menu home** (ADR-0004) — and Exit is here
+/// for the same reason and one more: Alt+F4 already closes the window, so
+/// without this item the close-confirm would be a dialog with no menu route to
+/// it at all. The mnemonic letters are A and x, unique within the menu, and
+/// gated.
 pub const MENU_APPLY: &str = "&Apply";
+pub const MENU_EXIT: &str = "E&xit";
 
 /// The Edit menu's items (spec §15). Accelerators are **not** here: the code
 /// appends `"\tCtrl+Z"` to the translated label, because a translated tab
@@ -269,6 +273,27 @@ pub const DIALOG_DISCARD_CHANGES: &str = "Discard changes?";
 pub const DIALOG_REFRESH_DISCARDS: &str =
     "Refresh discards your unsaved changes and the undo history — continue?";
 
+/// The close-confirm (spec §5, FR-close-confirm): one dialog for the whole
+/// application, raised only when a Session is dirty. `{scopes}` is filled with
+/// the dirty Scopes' own tab labels, so a Scope has one name here too
+/// (ADR-0004); the title carries the question because NVDA never speaks a
+/// `MessageDialog` body.
+///
+/// **`Save` is the one place that word is ours to say.** `CONTEXT.md` keeps it
+/// off **Apply** and off **Apply Run**, because naming the operation "save"
+/// hides that a write to the registry is what it is — but this is a button on
+/// a close-confirm, and FR-close-confirm fixes its English. What it performs is
+/// still an Apply Run, and the log and every Announcement still say so.
+///
+/// `Discard` is not [`BUTTON_CANCEL`] and not [`OPERATION_CANCEL`]: three
+/// meanings, three English strings (ADR-0004). This one closes the application
+/// without writing; that one discards a Working Copy back to its Baseline and
+/// leaves the application open. [`BUTTON_DIALOG_CANCEL`] is the third button,
+/// meaning here exactly what it means everywhere — do not commit.
+pub const DIALOG_CLOSE_CONFIRM: &str = "Unsaved changes in: {scopes} — save before closing?";
+pub const BUTTON_SAVE: &str = "Save";
+pub const BUTTON_DISCARD: &str = "Discard";
+
 /// The external-change dialog (spec §5, FR-apply): the value moved under the
 /// Session between the last read and this Apply. All three answers are legal,
 /// so all three are named — the middle one adopts what was just read and
@@ -353,6 +378,7 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::menu_item(MENU_TITLE_FILE, MENU_GROUP_BAR),
     CatalogueEntry::menu_item(MENU_TITLE_TOOLS, MENU_GROUP_BAR),
     CatalogueEntry::menu_item(MENU_APPLY, MENU_GROUP_FILE),
+    CatalogueEntry::menu_item(MENU_EXIT, MENU_GROUP_FILE),
     CatalogueEntry::menu_item(MENU_ADD_ENTRY, MENU_GROUP_EDIT),
     CatalogueEntry::menu_item(MENU_EDIT_ENTRY, MENU_GROUP_EDIT),
     CatalogueEntry::menu_item(MENU_DELETE_ENTRY, MENU_GROUP_EDIT),
@@ -386,6 +412,9 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::text(BUTTON_KEEP_LITERAL),
     CatalogueEntry::text(DIALOG_DISCARD_CHANGES),
     CatalogueEntry::text(DIALOG_REFRESH_DISCARDS),
+    CatalogueEntry::text(DIALOG_CLOSE_CONFIRM),
+    CatalogueEntry::text(BUTTON_SAVE),
+    CatalogueEntry::text(BUTTON_DISCARD),
     CatalogueEntry::text(DIALOG_EXTERNAL_CHANGE),
     CatalogueEntry::text(BUTTON_OVERWRITE),
     CatalogueEntry::text(BUTTON_REFRESH_AND_DISCARD),

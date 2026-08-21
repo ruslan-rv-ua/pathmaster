@@ -1,8 +1,8 @@
 //! PathMaster's imperative shell — Windows API adapters, no wx (spec §17, ADR-0007).
 //!
 //! Modules land with their tickets: `registry` (key path as a constructor parameter),
-//! `datadir`, `diagnostics`, `elevation`, `locale`, `logwriter`, `panic_hook`, `settings`,
-//! `broadcast`, `snapshots`, `apply`, `startup`.
+//! `datadir`, `diagnostics`, `elevation`, `geometry` (where the window opens), `locale`,
+//! `logwriter`, `panic_hook`, `settings`, `broadcast`, `snapshots`, `apply`, `startup`.
 
 #[cfg(windows)]
 pub mod apply;
@@ -14,6 +14,8 @@ pub mod datadir;
 pub mod diagnostics;
 #[cfg(windows)]
 pub mod elevation;
+#[cfg(windows)]
+pub mod geometry;
 #[cfg(windows)]
 pub mod locale;
 #[cfg(windows)]

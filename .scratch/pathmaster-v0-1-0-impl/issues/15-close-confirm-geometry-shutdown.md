@@ -6,12 +6,124 @@
 
 **Blocked by:** 07 (settings write path), 13 (Save goes through Apply), [20](20-startup-decisions-module.md) (so geometry clamping lands in a tested module).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] One dialog for the application, title naming the dirty Scopes ("Unsaved changes in: User PATH, System PATH — save before closing?"), buttons [Save] [Discard] [Cancel]; clean Sessions close with no dialog
-- [ ] Save applies each dirty Session in turn, User first, each through the full Apply path (external-change detection, backup, taxonomy included)
-- [ ] Partial failure aborts the close: window stays open, focus moves to the failed tab, the reason is announced
-- [ ] Geometry (position, size, maximised state) written to settings.json on clean shutdown only, via the atomic-replace helper, preserving unknown fields; not written in Read-only Data
-- [ ] On startup geometry is restored clamped to the connected monitors' work area; fully off-screen → default size centred on primary
-- [ ] Clean shutdown logs `INFO shutdown: clean`
-- [ ] Dialog strings in the Catalogue with Ukrainian translations
+- [x] One dialog for the application, title naming the dirty Scopes ("Unsaved changes in: User PATH, System PATH — save before closing?"), buttons [Save] [Discard] [Cancel]; clean Sessions close with no dialog
+- [x] Save applies each dirty Session in turn, User first, each through the full Apply path (external-change detection, backup, taxonomy included)
+- [x] Partial failure aborts the close: window stays open, focus moves to the failed tab, the reason is announced
+- [x] Geometry (position, size, maximised state) written to settings.json on clean shutdown only, via the atomic-replace helper, preserving unknown fields; not written in Read-only Data
+- [x] On startup geometry is restored clamped to the connected monitors' work area; fully off-screen → default size centred on primary
+- [x] Clean shutdown logs `INFO shutdown: clean`
+- [x] Dialog strings in the Catalogue with Ukrainian translations
+
+## Comments
+
+Implemented 2026-08-21 on `feature/close-confirm-geometry-shutdown`.
+
+`pathmaster-platform` gains **`geometry`** — where the window opens — and the binary gains one
+close path that every route out of the application arrives on. Nineteen new tests, none of which
+link wxWidgets.
+
+**One list of dirty Scopes, read once.** It is what the dialog's title names and what the Apply Run
+is handed, in tab order, which is User first. Two readings, or a second ordering rule inside the
+Catalogue, could only ever promise an order the sequence does not keep — so
+`Catalogue::close_confirm_dialog` deliberately names the Scopes in the order it is given, unlike
+`general_status`, which sorts because it reads the two tabs rather than a run. Both name a Scope
+through one `tab_msgid`, the label its own tab already carries.
+
+**"Did the run complete" and "which Scope failed" are two questions.** `Outcome::completed()`
+already decided whether the close proceeds, and a [Cancel] inside the run — the external-change
+dialog's, or either over-length gate — answers it exactly as a failure does: the window stays open.
+But a Cancel is not a failure. The user chose it, so there is nothing to announce and no tab to be
+sent to; folding the two into one answer would send them to a tab they had just declined to write,
+with an empty Banner to explain it. Hence `Outcome::failed_scope()`, which is the *focus* question
+and nothing else. The failed tab is activated **before** the outcome is applied, because activating
+a tab speaks its entry count (§10.1 item 1) while the failure speaks Announcement 3 — last spoken
+is what is heard, and the reason is what the user needs.
+
+**Save is `apply_scopes`, the same call Ctrl+S makes.** Ctrl+S was a run of one Scope inlined in
+`apply`; it is now a run over a slice, and the close-confirm passes every dirty Scope. Nothing
+about the sequence is special-cased for closing — external-change detection, the backup, the
+taxonomy and the audit line all happen exactly as they do for Ctrl+S, which is what "each through
+the full Apply path" has to mean if the close is to be trusted.
+
+**`geometry` is one module with the seam drawn through it.** `work_areas()` is the one
+`EnumDisplayMonitors` call a test cannot make fail; `place(remembered, &work_areas)` is arithmetic,
+and it is where every rule lives (ADR-0010's reason for arriving before this ticket). Ten tests
+arrange a second monitor left of the primary, a monitor unplugged since the window was last closed,
+a window merely touching an edge, and a run that can see no monitors at all — none of which this
+machine has.
+
+**Five rules the spec left to the implementation, all five now in §12.** The clamp is to *one*
+monitor — the one showing most of the window — never to the union, because the union has holes: two
+monitors of different heights leave a region inside the bounding box and on no screen. Sharing an
+edge is being off-screen. The **work area**, never the monitor's full rectangle, or a restored
+window's title bar can end up under the taskbar. A run that can see no monitors takes the default
+place, which is also what a failed enumeration reads as. And the round trip is physical pixels at
+both ends: wxdragon routes a *builder's* size through its implicit `FromDIP` and
+`set_size_with_pos`/`get_position`/`get_size` through nothing, so the restore sets the geometry on
+the built frame rather than handing it to the builder — the builder would scale it once more per
+run.
+
+**A maximised window records the rectangle wx reports while maximised, beside the flag.** Restoring
+sets that geometry and maximises over it, so an un-maximise afterwards lands on a window the size
+of the screen rather than on nothing at all. It is the one place the round trip is deliberately
+lossy, and the loss is a window that is too big rather than one that is not there.
+
+**Writing the file needed its own two rules (now in §13, whose taxonomy is about reading).** The
+write is `settings::write` — one atomic replace of the amended document — so a hand edit's unknown
+fields, nested ones included, and its key order all survive. A write that fails earns one
+`WARN settings:` line and nothing else: no dialog, because on this path the window is already going
+and a dialog would outlive what it is about; no Announcement, because the catalogue is closed at
+seven. Without the line a setting that silently never persists would have no witness at all.
+
+**"Not written in Read-only Data" is visible at the call site.** `Run::data_dir()` is
+`DataDirState::dir()`, which a Read-only run has too — so `App::writable_data_dir()` reads the
+`readonly` reason the UI already holds, which is `None` in exactly one case. Apply deliberately
+does not ask this question (startup predicts, Apply verifies — ADR-0002); geometry is the other
+side of that rule, because nobody asked for it and a run that could only find out by failing should
+not try.
+
+**File → Exit, and one close event.** §15's last File item lands here: Alt+F4 is Windows' own
+gesture given a menu home, which does not create the shortcut but makes the item *read* as the
+shortcut it already is (ADR-0004). The item is available in every state — an application a dirty
+Session could disable the way out of is one the user has to kill. The title bar's [X], Alt+F4,
+File → Exit and the taskbar's Close all arrive as one `EVT_CLOSE`, so the dialog is asked once and
+in one place; a close that proceeds skips the event on to wx's own handler, and one that does not
+vetoes it, which is also what answers a Windows session end.
+
+### Verified live against a portable debug build
+
+A copy of the debug build in a scratch directory, its `data\` beside it, driven by
+`GetWindowRect`/`MoveWindow`, `WM_COMMAND` and `WM_CLOSE`. Nothing was applied — the real `PATH`
+was compared before and after and is unchanged.
+
+- **Geometry round trip.** Moved to `320,110 1000×700`, closed: `settings.json` records exactly
+  that, and the log's last line is `INFO  shutdown: clean`. Reopened at `320,110 1000×700`.
+- **The clamp.** A remembered `1000×1070` on a work area of `1680×1002` reopened at `320,0
+  1000×1002` — the height cut to the work area, the top moved up by the least that fits.
+- **Maximised.** Maximised, closed (`"maximised": true` recorded beside the maximised rectangle),
+  reopened maximised.
+- **Off-screen.** `settings.json` hand-edited to `x: 9000, y: 9000`: reopened at `390,176 900×650`
+  — the default size, centred on the primary monitor.
+- **Preservation.** A hand-written file with `language`, `maxBackups`, an unknown `futureField` and
+  an unknown member *inside* `window` came through the rewrite with all four intact and its key
+  order unchanged.
+- **First run.** No `settings.json` until the first clean shutdown, which creates it holding
+  `window` alone — defaults nobody chose do not materialise as choices somebody made.
+- **The dialog.** With the User Session dirty, closing raised a dialog titled
+  `Unsaved changes in: User PATH — save before closing?` whose three buttons read `Save`,
+  `Discard`, `Cancel`. [Cancel] left the window open with the Session still dirty and **no**
+  `shutdown: clean` line; closing again and answering [Discard] closed the application with the
+  registry unchanged and no new file in `data\backups\`.
+- **Routes.** File → Exit (`id=6012`, label `E&xit\tAlt+F4`, enabled while Apply read as disabled
+  on a clean Session) raised the same dialog as `WM_CLOSE`.
+- **Read-only Data.** A run whose `data\` carried a deny-write ACE still **read** its
+  `settings.json` and opened at the remembered `250,90 950×680`; after a clean close the file was
+  byte-identical, and the run had no log at all — which is §14's rule one, not a missing shutdown
+  line.
+
+[Save] was not exercised live: it writes the real `HKCU\Environment\Path`. It is covered by the
+Apply Run's own integration tests against a temporary key — including the multi-Scope order, the
+stop at the first Scope that does not complete, and `failed_scope` — and by Release Checklist steps
+28 and 29.

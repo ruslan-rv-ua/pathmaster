@@ -49,7 +49,7 @@ interface expect the Catalogue's Ukrainian equivalents.
 | 10 | Apply | "User PATH applied"; `NVDA+Tab` confirms focus stayed on the Entry | |
 | 11 | Ctrl+Z after Apply | "Undone: Edit entry, unsaved changes" | |
 | 12 | Cancel | "Changes discarded" | |
-| 13 | Close with a dirty Session | Dialog title names the dirty Scopes ("Unsaved changes in: …"); title + buttons spoken | |
+| 13 | Close with a dirty Session | Dialog title names the dirty Scopes ("Unsaved changes in: …"); its three buttons spoken as [Save] [Discard] [Cancel], focus starting on Cancel | |
 | 14 | Menu with a clean Session | Apply/Cancel items read as unavailable ("недоступно") | |
 | 15 | Full Tab cycle | Every control reached and spoken; cycle returns to start, no trap | |
 | 16 | `NVDA+End` | Both status bar fields spoken on demand (entry/issue counts; merged PATH length) | |
@@ -62,6 +62,11 @@ interface expect the Catalogue's Ukrainian equivalents.
 | 23 | Arrow to a **System** Snapshot, unelevated | Restore reads as unavailable — the System Session cannot be written, whatever the file holds | |
 | 24 | Tools → Open Backups Folder | The menu item is spoken; `data\backups\` opens in Explorer — a folder, **not** a file-picker dialog | |
 | 25 | Continue step 17's unwritable-`data\` run: Backups tab, arrow to any Snapshot | The list still **shows** every Snapshot — Read-only Data still reads — and Restore reads as unavailable on all of them, this Scope included: an Apply could not take the backup it must take first | |
+| 26 | Answer step 13's dialog with [Cancel] — Escape answers it too | The window stays open, the Session is still dirty, and `data\pathmaster.log` has gained **no** `shutdown: clean` line | |
+| 27 | Close again, answer [Discard] | The application closes; the registry value is unchanged and `data\backups\` has no new file; the log ends `INFO  shutdown: clean` | |
+| 28 | Dirty **both** Scopes (elevated — see section C), close, answer [Save] | The title names both, User first; "User PATH applied" then "System PATH applied"; the application closes and `data\backups\` holds one new file per Scope | |
+| 29 | Stage B11's unwritable `data\backups\`, dirty a Session, close, answer [Save] | "Apply failed — could not write a backup, no changes were made."; the **window stays open** on the failed Scope's tab, the Session is still dirty, and the log has no `shutdown: clean` line | |
+| 30 | File → Exit, and Alt+F4 | Each is spoken as a menu item carrying `Alt+F4`, and each reaches the same close-confirm as the title bar's [X] | |
 
 Steps 20 and 21 need Snapshots to exist. Apply once to make a real one (step 10), or hand-place
 files in `data\backups\`: `YYYY-MM-DDTHH-MM-SS-User.json` holding
@@ -106,6 +111,10 @@ the header. Elevate via Tools → Restart as Administrator.
 |---|------|-----------------|---|
 | L1 | Drag the window between monitors with different DPI scale factors | Layout survives — no clipped or misplaced controls. Skippable with a note when only one monitor is available | |
 | L2 | Resize to minimum 800×600 and maximise | List fills its tab; Path column takes remaining width; nothing clipped | |
+| L3 | Move and resize the window, close cleanly, reopen | It opens exactly where it was left. Maximise, close, reopen: it opens maximised | |
+| L4 | Close on a second monitor, unplug it (or hand-edit `window` in `settings.json` to `x: 9000, y: 9000`), reopen | The window opens at the default 900×650, centred on the primary monitor — never off the edge of every screen | |
+| L5 | Hand-edit `settings.json` to add an unknown field and an unknown member inside `window`, then close cleanly | Both survive the rewrite, as do `language` and `maxBackups` and the file's key order | |
+| L6 | Repeat L3 in the step-17 unwritable-`data\` run | The remembered geometry is still **read** and restored; `settings.json` is byte-identical afterwards, and the run has no log at all to hold a shutdown line | |
 
 ## E. Non-NVDA release checks
 

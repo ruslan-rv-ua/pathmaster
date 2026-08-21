@@ -275,6 +275,26 @@ impl Record {
         }
     }
 
+    /// A rewrite of `settings.json` that failed (spec §13, §14).
+    ///
+    /// `WARN` because the run survives it whole: what did not reach the file
+    /// is a setting, the atomic replace left the previous file intact, and
+    /// nothing the user asked for went wrong. The geometry written on a clean
+    /// shutdown is the first caller and the sharpest case for the line — the
+    /// window is already closing, so there is no dialog and no Announcement
+    /// left to carry it, and without this a setting that silently never
+    /// persists would have no witness at all.
+    ///
+    /// The cause is the raw code and nothing else: naming the file that could
+    /// not be written is a name, not a location (PII prohibition #2).
+    pub fn settings_write_failed(cause: FailureCause) -> Self {
+        Record {
+            level: Level::Warn,
+            area: "settings",
+            message: format!("settings.json could not be written ({})", cause.describe()),
+        }
+    }
+
     /// The per-field settings fallback line — the log is the *only* witness
     /// of a rejected value (spec §13), so the raw value is carried, but
     /// truncated to 100 characters with a marker: a pathological file must

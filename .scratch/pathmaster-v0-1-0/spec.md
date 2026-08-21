@@ -257,6 +257,25 @@ action. A Session never survives a process boundary.
 > the full Apply path. **Partial failure aborts the close**: window stays open, focus moves to the
 > failed tab, the reason is announced. Clean Sessions close with no dialog.
 
+> *Filled in by impl ticket 15.* Four things the requirement leaves to the implementation:
+>
+> - **One list of dirty Scopes, read once.** It is what the title names and what the Apply Run is
+>   handed, in tab order — which is User first. A second reading, or a second ordering rule in the
+>   Catalogue, could only ever promise an order the sequence does not keep.
+> - **[Cancel] is the default, the initial focus and the Escape key**, like every other dialog in
+>   the application (§10's dialog discipline): it is the answer that changes least.
+> - **A [Cancel] inside the run stops the close too, and moves nothing.** The external-change
+>   dialog's [Cancel] and either over-length gate leave the run incomplete, so the window stays
+>   open — but the user chose that, so there is nothing to announce and no failed tab to be sent
+>   to. "Did the run complete" and "which Scope failed" are therefore two questions with two
+>   answers, not one negated.
+> - **The failed tab is activated before the outcome is applied.** Activating a tab speaks its
+>   entry count (§10.1 item 1) and the failure speaks Announcement 3; last spoken is what is
+>   heard, and the reason is what the user needs.
+>
+> Every route out — the title bar's [X], Alt+F4, File → Exit, the taskbar's Close — arrives as one
+> close event, so the dialog is asked once and in one place.
+
 ## 6. Entry editing interaction
 
 Settled by ticket [10](issues/10-entry-editing-interaction.md).
@@ -623,6 +642,28 @@ Settled by ticket [17](issues/17-window-layout-and-iconography.md).
   `llvm-rc` (16/24/32/48/256, 256 PNG-compressed) for Explorer/taskbar. **No other in-app
   iconography**; the Banner is purely textual; nothing anywhere sets a colour.
 
+**Amended by impl ticket 15**, which built the geometry persistence above — five rules the
+requirement does not state:
+
+- **The clamp is to one monitor, the one showing most of the window**, never to the union of them
+  all. The union has holes: two monitors of different heights leave a region inside the bounding
+  box and on no screen, and a window clamped into it would be exactly the unreachable window the
+  clamp exists to prevent. Position moves first; the size is cut only where it does not fit at all.
+- **Sharing an edge is being off-screen.** A remembered window whose rectangle meets a work area in
+  zero pixels is nowhere, and takes the default place like any other window that is nowhere.
+- **The work area, never the monitor's full rectangle** — a window restored under the taskbar has
+  its own title bar out of reach.
+- **A run that can see no monitors takes the default place**, which is also what a failed
+  enumeration reads as. Nothing has gone wrong from where the user sits: the window opens where a
+  first run's window opens.
+- **Physical pixels at both ends, and the maximised rectangle is recorded beside the flag.**
+  wxdragon routes a *builder's* size through its implicit `FromDIP` and `set_size_with_pos`,
+  `get_position` and `get_size` through nothing, so the round trip neither scales nor unscales, and
+  the restore sets the geometry on the built frame rather than handing it to the builder. A window
+  closed maximised records the geometry wx reports *while* maximised; restoring sets that and
+  maximises over it, so an un-maximise afterwards lands on a window the size of the screen rather
+  than on nothing at all.
+
 ## 13. Settings and its failure taxonomy
 
 Settled by tickets [20](issues/20-failure-taxonomy-remainder.md) and [11](issues/11-i18n-mechanism.md).
@@ -660,6 +701,18 @@ does not state:
   to put a window and the members have no individual defaults to fall back to. A non-positive
   `width`/`height` is invalid like any other out-of-domain value — and, like any other, is not
   clamped.
+
+**Amended by impl ticket 15**, which added the file's first natural writer — the geometry written
+on a clean shutdown. Two rules the taxonomy above, which is about *reading*, does not cover:
+
+- **A write is one atomic replace of the whole document**, so the other instance (two are a
+  designed state, §3) never reads a half-written file and a failed write leaves the previous one
+  intact. It amends the document rather than serialising the settings, which is what carries a hand
+  edit's unknown fields — nested ones included — and its key order through.
+- **A write that fails earns one `WARN settings:` line and nothing else.** No dialog and no
+  Announcement: nothing the user asked for failed, the previous file is untouched, and on the
+  shutdown path the window is already going, so a dialog would outlive what it is about. The log is
+  the only witness a setting that silently never persists can have.
 
 **[assembly]** The Settings dialog (Tools → Settings…) holds the language selector (label
 "Language (takes effect after restart)", endonym items, disabled in Read-only Data) and the
@@ -721,6 +774,14 @@ command is **"Cancel Changes"** in both places, leaving "Cancel" to the dialog b
 re-reads rather than edits: §5 disables "every editing action" and Refresh is not one, Read-only
 Data "still reads, diagnoses and lists" (`CONTEXT.md`), and an unelevated System tab would
 otherwise never see an external change without a restart.
+
+*Amended by impl ticket 15, which added File → Exit and so completed the File menu.* Alt+F4 is
+Windows' own gesture given a menu home: naming it on the item does not create the shortcut — the
+system closes a window on Alt+F4 whatever any menu says — it makes the item **read** as the
+shortcut it already is, which is the only way a screen-reader user learns of one (ADR-0004). The
+item is **available in every state**, dirty Sessions and Read-only Data alike: an application a
+dirty Session could disable the way out of is one the user has to kill, and the close-confirm is
+the whole of why they do not have to. The File menu's mnemonics are A and x.
 
 *Amended by impl ticket 14, which built the Tools menu and the Backups tab's Restore button.*
 Tools opens with **Open Backups Folder** alone; Settings… and Restart as Administrator arrive with
@@ -791,7 +852,9 @@ ever links wxWidgets.
   logger; core supplies only the line format), `settings` (the file in the Data Directory: read in
   both modes, set aside and written only in Writable Data — core owns the parse), `broadcast`,
   `snapshots` (the Snapshot files: `data\backups\` spelled once, and the one listing both the next
-  name and the rotation are answered from — impl ticket 13), `apply` (the Apply Run — impl ticket 13,
+  name and the rotation are answered from — impl ticket 13), `geometry` (where the window opens: the
+  monitors' work areas, and the clamp onto them — impl ticket 15), `apply` (the Apply Run — impl
+  ticket 13,
   [ADR-0008](../../docs/adr/0008-apply-sequence-lives-in-platform.md)), `startup` (everything a Run
   is, decided in one place — impl ticket 20,
   [ADR-0010](../../docs/adr/0010-run-properties-decided-in-one-place.md)).

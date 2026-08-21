@@ -985,6 +985,86 @@ fn a_run_stops_at_the_first_scope_that_does_not_complete() {
     );
 }
 
+// ---- Which Scope stopped the run: the close-confirm's two questions
+// (spec §5, FR-close-confirm) ----
+
+#[test]
+fn a_run_that_failed_names_the_scope_it_failed_on() {
+    // "Partial failure aborts the close: … focus moves to the failed tab" —
+    // so the run has to be able to say which tab that is, and it is the Scope
+    // it stopped at rather than the first in the order.
+    let world = World::new("failed-scope");
+    let mut scopes = [
+        input(Scope::User, &world.user, &[r"C:\u"], RawValue::Absent),
+        input(Scope::System, &world.system, &[r"C:\s"], RawValue::Absent),
+    ];
+    scopes[1].key = unreachable_key();
+
+    let outcome = apply::apply(
+        run(&world, scopes, &[Scope::User, Scope::System]),
+        &Env,
+        &Scripted::new(),
+    );
+
+    assert_eq!(
+        words(&outcome),
+        vec![(Scope::User, "applied"), (Scope::System, "failed")],
+    );
+    assert!(!outcome.completed());
+    assert_eq!(outcome.failed_scope(), Some(Scope::System));
+}
+
+#[test]
+fn a_run_the_user_stopped_has_no_failed_scope_to_name() {
+    // A [Cancel] aborts the close exactly as a failure does — `completed()` is
+    // false either way — but it is not a failure: nothing is announced and
+    // there is no failed tab to move focus to. Two questions, two answers.
+    let world = World::new("cancelled-scope");
+
+    let outcome = apply::apply(
+        run(
+            &world,
+            [
+                input(
+                    Scope::User,
+                    &world.user,
+                    &[&long_entry(9_000)],
+                    RawValue::Absent,
+                ),
+                idle(Scope::System, &world.system),
+            ],
+            &[Scope::User],
+        ),
+        &Env,
+        &Scripted::refusing_the_cmd_limit(),
+    );
+
+    assert_eq!(words(&outcome), vec![(Scope::User, "cancelled")]);
+    assert!(!outcome.completed());
+    assert_eq!(outcome.failed_scope(), None);
+}
+
+#[test]
+fn a_run_that_completed_has_no_failed_scope_either() {
+    let world = World::new("completed-scope");
+
+    let outcome = apply::apply(
+        run(
+            &world,
+            [
+                input(Scope::User, &world.user, &[r"C:\u"], RawValue::Absent),
+                input(Scope::System, &world.system, &[r"C:\s"], RawValue::Absent),
+            ],
+            &[Scope::User, Scope::System],
+        ),
+        &Env,
+        &Scripted::new(),
+    );
+
+    assert!(outcome.completed());
+    assert_eq!(outcome.failed_scope(), None);
+}
+
 #[test]
 fn a_run_over_no_scopes_does_nothing_and_asks_nothing() {
     let world = World::new("nothing");

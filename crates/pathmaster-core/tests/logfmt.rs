@@ -3,7 +3,7 @@
 //! One record per line: `<RFC 3339 local+offset> <LEVEL> <area>: <message>`.
 //! Expected strings come from the spec's own examples, not recomputed.
 
-use pathmaster_core::logfmt::{line, DataState, Record, Timestamp};
+use pathmaster_core::logfmt::{line, DataState, FailureCause, Record, Timestamp};
 use pathmaster_core::session::{Scope, ValueType};
 
 fn spec_timestamp() -> Timestamp {
@@ -95,6 +95,32 @@ fn an_unreadable_settings_file_says_in_the_log_where_it_went() {
         "2026-08-19T15:36:31+03:00 WARN  settings: \
          settings.json could not be read, left in place, using defaults\n",
     );
+}
+
+#[test]
+fn a_settings_file_that_could_not_be_written_leaves_the_only_trace_there_is() {
+    // Nothing the user asked for failed — the geometry that did not reach the
+    // file is a convenience, and the window it describes is already closing,
+    // so there is no dialog and no Announcement to carry this. That makes the
+    // log the sole witness of a setting that will silently never persist.
+    assert_eq!(
+        line(
+            &spec_timestamp(),
+            &Record::settings_write_failed(FailureCause::Io { os_error: Some(5) })
+        ),
+        "2026-08-19T15:36:31+03:00 WARN  settings: \
+         settings.json could not be written (os error 5)\n",
+    );
+}
+
+#[test]
+fn a_settings_write_failure_the_os_gave_no_code_for_still_records_one_line() {
+    let text = line(
+        &spec_timestamp(),
+        &Record::settings_write_failed(FailureCause::Io { os_error: None }),
+    );
+
+    assert!(text.contains("could not be written (io error)"), "{text:?}");
 }
 
 #[test]

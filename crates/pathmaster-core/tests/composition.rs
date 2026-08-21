@@ -373,6 +373,53 @@ fn both_over_length_titles_speak_the_length_they_were_given() {
     }
 }
 
+// ---- The close-confirm dialog (spec §5, FR-close-confirm) ----
+
+#[test]
+fn the_close_confirm_names_every_dirty_scope_in_the_one_title_it_has() {
+    // One dialog for the application, and its title is the whole of it — NVDA
+    // never speaks a `MessageDialog` body, so a Scope left out of the title is
+    // a Scope the user is never told about (spec §5, §10).
+    assert_eq!(
+        the_catalogue().close_confirm_dialog(&[Scope::User, Scope::System]),
+        "Unsaved changes in: User PATH, System PATH — save before closing?"
+    );
+}
+
+#[test]
+fn the_close_confirm_names_one_dirty_scope_alone() {
+    // Two independent Sessions, one of them clean: the title says only what is
+    // true, and there is nothing to join.
+    assert_eq!(
+        the_catalogue().close_confirm_dialog(&[Scope::System]),
+        "Unsaved changes in: System PATH — save before closing?"
+    );
+}
+
+#[test]
+fn the_close_confirm_names_a_scope_exactly_as_its_own_tab_names_it() {
+    // One name per Scope, and it is the tab label the user is already reading
+    // — a second English for it would be a second translation to keep in step
+    // (ADR-0004).
+    let title = the_catalogue().close_confirm_dialog(&[Scope::User]);
+
+    assert!(title.contains(msgids::TAB_USER), "{title:?}");
+    assert!(!title.contains(msgids::TAB_SYSTEM), "{title:?}");
+}
+
+#[test]
+fn the_close_confirm_names_the_scopes_in_the_order_it_is_handed() {
+    // The list handed here is the same one the Apply Run takes, User first
+    // (spec §5, FR-close-confirm) — so ordering is deliberately *not* a rule
+    // of this sentence: one reading of which Sessions are dirty feeds both the
+    // title and the sequence, and a second ordering rule here could only ever
+    // disagree with it.
+    assert_eq!(
+        the_catalogue().close_confirm_dialog(&[Scope::System, Scope::User]),
+        "Unsaved changes in: System PATH, User PATH — save before closing?"
+    );
+}
+
 // ---- The Status column (spec §7, FR-diag-status) ----
 
 #[test]
