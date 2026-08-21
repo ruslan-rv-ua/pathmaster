@@ -45,20 +45,29 @@ impl WorkArea {
     /// How much of `window` this monitor would show, in pixels of area. Zero
     /// covers both "nowhere near" and "sharing an edge and no pixels", which
     /// are the same thing to a user looking for their window.
+    ///
+    /// **Widened to `i64` before anything is added.** The monitor's own edges
+    /// cannot overflow — Windows reported them — but the window's come out of
+    /// a hand-editable file that §13 deliberately does not clamp, so `x` and
+    /// `width` may each be anything an `i32` can hold and their sum may not
+    /// be. A panic here is a hand edit turning into an application that will
+    /// not start; widening makes the far edge of the type an ordinary answer
+    /// (no overlap) instead of an event.
     fn overlap(&self, window: &Window) -> i64 {
-        let span = |low: i32, high: i32, other_low: i32, other_high: i32| {
-            i64::from(high.min(other_high) - low.max(other_low)).max(0)
+        let span = |low: i64, high: i64, other_low: i64, other_high: i64| {
+            (high.min(other_high) - low.max(other_low)).max(0)
         };
+        let far = |start: i32, length: i32| i64::from(start) + i64::from(length);
         span(
-            self.x,
-            self.x + self.width,
-            window.x,
-            window.x + window.width,
+            i64::from(self.x),
+            far(self.x, self.width),
+            i64::from(window.x),
+            far(window.x, window.width),
         ) * span(
-            self.y,
-            self.y + self.height,
-            window.y,
-            window.y + window.height,
+            i64::from(self.y),
+            far(self.y, self.height),
+            i64::from(window.y),
+            far(window.y, window.height),
         )
     }
 
@@ -106,7 +115,9 @@ pub enum Placement {
 /// A remembered `width` or `height` is positive by the time it reaches here
 /// (`settings::Window` reads the rest as one invalid field), and nothing here
 /// depends on that: a window with no area overlaps nothing and takes the
-/// default place like any other window that is nowhere.
+/// default place like any other window that is nowhere. Nothing bounds them
+/// from *above*, though — §13 does not clamp what the file says — which is why
+/// [`WorkArea::overlap`] widens before it adds.
 pub fn place(remembered: Option<Window>, work_areas: &[WorkArea]) -> Placement {
     let Some(window) = remembered else {
         return Placement::Centred;

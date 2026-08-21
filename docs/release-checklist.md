@@ -65,7 +65,7 @@ interface expect the Catalogue's Ukrainian equivalents.
 | 26 | Answer step 13's dialog with [Cancel] — Escape answers it too | The window stays open, the Session is still dirty, and `data\pathmaster.log` has gained **no** `shutdown: clean` line | |
 | 27 | Close again, answer [Discard] | The application closes; the registry value is unchanged and `data\backups\` has no new file; the log ends `INFO  shutdown: clean` | |
 | 28 | Dirty **both** Scopes (elevated — see section C), close, answer [Save] | The title names both, User first; "User PATH applied" then "System PATH applied"; the application closes and `data\backups\` holds one new file per Scope | |
-| 29 | Stage B11's unwritable `data\backups\`, dirty a Session, close, answer [Save] | "Apply failed — could not write a backup, no changes were made."; the **window stays open** on the failed Scope's tab, the Session is still dirty, and the log has no `shutdown: clean` line | |
+| 29 | Stage B11's unwritable `data\backups\`, dirty a Session, close, answer [Save] | "Apply failed — could not write a backup, no changes were made."; the **window stays open** on the failed Scope's tab, `NVDA+Tab` confirms focus is on that tab's list, the Session is still dirty, and the log has no `shutdown: clean` line | |
 | 30 | File → Exit, and Alt+F4 | Each is spoken as a menu item carrying `Alt+F4`, and each reaches the same close-confirm as the title bar's [X] | |
 
 Steps 20 and 21 need Snapshots to exist. Apply once to make a real one (step 10), or hand-place
@@ -115,6 +115,7 @@ the header. Elevate via Tools → Restart as Administrator.
 | L4 | Close on a second monitor, unplug it (or hand-edit `window` in `settings.json` to `x: 9000, y: 9000`), reopen | The window opens at the default 900×650, centred on the primary monitor — never off the edge of every screen | |
 | L5 | Hand-edit `settings.json` to add an unknown field and an unknown member inside `window`, then close cleanly | Both survive the rewrite, as do `language` and `maxBackups` and the file's key order | |
 | L6 | Repeat L3 in the step-17 unwritable-`data\` run | The remembered geometry is still **read** and restored; `settings.json` is byte-identical afterwards, and the run has no log at all to hold a shutdown line | |
+| L7 | Move the window somewhere memorable and close cleanly; reopen, **minimise** it, and close it from the taskbar | It reopens where it was left before minimising, never centred: a minimised window is not written at all, so `window` in `settings.json` is unchanged by that second close | |
 
 ## E. Non-NVDA release checks
 

@@ -199,6 +199,17 @@ impl ScopePage {
         if !stranded {
             return;
         }
+        self.focus_list();
+    }
+
+    /// Puts the keyboard focus into this tab's list, on the row the user was
+    /// last on — or on the list itself, which is where an empty list, or one
+    /// nothing has reached yet, leaves it.
+    ///
+    /// Focus without a row is still focus somewhere; a row without focus is
+    /// silence, which is why the two answers are one function and not a choice
+    /// at each call site.
+    pub fn focus_list(&self) {
         match self.focused_row() {
             Some(row) => self.focus_row(row),
             None => self.list.set_focus(),

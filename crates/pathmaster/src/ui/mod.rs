@@ -464,9 +464,9 @@ impl App {
                 event.skip(true);
                 return;
             }
-            // A close event is never one of the typed variants, so this always
-            // matches; vetoing rather than merely not skipping is what also
-            // answers a Windows session end, which asks before it closes.
+            // A close event is never one of the typed variants, so this
+            // always matches. Vetoing says "do not close" outright, rather
+            // than leaving it to be inferred from an event nobody skipped.
             if let WindowEventData::General(close) = &event {
                 close.veto();
             }
@@ -536,12 +536,25 @@ impl App {
         // The two commands that are not about a Scope — and so the two
         // reachable from the Backups tab, where there is no Scope tab to hand
         // one.
+        //
+        // Exhaustive, like every other `match` over this enum: a catch-all
+        // would route the next command someone adds to a Scope it may not be
+        // about, silently.
         match command {
             Command::OpenBackupsFolder => return self.open_backups_folder(),
             // `false`, never `true`: a forced close would be a way past the
             // very dialog the close-confirm exists to ask (spec §5).
             Command::Exit => return self.frame.close(false),
-            _ => {}
+            Command::Add
+            | Command::Edit
+            | Command::Delete
+            | Command::MoveUp
+            | Command::MoveDown
+            | Command::Undo
+            | Command::Redo
+            | Command::Apply
+            | Command::Cancel
+            | Command::Refresh => {}
         }
         let Some(tab) = active else { return };
         match command {
@@ -595,7 +608,7 @@ impl App {
         if !tab.session.borrow_mut().restore(entries, value_type) {
             return;
         }
-        self.notebook.set_selection(tab_index(scope) as usize);
+        self.activate(scope);
         // The first row, or — over a Snapshot that restored nothing — the list
         // itself, which is where `focus_row` lands when there is no row.
         self.after_edit(tab, Some(0));
@@ -965,7 +978,13 @@ impl App {
         };
         let completed = outcome.completed();
         if let Some(scope) = outcome.failed_scope() {
-            self.notebook.set_selection(tab_index(scope) as usize);
+            // Both halves, because activating a tab is not landing focus in
+            // it: a row focused in a control that is not focused is silent,
+            // which for this application is the same as not having happened
+            // (`scope_page`). The Working Copy is untouched by a failure, so
+            // the row the user was already on is the row they return to.
+            self.activate(scope);
+            self.tab_of(scope).page.focus_list();
         }
         self.after_apply(outcome);
         completed
@@ -1007,6 +1026,17 @@ impl App {
         let Some(data_dir) = self.writable_data_dir() else {
             return;
         };
+        // **A minimised window is not a place.** Windows parks one far off
+        // every monitor and reports that as its position, and `is_maximized`
+        // answers `false` for it whatever it was before — so recording it
+        // would overwrite a perfectly good remembered geometry with one the
+        // next start can only read as off-screen, and the window would come
+        // back centred at the default size. Writing nothing leaves the file
+        // saying what it already said, which is the last place the user could
+        // actually see it.
+        if self.frame.is_iconized() {
+            return;
+        }
         let position = self.frame.get_position();
         let size = self.frame.get_size();
         let mut settings = self.settings.borrow_mut();
@@ -1093,6 +1123,16 @@ impl App {
         }
         self.sync();
         self.request_pass();
+    }
+
+    /// Activates a Scope's tab.
+    ///
+    /// One line, with a cast and a hazard in it, and both belong in one place:
+    /// `set_selection` runs the page-changed handler **synchronously**, and
+    /// that handler reads every Session in the window — so no caller may hold
+    /// a borrow across this.
+    fn activate(&self, scope: Scope) {
+        self.notebook.set_selection(tab_index(scope) as usize);
     }
 
     /// The Scope tab the notebook is showing; the Backups tab is not one.

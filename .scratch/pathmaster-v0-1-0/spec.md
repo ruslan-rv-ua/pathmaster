@@ -274,7 +274,10 @@ action. A Session never survives a process boundary.
 >   heard, and the reason is what the user needs.
 >
 > Every route out — the title bar's [X], Alt+F4, File → Exit, the taskbar's Close — arrives as one
-> close event, so the dialog is asked once and in one place.
+> close event, so the dialog is asked once and in one place. **A Windows log-off or shutdown is
+> not one of them**: that is `wxEVT_QUERY_END_SESSION` on the application object, which nothing
+> implements, so the Working Copies die unasked. Accepted for v0.1.0 — nothing of the machine is
+> lost, only edits that had never reached it — and named here rather than left to be discovered.
 
 ## 6. Entry editing interaction
 
@@ -656,6 +659,11 @@ requirement does not state:
 - **A run that can see no monitors takes the default place**, which is also what a failed
   enumeration reads as. Nothing has gone wrong from where the user sits: the window opens where a
   first run's window opens.
+- **A minimised window is not written at all.** Windows parks one far off every monitor and
+  reports that as its position, and its maximised state reads `false` whatever it was — so
+  recording it would replace a good remembered geometry with one the next start can only read as
+  off-screen. The file keeps what it already said, which is the last place the user could see the
+  window.
 - **Physical pixels at both ends, and the maximised rectangle is recorded beside the flag.**
   wxdragon routes a *builder's* size through its implicit `FromDIP` and `set_size_with_pos`,
   `get_position` and `get_size` through nothing, so the round trip neither scales nor unscales, and
@@ -779,9 +787,12 @@ otherwise never see an external change without a restart.
 Windows' own gesture given a menu home: naming it on the item does not create the shortcut — the
 system closes a window on Alt+F4 whatever any menu says — it makes the item **read** as the
 shortcut it already is, which is the only way a screen-reader user learns of one (ADR-0004). The
-item is **available in every state**, dirty Sessions and Read-only Data alike: an application a
-dirty Session could disable the way out of is one the user has to kill, and the close-confirm is
-the whole of why they do not have to. The File menu's mnemonics are A and x.
+item is **available in every state**, dirty Sessions and Read-only Data alike — which is this
+section's own "every menu item's enabled state reflects the active Session" **overridden**, and
+named as such. Exit is the second item that does not follow the active Session (Open Backups
+Folder was the first, following the Run instead) and the only one that follows nothing at all: an
+application a dirty Session could disable the way out of is one the user has to kill, and the
+close-confirm is the whole of why they do not have to. The File menu's mnemonics are A and x.
 
 *Amended by impl ticket 14, which built the Tools menu and the Backups tab's Restore button.*
 Tools opens with **Open Backups Folder** alone; Settings… and Restart as Administrator arrive with

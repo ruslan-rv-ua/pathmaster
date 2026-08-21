@@ -127,3 +127,54 @@ was compared before and after and is unchanged.
 Apply Run's own integration tests against a temporary key — including the multi-Scope order, the
 stop at the first Scope that does not complete, and `failed_scope` — and by Release Checklist steps
 28 and 29.
+
+### The review, applied
+
+Two axes over `develop...HEAD`. Five findings taken, one declined.
+
+- **A catch-all over `Command`** had crept into `run()`'s dispatch — the one non-exhaustive match
+  over that enum in the tree, against a rule this very diff writes twice in `command.rs`. Arms
+  spelled out.
+- **"Focus moves to the failed tab" was half done.** `set_selection` activates a tab; it does not
+  land the keyboard focus in it, and this file treats the two as separate steps everywhere else. A
+  row focused in a control that is not focused is silent, which for this application is the same as
+  not having happened — so `save_then_close` now activates *and* focuses, and
+  `ScopePage::focus_list` is the one home for "focus into the list, on the row the user was on"
+  that `rescue_focus` already needed.
+- **A minimised window silently lost the geometry.** Windows parks one far off every monitor and
+  reports that as its position, with `is_maximized` reading `false` whatever it was — so closing
+  from the taskbar while minimised recorded coordinates the next start could only read as
+  off-screen, and the window came back centred. A minimised window is now not written at all: the
+  file keeps the last place the user could actually see it. §12 says so.
+- **`WorkArea::overlap` overflowed `i32`.** `window.x + window.width` comes out of a hand-editable
+  file that §13 deliberately does not clamp, so `x: 2147483647` panicked before the window was
+  shown — a hand edit turning into an application that will not start. The arithmetic is `i64` now,
+  with the far edge of the type as an ordinary answer (no overlap), and two tests pin it.
+- **One comment claimed more than the code does.** Vetoing `EVT_CLOSE` does not answer a Windows
+  log-off: that is `wxEVT_QUERY_END_SESSION` on the application object, which nothing implements.
+  The claim is gone and the limit is named in §5 instead — accepted for v0.1.0, since what a
+  log-off loses is edits that had never reached the machine.
+- **§15's amendment now names what it overrides**: "every menu item's enabled state reflects the
+  active Session". Exit is the second item that does not (Open Backups Folder was the first,
+  following the Run) and the only one that follows nothing at all.
+
+**Declined: extracting a shared `Rect`.** `WorkArea` and `settings::Window` are the same rectangle
+wearing two names, and the smell is real — but `Window` is ticket 07's settled record of what the
+file holds, with its own read/write pair, its own field-layer rules and its own tests. Re-cutting it
+around a `Rect` would rewrite a public core type and its serialisation for no behavioural gain, in
+a ticket that is about closing a window. Recorded here so the next person meets a decision rather
+than an oversight.
+
+**Verified live afterwards**, same portable build, and the real `PATH` unchanged before and after:
+
+- Closed at `260,140 1040×660`, reopened, **minimised**, closed from the taskbar: `settings.json`
+  still says `260,140 1040×660`, and the run still logged `INFO  shutdown: clean`.
+- Partial failure, arranged so the registry is never reached — a *file* where `data\backups\`
+  must be a directory, so the Apply Run fails at the backup step. In Ukrainian, [Зберегти] left the
+  window open with the Banner reading «Не вдалося застосувати — не вдалося створити резервну
+  копію, зміни не внесено.», the keyboard focus on a `SysListView32`, the registry byte-identical,
+  `ERROR apply: User scope not applied, backup failed (os error 267)` in the log and **no**
+  `shutdown: clean` line under it.
+- The Ukrainian dialog reads «Незбережені зміни: PATH користувача — зберегти перед закриттям?»
+  with [Зберегти] [Відхилити] [Скасувати], and File → `Вихід(&X)` carries `Alt+F4` — the Latin
+  mnemonic in parentheses, as ADR-0004 requires.

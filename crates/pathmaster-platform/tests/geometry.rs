@@ -152,6 +152,39 @@ fn the_maximised_state_rides_through_the_clamp_untouched() {
 }
 
 #[test]
+fn a_hand_edited_coordinate_at_the_far_edge_of_its_type_is_answered_not_survived() {
+    // `settings.json` is hand-editable and §13 does not clamp what it finds:
+    // an out-of-domain coordinate reaches here exactly as written. Adding the
+    // width to it is what overflows, so the arithmetic has to be wider than
+    // the numbers — the alternative is a panic before the window is shown,
+    // which is a hand edit turning into an application that will not start.
+    for (x, y) in [
+        (i32::MAX, 0),
+        (0, i32::MAX),
+        (i32::MIN, 0),
+        (0, i32::MIN),
+        (i32::MAX, i32::MIN),
+    ] {
+        assert_eq!(
+            place(Some(remembered(x, y, 900, 650)), &[primary()]),
+            Placement::Centred,
+            "({x}, {y}) is nowhere a monitor is"
+        );
+    }
+}
+
+#[test]
+fn a_remembered_size_at_the_far_edge_of_its_type_is_answered_too() {
+    // The width is the other half of the same sum, and a positive one is
+    // legal as far as the file layer is concerned — it rejects only sizes
+    // that are not positive.
+    assert_eq!(
+        place(Some(remembered(-5, -5, i32::MAX, i32::MAX)), &[primary()]),
+        Placement::Remembered(remembered(0, 0, 1920, 1040)),
+    );
+}
+
+#[test]
 fn a_run_that_can_see_no_monitors_opens_at_the_default_place() {
     // Not reachable on a machine with a screen, and the answer still has to be
     // the one that cannot strand a window: centred is wx's own problem to
