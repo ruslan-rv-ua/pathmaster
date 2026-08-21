@@ -24,7 +24,7 @@ use pathmaster_platform::datadir;
 use pathmaster_platform::elevation;
 use pathmaster_platform::locale;
 use pathmaster_platform::registry::{RawValue, ScopeKey};
-use pathmaster_platform::startup::{self, LoadedScope, Startup};
+use pathmaster_platform::startup::{self, Decisions, LoadedScope};
 
 /// One Scope as the window holds it: the Session, shared, and the value the
 /// registry held when startup read it.
@@ -38,12 +38,25 @@ pub struct SharedScope {
     pub last_read: RawValue,
 }
 
+impl From<LoadedScope> for SharedScope {
+    /// Wrapping one Session for the window, which is the whole of what
+    /// "assembly" means here: `Rc` because every command holds the window,
+    /// `RefCell` because editing needs `&mut` — under the standing rule that no
+    /// borrow is held across a call that can run someone else's code.
+    fn from(loaded: LoadedScope) -> SharedScope {
+        SharedScope {
+            session: Rc::new(RefCell::new(loaded.session)),
+            last_read: loaded.last_read,
+        }
+    }
+}
+
 fn main() -> std::process::ExitCode {
     // Everything this Run is, decided in one place (ADR-0010). What cannot be
     // decided there is asked here, at the edge, because these are the calls no
     // test can make fail: where this executable is, whether its process is
     // elevated, and what language Windows shows its own interface in.
-    let Startup {
+    let Decisions {
         run,
         records,
         language,
@@ -70,23 +83,18 @@ fn main() -> std::process::ExitCode {
     // only surface as a nonzero exit code (and the panic line, if it panics).
     match wxdragon::main(move |_| {
         catalog::install(language);
-        let frame = ui::build_main_window(share(user), share(system), readonly, run, settings);
+        let frame = ui::build_main_window(
+            SharedScope::from(user),
+            SharedScope::from(system),
+            readonly,
+            run,
+            settings,
+        );
         if settings_unreadable {
             ui::show_settings_unreadable(&frame);
         }
     }) {
         Ok(()) => std::process::ExitCode::SUCCESS,
         Err(_) => std::process::ExitCode::FAILURE,
-    }
-}
-
-/// Wrapping one Session for the window, which is the whole of what assembly
-/// means here: `Rc` because every command holds the window, `RefCell` because
-/// editing needs `&mut` — under the standing rule that no borrow is held
-/// across a call that can run someone else's code.
-fn share(loaded: LoadedScope) -> SharedScope {
-    SharedScope {
-        session: Rc::new(RefCell::new(loaded.session)),
-        last_read: loaded.last_read,
     }
 }

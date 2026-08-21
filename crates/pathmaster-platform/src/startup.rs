@@ -14,7 +14,11 @@
 //! 2. The panic hook installs only where there is a log path to install
 //!    against.
 //! 3. The startup record precedes the settings records: it names the build,
-//!    and until it does nothing under it means anything.
+//!    and until it does nothing under it means anything. That order is now one
+//!    *within the returned records* rather than one on disk, because nothing
+//!    here writes — so a panic between rule two and `main`'s write leaves a log
+//!    whose first line is the panic, with no build line above it. That is the
+//!    price of ADR-0008's shape, and it is paid knowingly.
 //! 4. [`Source`]'s three arms decide one dialog flag and the `WARN` records
 //!    (spec §13).
 //! 5. User writes with the Run and System also needs elevation — the one `&&`
@@ -130,11 +134,16 @@ pub struct LoadedScope {
     pub last_read: RawValue,
 }
 
-/// Everything [`decide`] settled, as `main` destructures it.
+/// Everything [`decide`] settled, as `main` destructures it — ADR-0010's "what
+/// comes out is decisions; what stays is assembly", named for the half that
+/// comes out.
 ///
-/// One struct rather than a tuple because seven positions are six chances to
-/// swap two of them, and two of these are `bool`s.
-pub struct Startup {
+/// Deliberately **not** `Startup`: `CONTEXT.md`'s **Run** entry keeps that word
+/// for *when* a Run's properties are decided rather than for a thing, and this
+/// is a thing. One struct rather than a tuple because eight positions are seven
+/// chances to swap two of them — and one of those pairs, `user` and `system`,
+/// shares a type, so the compiler would not catch that one.
+pub struct Decisions {
     /// The facts the window holds for as long as the Run lasts.
     pub run: Run,
     /// What this startup earned, in order — **returned rather than written**
@@ -154,6 +163,9 @@ pub struct Startup {
     /// Whether the user is owed the one startup dialog `settings.json` can cost
     /// them: the file existed and could not be read (spec §13).
     pub settings_unreadable: bool,
+    /// The two Editing Sessions, one per Scope (spec §5), each beside the value
+    /// its registry key held when this startup read it. They arrive unshared:
+    /// who holds them, and for how long, is the window's business.
     pub user: LoadedScope,
     pub system: LoadedScope,
 }
@@ -176,7 +188,7 @@ pub fn decide(
     system_language: SystemLanguage,
     user_key: &ScopeKey,
     system_key: &ScopeKey,
-) -> Startup {
+) -> Decisions {
     let data = datadir::decide(located);
 
     // Rule one. The log lives in the Data Directory, so Read-only Data is a Run
@@ -204,6 +216,8 @@ pub fn decide(
     // itself — `language: en` above, and below it the reason it is not what the
     // file asked for. The version is `env!` here rather than a parameter because
     // the workspace pins one version for all three crates: this is the binary's.
+    // Should `crates/pathmaster` ever take a version of its own, this has to
+    // become a parameter — nothing else would notice.
     let mut records = vec![Record::startup(
         env!("CARGO_PKG_VERSION"),
         elevated,
@@ -246,7 +260,7 @@ pub fn decide(
         DataDirState::ReadOnly(reason) => Some(reason.clone()),
     };
 
-    Startup {
+    Decisions {
         run: Run::new(logger, data.dir().map(Path::to_path_buf)),
         records,
         language,
@@ -258,8 +272,11 @@ pub fn decide(
     }
 }
 
-/// Rule seven. One Scope's startup read, decoded into its Session with the
-/// Baseline set — Absent decodes to zero Entries (spec §5). The raw value is
+/// Rule seven, over rule five's answer: `permitted` is whether *this Run* may
+/// write this Scope at all, and a failed read overrides it.
+///
+/// One Scope's startup read, decoded into its Session with the Baseline set —
+/// Absent decodes to zero Entries (spec §5). The raw value is
 /// kept beside it: external-change detection compares `(vtype, bytes)`, and
 /// decoding stops at the first NUL, so a decoded copy would miss a real change
 /// (spec §4).
@@ -272,11 +289,11 @@ pub fn decide(
 fn load_session(
     scope: Scope,
     key: &ScopeKey,
-    writable: bool,
+    permitted: bool,
     records: &mut Vec<Record>,
 ) -> LoadedScope {
     let (value, raw, writable) = match key.read() {
-        Ok(raw) => (raw.decode(), raw, writable),
+        Ok(raw) => (raw.decode(), raw, permitted),
         Err(err) => {
             records.push(Record::scope_read_failed(scope, err.log_cause()));
             (ScopeValue::Absent, RawValue::Absent, false)

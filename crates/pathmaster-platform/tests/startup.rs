@@ -30,7 +30,7 @@ use pathmaster_platform::datadir::ReadOnlyReason;
 use pathmaster_platform::logwriter::LOG_FILE_NAME;
 use pathmaster_platform::registry::{Hive, RawValue, ScopeKey};
 use pathmaster_platform::settings::{BAD_FILE_NAME, FILE_NAME};
-use pathmaster_platform::startup::{self, Startup};
+use pathmaster_platform::startup::{self, Decisions};
 
 const TEST_ROOT: &str = r"Software\PathMasterTest";
 
@@ -120,7 +120,7 @@ impl World {
         fs::write(self.settings_file(), text).unwrap();
     }
 
-    fn decide(&self, elevated: bool) -> Startup {
+    fn decide(&self, elevated: bool) -> Decisions {
         self.decide_from(Some(self.located()), elevated, SystemLanguage::Other)
     }
 
@@ -129,7 +129,7 @@ impl World {
         located: Option<PathBuf>,
         elevated: bool,
         system: SystemLanguage,
-    ) -> Startup {
+    ) -> Decisions {
         // `decide` installs the process-wide panic hook whenever the Run has a
         // log (rule two), and that hook writes to the log instead of printing —
         // left in place it would swallow libtest's own report for every test
@@ -139,7 +139,7 @@ impl World {
         // two child-process tests below, where clobbering it is the point.
         let _serialised = HOOK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let harness_hook = panic::take_hook();
-        let startup = startup::decide(
+        let decided = startup::decide(
             located,
             elevated,
             system,
@@ -147,7 +147,7 @@ impl World {
             &self.system.key(),
         );
         panic::set_hook(harness_hook);
-        startup
+        decided
     }
 }
 
@@ -171,12 +171,38 @@ fn raws(session: &Session) -> Vec<&str> {
 fn writable_data_gives_the_run_a_log_in_its_data_directory() {
     let world = World::new("log-writable");
 
-    let startup = world.decide(false);
+    let decided = world.decide(false);
 
-    assert_eq!(startup.run.data_dir(), Some(world.located().as_path()));
+    assert_eq!(decided.run.data_dir(), Some(world.located().as_path()));
     assert_eq!(
-        startup.run.log_path(),
+        decided.run.log_path(),
         Some(world.located().join(LOG_FILE_NAME).as_path()),
+    );
+    assert_eq!(decided.readonly, None, "there is no reason to carry");
+}
+
+/// Rule one's sharper half (spec §14): an unopenable log is a Run without a
+/// log, **never** Read-only Data. A directory wearing the log's name is the
+/// cheapest way to arrange one — `data\` is still perfectly writable, so the
+/// two decisions must come apart.
+#[test]
+fn a_log_that_cannot_be_opened_does_not_make_the_run_read_only() {
+    let world = World::new("log-unopenable");
+    fs::create_dir_all(world.located().join(LOG_FILE_NAME)).unwrap();
+
+    let decided = world.decide(false);
+
+    assert_eq!(decided.run.log_path(), None, "a Run without a log");
+    assert_eq!(decided.readonly, None, "but not a Read-only Data Run");
+    assert_eq!(decided.run.data_dir(), Some(world.located().as_path()));
+    // Which is to say the startup line it earned says so, and is dropped.
+    assert_eq!(
+        decided.records,
+        vec![startup_record(
+            false,
+            DataState::Writable,
+            Language::English
+        )],
     );
 }
 
@@ -187,16 +213,21 @@ fn read_only_data_is_a_run_without_a_log_and_writes_nothing() {
     // Read-only Data with a directory it can name but not create.
     fs::write(world.located(), b"not a directory").unwrap();
 
-    let startup = world.decide(false);
+    let decided = world.decide(false);
 
-    assert_eq!(startup.run.log_path(), None);
+    assert_eq!(decided.run.log_path(), None);
     // The directory it names is still the located one — Read-only Data never
     // relocates (ADR-0002).
-    assert_eq!(startup.run.data_dir(), Some(world.located().as_path()));
+    assert_eq!(decided.run.data_dir(), Some(world.located().as_path()));
     assert_eq!(
         fs::read(world.located()).unwrap(),
         b"not a directory",
         "nothing may be written in Read-only Data",
+    );
+    assert_eq!(
+        decided.readonly,
+        Some(ReadOnlyReason::CannotCreate(world.located())),
+        "the reason survives to the UI",
     );
 }
 
@@ -204,12 +235,12 @@ fn read_only_data_is_a_run_without_a_log_and_writes_nothing() {
 fn an_unknown_own_location_is_a_run_with_neither_a_log_nor_a_directory() {
     let world = World::new("log-nowhere");
 
-    let startup = world.decide_from(None, false, SystemLanguage::Other);
+    let decided = world.decide_from(None, false, SystemLanguage::Other);
 
-    assert_eq!(startup.run.log_path(), None);
-    assert_eq!(startup.run.data_dir(), None);
+    assert_eq!(decided.run.log_path(), None);
+    assert_eq!(decided.run.data_dir(), None);
     assert_eq!(
-        startup.readonly,
+        decided.readonly,
         Some(ReadOnlyReason::OwnLocationUnknown),
         "the reason survives to the UI",
     );
@@ -224,10 +255,10 @@ fn an_unknown_own_location_is_a_run_with_neither_a_log_nor_a_directory() {
 fn a_first_run_logs_the_startup_line_and_nothing_else() {
     let world = World::new("settings-absent");
 
-    let startup = world.decide(false);
+    let decided = world.decide(false);
 
     assert_eq!(
-        startup.records,
+        decided.records,
         vec![startup_record(
             false,
             DataState::Writable,
@@ -235,8 +266,8 @@ fn a_first_run_logs_the_startup_line_and_nothing_else() {
         )],
         "an absent settings.json is a first run, not a failure",
     );
-    assert!(!startup.settings_unreadable, "and costs no dialog");
-    assert_eq!(startup.settings, SettingsFile::defaults());
+    assert!(!decided.settings_unreadable, "and costs no dialog");
+    assert_eq!(decided.settings, SettingsFile::defaults());
 }
 
 #[test]
@@ -245,7 +276,7 @@ fn rejected_fields_are_warned_about_in_order_under_the_startup_line() {
     let text = r#"{"language": "klingon", "maxBackups": 2.5}"#;
     world.write_settings(text);
 
-    let startup = world.decide(false);
+    let decided = world.decide(false);
 
     let Parsed::Readable { file, rejected } = SettingsFile::parse(text) else {
         panic!("the fixture parses");
@@ -257,14 +288,14 @@ fn rejected_fields_are_warned_about_in_order_under_the_startup_line() {
         Language::English,
     )];
     expected.extend(rejected.iter().map(|rejection| rejection.record()));
-    assert_eq!(startup.records, expected, "the startup line comes first");
+    assert_eq!(decided.records, expected, "the startup line comes first");
     assert!(
-        !startup.settings_unreadable,
+        !decided.settings_unreadable,
         "a bad field is noise, not a dialog",
     );
     // The backup budget travels with the settings, not with the Run: the
     // window holds this file and each Apply reads the budget off it (ADR-0010).
-    assert_eq!(startup.settings, file);
+    assert_eq!(decided.settings, file);
 }
 
 #[test]
@@ -272,11 +303,11 @@ fn an_unreadable_settings_file_costs_one_dialog_one_warn_and_its_name() {
     let world = World::new("settings-unreadable");
     world.write_settings("{ this is not json");
 
-    let startup = world.decide(false);
+    let decided = world.decide(false);
 
-    assert!(startup.settings_unreadable, "the user is owed a dialog");
+    assert!(decided.settings_unreadable, "the user is owed a dialog");
     assert_eq!(
-        startup.records,
+        decided.records,
         vec![
             startup_record(false, DataState::Writable, Language::English),
             Record::settings_unreadable(true),
@@ -284,7 +315,7 @@ fn an_unreadable_settings_file_costs_one_dialog_one_warn_and_its_name() {
     );
     assert!(!world.settings_file().exists(), "set aside, not left");
     assert!(world.located().join(BAD_FILE_NAME).exists());
-    assert_eq!(startup.settings, SettingsFile::defaults());
+    assert_eq!(decided.settings, SettingsFile::defaults());
 }
 
 /// Read-only Data still reads its settings — a run that cannot write its
@@ -296,16 +327,16 @@ fn read_only_data_reads_its_settings_and_leaves_a_bad_file_in_place() {
     world.write_settings("{ this is not json");
     let _deny = DenyCreateFile::new(&world.located());
 
-    let startup = world.decide(false);
+    let decided = world.decide(false);
 
-    assert!(startup.settings_unreadable, "the dialog is owed either way");
+    assert!(decided.settings_unreadable, "the dialog is owed either way");
     assert!(
         world.settings_file().exists(),
         "their file stays exactly where they left it",
     );
     assert!(!world.located().join(BAD_FILE_NAME).exists());
     assert_eq!(
-        startup.records,
+        decided.records,
         vec![
             startup_record(false, DataState::ReadOnlyNotWritable, Language::English),
             Record::settings_unreadable(false),
@@ -313,7 +344,7 @@ fn read_only_data_reads_its_settings_and_leaves_a_bad_file_in_place() {
         "a run without a log still earns its records; nothing writes them",
     );
     assert_eq!(
-        startup.readonly,
+        decided.readonly,
         Some(ReadOnlyReason::NotWritable(world.located())),
     );
 }
@@ -327,11 +358,11 @@ fn the_stored_choice_beats_the_system_language_and_the_startup_line_says_so() {
     let world = World::new("language-stored");
     world.write_settings(r#"{"language": "uk"}"#);
 
-    let startup = world.decide_from(Some(world.located()), false, SystemLanguage::Other);
+    let decided = world.decide_from(Some(world.located()), false, SystemLanguage::Other);
 
-    assert_eq!(startup.language, Language::Ukrainian);
+    assert_eq!(decided.language, Language::Ukrainian);
     assert_eq!(
-        startup.records,
+        decided.records,
         vec![startup_record(
             false,
             DataState::Writable,
@@ -345,9 +376,9 @@ fn auto_follows_the_system_language() {
     let world = World::new("language-auto");
     world.write_settings(r#"{"language": "auto"}"#);
 
-    let startup = world.decide_from(Some(world.located()), false, SystemLanguage::Ukrainian);
+    let decided = world.decide_from(Some(world.located()), false, SystemLanguage::Ukrainian);
 
-    assert_eq!(startup.language, Language::Ukrainian);
+    assert_eq!(decided.language, Language::Ukrainian);
 }
 
 // ---------------------------------------------------------------------------
@@ -367,11 +398,11 @@ fn user_writes_with_the_run_and_system_also_needs_elevation() {
         (false, true, false, false),
     ] {
         let located = data_writable.then(|| world.located());
-        let startup = world.decide_from(located, elevated, SystemLanguage::Other);
+        let decided = world.decide_from(located, elevated, SystemLanguage::Other);
 
         let row = format!("data_writable: {data_writable}, elevated: {elevated}");
-        assert_eq!(startup.user.session.writable(), user_writable, "{row}");
-        assert_eq!(startup.system.session.writable(), system_writable, "{row}");
+        assert_eq!(decided.user.session.writable(), user_writable, "{row}");
+        assert_eq!(decided.system.session.writable(), system_writable, "{row}");
     }
 }
 
@@ -387,17 +418,17 @@ fn a_scope_that_reads_carries_its_value_and_the_bytes_it_was_read_from() {
         .plant(ValueType::RegExpandSz, r"C:\bin;%SystemRoot%");
     world.system.plant(ValueType::RegSz, r"C:\literal");
 
-    let startup = world.decide(true);
+    let decided = world.decide(true);
 
-    assert_eq!(raws(&startup.user.session), vec![r"C:\bin", "%SystemRoot%"]);
-    assert_eq!(startup.user.session.value_type(), ValueType::RegExpandSz);
-    assert_eq!(raws(&startup.system.session), vec![r"C:\literal"]);
-    assert_eq!(startup.system.session.value_type(), ValueType::RegSz);
+    assert_eq!(raws(&decided.user.session), vec![r"C:\bin", "%SystemRoot%"]);
+    assert_eq!(decided.user.session.value_type(), ValueType::RegExpandSz);
+    assert_eq!(raws(&decided.system.session), vec![r"C:\literal"]);
+    assert_eq!(decided.system.session.value_type(), ValueType::RegSz);
     // The raw value is kept beside the Session: external-change detection
     // compares `(vtype, bytes)`, and a decoded copy would miss a change past
     // the first NUL (spec §4).
-    assert_eq!(startup.user.last_read, world.user.key().read().unwrap());
-    assert_ne!(startup.user.last_read, RawValue::Absent);
+    assert_eq!(decided.user.last_read, world.user.key().read().unwrap());
+    assert_ne!(decided.user.last_read, RawValue::Absent);
 }
 
 /// The rule impl ticket 08 invented and nothing has asserted since: a read that
@@ -410,23 +441,23 @@ fn a_scope_whose_read_fails_is_empty_and_never_writable() {
     world.user.plant_unreadable();
     world.system.plant(ValueType::RegExpandSz, r"C:\bin");
 
-    let startup = world.decide(true);
+    let decided = world.decide(true);
 
-    assert!(raws(&startup.user.session).is_empty());
+    assert!(raws(&decided.user.session).is_empty());
     assert!(
-        !startup.user.session.writable(),
+        !decided.user.session.writable(),
         "a Writable-Data elevated run still may not write what it could not read",
     );
     assert_eq!(
-        startup.user.last_read,
+        decided.user.last_read,
         RawValue::Absent,
         "and its last-read value is the one nothing ever compares",
     );
     // The other Scope is untouched by its neighbour's failure.
-    assert!(startup.system.session.writable());
-    assert_eq!(raws(&startup.system.session), vec![r"C:\bin"]);
+    assert!(decided.system.session.writable());
+    assert_eq!(raws(&decided.system.session), vec![r"C:\bin"]);
     assert_eq!(
-        startup.records,
+        decided.records,
         vec![
             startup_record(true, DataState::Writable, Language::English),
             Record::scope_read_failed(Scope::User, FailureCause::UnsupportedType { vtype: 3 }),

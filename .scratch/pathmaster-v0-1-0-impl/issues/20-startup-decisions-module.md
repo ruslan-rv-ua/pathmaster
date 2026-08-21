@@ -44,8 +44,8 @@ been carrying that weight untested ever since.
 ---
 
 Implemented 2026-08-21 on `feature/startup-decisions-module`. `pathmaster-platform::startup` now owns
-the seven rules and the two types they produce; `main.rs` is 200 lines lighter at 91, of which the
-decision half is one destructuring `let` over five arguments. Fifteen tests behind the module, none
+the seven rules and the two types they produce; `main.rs` goes from 199 lines to 100, of which the
+decision half is one destructuring `let` over five arguments. Sixteen tests behind the module, none
 of them needing a privilege or the real `PATH`.
 
 **The Run-facts struct is called `Run`, and that is the whole of the naming change.** `RunFacts` was
@@ -56,14 +56,14 @@ it was avoiding a collision with a name nothing yet held. It holds exactly what 
 
 **`LoadedScope` split in two, which was not a rename.** What startup returns holds a bare `Session`;
 what the window takes holds an `Rc<RefCell<Session>>` and is called `SharedScope`. The wrap is the
-one line of "wrapping the Sessions" the ticket leaves in `main`, and putting it there is what keeps
+`From` impl that is all "wrapping the Sessions" amounts to, and putting it in `main` is what keeps
 `Rc` — a decision about the window's lifetime — out of a crate that has no window. Two types rather
 than one because the seam is real: `startup` cannot name the sharing, and the window cannot use the
 Session without it.
 
 **Rule two is the one that fought the test harness, and the fight is the reason for two of the
 fifteen tests.** `panic_hook::install` replaces the process-wide hook, and a hook that appends to a
-log file prints nothing — so a `decide` left un-guarded inside a test binary silently swallows
+log file prints nothing — so a `decide` left unguarded inside a test binary silently swallows
 libtest's own failure reporting for every test after the first, turning a later assertion failure
 into a bare `FAILED` with no message. The in-process tests therefore put the harness's hook back the
 moment `decide` returns (under a lock, since the hook is global and the tests run in parallel), and
@@ -88,3 +88,57 @@ and `pathmaster.log` were created, the one line in it reads `INFO startup: PathM
 elevated: no, data: writable, language: uk`, both Scope lists loaded (43 User Entries, 19 System),
 and `WM_CLOSE` exited 0 with nothing further logged. That is every rule but the read-only ones
 exercised end to end through the real composition root.
+
+### The review
+
+Both axes ran against `develop`. **Standards** returned clean on every ADR-0010 consequence and found
+one borderline-hard naming breach plus four judgement calls; **Spec** confirmed the seven rules moved
+textually intact — it diffed `decide` against `develop`'s `main.rs` line by line — and then found the
+one place where "intact" is not the same as "identical".
+
+**The finding worth the whole review: rule three no longer holds on disk.** It used to, because old
+`main` wrote the startup line before `settings::read` and before either `ScopeKey::read`. Now nothing
+is written until `decide` returns, while the panic hook goes in near the top of it — so a panic
+anywhere in the settings read or the two Scope loads leaves a log whose **first** line is
+`ERROR panic:`, with no build line above it. The new `panic_trigger` test proves it by dropping the
+records and asserting exactly that log. This is ADR-0008's shape working as designed rather than a
+defect, and the ticket's own claim of a faithful move was too strong: the *order* of the records is
+preserved, their *arrival* is not. Rule three now says so where it lives, in the module doc.
+
+Applied, beyond that:
+
+- **`Startup` became `Decisions`.** `CONTEXT.md`'s **Run** entry keeps `Startup` off the vocabulary
+  as a name for a thing — "that is *when* a Run's properties are decided, not the Run itself" — and
+  the struct was a thing, in a file whose first line is "Everything a **Run** is". ADR-0010 supplied
+  the replacement in its own words: *what comes out is decisions; what stays is assembly*. The module
+  and `startup::decide` keep their names, which the same parenthetical sanctions.
+- **Two coverage gaps in rules one and six**, both real. Rule six was asserted for two of its four
+  states, so `CannotCreate` and Writable-Data's `None` are asserted now. And rule one's sharper half
+  — spec §14's "an unopenable log stays a Run without a log, **never** Read-only Data" — had no test
+  at the startup level at all: a directory wearing `pathmaster.log`'s name inside a perfectly
+  writable `data\` now proves the two decisions come apart.
+- **`fn share` became `impl From<LoadedScope> for SharedScope`**, and `load_session`'s `writable`
+  parameter became `permitted` — it was shadowed by the match binding that overrides it, which is
+  precisely the line rule seven lives on.
+- **A wrong claim in a doc comment.** `Decisions` argued for itself with "seven positions … two of
+  these are `bool`s"; it has eight fields and one bool. The real swap hazard is `user` and `system`
+  sharing a type, which is what it says now.
+- **The `env!("CARGO_PKG_VERSION")` tripwire is named.** Correct today because the workspace pins one
+  version for all three crates, and nothing would fail loudly if `crates/pathmaster` ever took its
+  own — so the comment says what has to happen if it does.
+
+**Two findings declined, with reasons.**
+
+- **Spec called the §17 `crates/pathmaster` bullet scope creep**, and by the letter of the ticket it
+  is: only the `pathmaster-platform` list was asked for. But that bullet described `main.rs` as
+  "panic hook → settings → language → window", which is a list of the things this ticket *removed*
+  from it. Leaving it would have left the spec asserting something the diff makes false.
+- **`Decisions` does not carry `elevated`.** Spec is right that ticket 17 will want it and that
+  `CONTEXT.md` lists elevation as a Run property. Adding a field with no reader is the Speculative
+  Generality the other axis exists to catch; ticket 17 adds it with its first use, which is also when
+  its shape will be known.
+
+Left standing: `DenyCreateFile` is duplicated from `tests/datadir.rs`, which the per-file test-helper
+pattern (`TestKey` now appears in three test files) already settles in the repo's favour. And
+`decide`'s `elevated: bool` stays a bare `bool`, because `elevation::is_elevated()` is what fills it
+at the one production call site and the parameter names itself there.
