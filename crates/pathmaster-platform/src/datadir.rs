@@ -104,15 +104,12 @@ pub fn locate(exe_path: &Path) -> Option<PathBuf> {
     Some(strip_verbatim_prefix(&resolved).parent()?.join("data"))
 }
 
-/// The whole Data Directory decision, made from the running process (spec
-/// §3's startup tree — the log and settings steps that follow it belong to
-/// later tickets): locate from `current_exe()`, then decide.
-pub fn startup() -> DataDirState {
-    decide(std::env::current_exe().ok().as_deref().and_then(locate))
-}
-
-/// The reason selection on a locate answer — `startup()` minus the one call
-/// (`current_exe()`) a test cannot make fail; public as that test seam.
+/// The reason selection on a locate answer — the whole Data Directory decision
+/// minus the one call (`current_exe()`) a test cannot make fail. That call
+/// stays at the edge, in `main`, which hands the answer down through
+/// [`startup::decide`](crate::startup::decide); there is deliberately no
+/// convenience that bundles the two, because a second route to this decision
+/// would bypass the writability rule built on top of it (ADR-0010).
 /// A run with no located directory cannot know where it is: Read-only Data,
 /// own location unknown.
 pub fn decide(located: Option<PathBuf>) -> DataDirState {

@@ -33,6 +33,7 @@ use pathmaster_platform::datadir::ReadOnlyReason;
 use pathmaster_platform::diagnostics::ProcessEnvironment;
 use pathmaster_platform::logwriter;
 use pathmaster_platform::registry::{RawValue, ScopeKey};
+use pathmaster_platform::startup::Run;
 use wxdragon::prelude::*;
 
 use crate::announce::Announcer;
@@ -40,7 +41,7 @@ use crate::catalog::{self, translate};
 use crate::pump::Pump;
 use crate::ui::command::Command;
 use crate::ui::scope_page::ScopePage;
-use crate::{LoadedScope, RunFacts};
+use crate::SharedScope;
 
 /// The notebook's page order (spec §12): the two Scopes, then Backups —
 /// which is not a Scope, so activating it announces nothing and offers no
@@ -197,9 +198,9 @@ struct App {
     /// keeps showing it until the next pass replaces it. `None` only before
     /// the first pass has landed.
     merged_length: Cell<Option<usize>>,
-    /// The Run's facts: the log and the Data Directory, decided once at
-    /// startup and handed to every Apply Run (ADR-0008).
-    facts: RunFacts,
+    /// This Run's facts: the log and the Data Directory, decided once by
+    /// `startup::decide` and handed to every Apply Run (ADR-0008, ADR-0010).
+    run: Run,
     /// The settings as they now stand. Held rather than read per Apply because
     /// `maxBackups` is a setting the user changes while the application runs,
     /// which is exactly why it is not one of the Run's facts (ADR-0010); the
@@ -212,10 +213,10 @@ struct App {
 /// back to. A Read-only Data run passes its reason; announcing it is the last
 /// step of startup (spec §11: … → UI → writability → announce).
 pub fn build_main_window(
-    user: LoadedScope,
-    system: LoadedScope,
+    user: SharedScope,
+    system: SharedScope,
     readonly: Option<ReadOnlyReason>,
-    facts: RunFacts,
+    run: Run,
     settings: SettingsFile,
 ) -> Frame {
     let frame = Frame::builder()
@@ -298,7 +299,7 @@ pub fn build_main_window(
         readonly,
         pump: Pump::new(&frame),
         merged_length: Cell::new(None),
-        facts,
+        run,
         settings: RefCell::new(settings),
     });
     app.bind();
@@ -605,7 +606,7 @@ impl App {
     /// non-writable, and `Command::enabled` has already turned Apply off — but
     /// the Data Directory is an `Option` and this is what its `None` means.
     fn apply(&self, tab: &ScopeTab) {
-        let Some(data_dir) = self.facts.data_dir() else {
+        let Some(data_dir) = self.run.data_dir() else {
             return;
         };
         // Read out here rather than in the struct below: a `Ref` taken inside
@@ -622,7 +623,7 @@ impl App {
                 // run over every dirty Scope, User first.
                 order: &[tab.scope],
                 data_dir,
-                log_path: self.facts.log_path(),
+                log_path: self.run.log_path(),
                 // Read here rather than inside the run, because a Snapshot's
                 // name and its collision suffix must both come from one
                 // reading of the clock (ADR-0008).
@@ -665,7 +666,7 @@ impl App {
     /// (spec §9) and is why the run is handed no Baseline at all.
     fn after_apply(&self, outcome: apply::Outcome) {
         for record in &outcome.records {
-            self.facts.log(record);
+            self.run.log(record);
         }
         for (scope, done) in outcome.scopes {
             let tab = self.tab_of(scope);

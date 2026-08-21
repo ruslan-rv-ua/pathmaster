@@ -2,7 +2,7 @@
 //!
 //! Modules land with their tickets: `registry` (key path as a constructor parameter),
 //! `datadir`, `diagnostics`, `elevation`, `locale`, `logwriter`, `panic_hook`, `settings`,
-//! `broadcast`, `snapshots`, `apply`.
+//! `broadcast`, `snapshots`, `apply`, `startup`.
 
 #[cfg(windows)]
 pub mod apply;
@@ -26,3 +26,5 @@ pub mod registry;
 pub mod settings;
 #[cfg(windows)]
 pub mod snapshots;
+#[cfg(windows)]
+pub mod startup;

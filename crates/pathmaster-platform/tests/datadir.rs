@@ -10,8 +10,7 @@ use std::fs;
 use std::path::Path;
 
 use pathmaster_platform::datadir::{
-    decide, establish, locate, startup, strip_verbatim_prefix, write_replace, DataDirState,
-    ReadOnlyReason,
+    decide, establish, locate, strip_verbatim_prefix, write_replace, DataDirState, ReadOnlyReason,
 };
 
 /// File-identity oracle: two paths name the same directory on disk. Used so
@@ -227,13 +226,15 @@ fn an_unwritable_directory_is_readonly_data_with_the_not_writable_reason() {
     );
 }
 
-/// The whole sequence, live: this test binary's own directory is writable,
-/// so `startup()` must locate `data\` beside it and decide Writable.
+/// Both halves against a real executable, which is how `main` calls them: this
+/// test binary's own directory is writable, so locating `data\` beside it and
+/// deciding on the answer must give Writable Data.
 #[test]
-fn startup_decides_writable_beside_this_executable() {
-    let state = startup();
-
+fn locate_and_decide_agree_on_a_writable_directory_beside_this_executable() {
     let exe = std::env::current_exe().unwrap();
+
+    let state = decide(locate(&exe));
+
     match state {
         DataDirState::Writable(dir) => {
             assert!(dir.ends_with("data"));

@@ -757,9 +757,12 @@ ever links wxWidgets.
   both modes, set aside and written only in Writable Data — core owns the parse), `broadcast`,
   `snapshots` (the Snapshot files: `data\backups\` spelled once, and the one listing both the next
   name and the rotation are answered from — impl ticket 13), `apply` (the Apply Run — impl ticket 13,
-  [ADR-0008](../../docs/adr/0008-apply-sequence-lives-in-platform.md)).
+  [ADR-0008](../../docs/adr/0008-apply-sequence-lives-in-platform.md)), `startup` (everything a Run
+  is, decided in one place — impl ticket 20,
+  [ADR-0010](../../docs/adr/0010-run-properties-decided-in-one-place.md)).
 - **`crates/pathmaster`** — **bin-only, no lib target**: `ui/*`, `announce`, `pump` (Timer drain),
-  `catalog` (TranslationsLoader), `main.rs` (panic hook → settings → language → window),
+  `catalog` (TranslationsLoader), `main.rs` (the composition root: the located directory,
+  `startup::decide`, the Catalogue, the window),
   `build.rs` (polib → `.mo`; llvm-rc → icon/VERSIONINFO), `i18n/*.po`.
   `[[bin]] name = "PathMaster"` — no CI rename step.
 
