@@ -28,7 +28,7 @@ use pathmaster_core::msgids;
 use pathmaster_core::normalize::has_variable_reference;
 use pathmaster_core::session::{EntryId, Operation, Scope, Session, ValueType};
 use pathmaster_core::settings::SettingsFile;
-use pathmaster_platform::apply::{self, Ask, ExternalChange, Run, ScopeInput, ScopeOutcome};
+use pathmaster_platform::apply::{self, ApplyRun, Ask, ExternalChange, ScopeInput, ScopeOutcome};
 use pathmaster_platform::datadir::ReadOnlyReason;
 use pathmaster_platform::diagnostics::ProcessEnvironment;
 use pathmaster_platform::logwriter;
@@ -129,16 +129,32 @@ impl ScopeTab {
     /// external-change comparison is made against.
     ///
     /// Both readers of a fresh value do exactly this — F5, and the
-    /// external-change dialog's middle answer — and the two halves must not
-    /// come apart: a Session refreshed from a value the tab did not keep would
-    /// report an external change at the very next Apply.
+    /// external-change dialog's middle answer — and none of it may come apart:
+    /// a Session refreshed from a value the tab did not keep would report an
+    /// external change at the very next Apply, and a focus rule applied at one
+    /// of the two call sites and not the other would be a rule only half kept.
     ///
-    /// Answers where focus lands: the same Entry if it survived, else its
-    /// nearest neighbour, else nothing (spec §5, FR-refresh).
-    fn adopt(&self, raw: RawValue, focus: Option<EntryId>) -> Option<EntryId> {
+    /// Answers the **row** focus lands on: the Entry with the same id if it
+    /// survived the re-read, else its nearest neighbour by index, else wherever
+    /// the user already was (spec §5, FR-refresh).
+    fn adopt(&self, raw: RawValue) -> Option<usize> {
+        let previous_row = self.page.focused_row();
+        let focus = self.focused_entry().map(|(_, id)| id);
         let landing = self.session.borrow_mut().refresh(raw.decode(), focus);
         *self.last_read.borrow_mut() = raw;
-        landing
+        landing.and_then(|id| self.row_of(id)).or(previous_row)
+    }
+
+    /// Records a successful Apply: the value now in the registry becomes what
+    /// the next external-change comparison is made against, and the Baseline
+    /// moves onto the Working Copy.
+    ///
+    /// Apply is a barrier, not a flush — the Undo/Redo stacks are untouched, so
+    /// Ctrl+Z afterwards moves the Working Copy back and simply re-dirties the
+    /// Session, saying so as it goes (spec §5, §10.1 item 5).
+    fn applied(&self, stored: RawValue) {
+        *self.last_read.borrow_mut() = stored;
+        self.session.borrow_mut().mark_applied();
     }
 }
 
@@ -566,10 +582,7 @@ impl App {
             return;
         }
         let Ok(raw) = tab.key().read() else { return };
-        let previous_row = tab.page.focused_row();
-        let focused = tab.focused_entry().map(|(_, id)| id);
-        let landing = tab.adopt(raw, focused);
-        let row = landing.and_then(|id| tab.row_of(id)).or(previous_row);
+        let row = tab.adopt(raw);
         self.after_edit(tab, row);
         let count = tab.session.borrow().entries().len();
         self.announcer.announce(Announcement::EntryCount {
@@ -600,7 +613,7 @@ impl App {
         // say across every dialog the run opens.
         let max_backups = self.settings.borrow().max_backups();
         let outcome = apply::apply(
-            Run {
+            ApplyRun {
                 scopes: [
                     self.scope_input(Scope::User),
                     self.scope_input(Scope::System),
@@ -624,7 +637,7 @@ impl App {
                 catalogue: &self.catalogue,
             },
         );
-        self.absorb(outcome);
+        self.after_apply(outcome);
     }
 
     /// One Scope as the run takes it. Both are handed over however few are
@@ -650,7 +663,7 @@ impl App {
     /// A failure reaches none of it — the Working Copy is untouched and the
     /// Baseline stays where it was, which is the taxonomy's first invariant
     /// (spec §9) and is why the run is handed no Baseline at all.
-    fn absorb(&self, outcome: apply::Outcome) {
+    fn after_apply(&self, outcome: apply::Outcome) {
         for record in &outcome.records {
             self.facts.log(record);
         }
@@ -658,17 +671,12 @@ impl App {
             let tab = self.tab_of(scope);
             match done {
                 ScopeOutcome::Applied { stored } => {
-                    // Apply is a barrier, not a flush: the Baseline moves and
-                    // the Undo stack survives, so Ctrl+Z afterwards re-dirties
-                    // the Session and says so (spec §5, §10.1 item 5).
-                    *tab.last_read.borrow_mut() = stored;
-                    tab.session.borrow_mut().mark_applied();
-                    // Focus stays on the current Entry (spec §10). The list is
-                    // not redrawn — nothing in it changed — but the focus is
-                    // still said out loud, because the control the command
-                    // came from may have been the Apply button, and Apply
-                    // disables itself the moment it succeeds.
-                    tab.page.keep_focus();
+                    tab.applied(stored);
+                    // Focus stays on the current Entry (spec §10), so the list
+                    // is not redrawn — nothing in it changed — and focus is
+                    // moved only if the control holding it has just been
+                    // disabled out from under the user.
+                    tab.page.rescue_focus(&tab.session.borrow());
                     self.announcer.announce(Announcement::Applied { scope });
                 }
                 ScopeOutcome::Refreshed { found } => {
@@ -676,10 +684,12 @@ impl App {
                     // and Baseline both become what was just read, and the
                     // stacks clear. Nothing was written and nothing is
                     // announced — Apply did not happen.
-                    let previous_row = tab.page.focused_row();
-                    let focused = tab.focused_entry().map(|(_, id)| id);
-                    let landing = tab.adopt(found, focused);
-                    let row = landing.and_then(|id| tab.row_of(id)).or(previous_row);
+                    //
+                    // The list is redrawn here rather than through `after_edit`
+                    // because the sync and the diagnostic pass belong to the
+                    // run as a whole, and happen once below however many Scopes
+                    // it reached.
+                    let row = tab.adopt(found);
                     let session = tab.session.borrow();
                     tab.page
                         .render(&session, tab.findings.borrow().as_ref(), row);

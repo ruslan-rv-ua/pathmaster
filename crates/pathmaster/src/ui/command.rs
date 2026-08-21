@@ -82,9 +82,21 @@ impl Command {
     /// through [`msgids::REGISTRY`], so an item cannot sit in one menu and be
     /// gated against another's siblings.
     pub fn menu(self) -> &'static str {
+        // Exhaustive, like every other `match` over this enum: a catch-all
+        // would land the next command someone adds in whichever menu happened
+        // to be the default, silently. Exit is arriving, and it belongs in
+        // File.
         match self {
             Command::Apply => msgids::MENU_GROUP_FILE,
-            _ => msgids::MENU_GROUP_EDIT,
+            Command::Add
+            | Command::Edit
+            | Command::Delete
+            | Command::MoveUp
+            | Command::MoveDown
+            | Command::Undo
+            | Command::Redo
+            | Command::Cancel
+            | Command::Refresh => msgids::MENU_GROUP_EDIT,
         }
     }
 

@@ -68,12 +68,20 @@ pub struct ScopeInput {
     pub last_read: RawValue,
 }
 
-/// One Apply Run's inputs.
+/// One Apply Run, as it is handed over: what to write, where the files go,
+/// and the two facts a test must be able to fix.
+///
+/// It is `ApplyRun` and not `Run` because `CONTEXT.md` gives those two words to
+/// different things — a **Run** is one execution of the application, and this
+/// is one pass of the Apply sequence over one or more Scopes. The window holds
+/// both, and one of them being called `Run` there would be the collision
+/// [ADR-0010](../../../docs/adr/0010-run-properties-decided-in-one-place.md)
+/// exists to prevent.
 ///
 /// Both Scopes arrive however few are being applied, because the merged length
 /// is a fact about the pair (spec §7) and the gate has to know it before any
 /// Scope is touched.
-pub struct Run<'a> {
+pub struct ApplyRun<'a> {
     pub scopes: [ScopeInput; 2],
     /// The Scopes to apply, in the order the run takes them, stopping at the
     /// first that does not complete. Ctrl+S is a run of one; the close-confirm's
@@ -252,7 +260,7 @@ impl Outcome {
 /// written, so asking twice in a two-Scope run would be asking twice about one
 /// number; and a gate that opened after the first Scope had already been
 /// written would be a warning about something that had happened.
-pub fn apply(run: Run<'_>, env: &dyn Environment, ask: &dyn Ask) -> Outcome {
+pub fn apply(run: ApplyRun<'_>, env: &dyn Environment, ask: &dyn Ask) -> Outcome {
     let mut outcome = Outcome {
         scopes: Vec::new(),
         records: Vec::new(),
@@ -281,8 +289,8 @@ pub fn apply(run: Run<'_>, env: &dyn Environment, ask: &dyn Ask) -> Outcome {
     }
     // One broadcast per run that wrote anything: the `lParam` names the
     // environment block rather than a variable, so two Scopes are still one
-    // change (spec §4). The handle is dropped — nothing downstream waits on a
-    // notification, and the thread outliving this call is the point.
+    // change (spec §4). Its handle is dropped, which is what "off the UI
+    // thread" is worth — the run returns while the call is still blocking.
     if wrote {
         drop(broadcast::environment_changed(
             run.log_path.map(Path::to_path_buf),
@@ -297,10 +305,10 @@ pub fn apply(run: Run<'_>, env: &dyn Environment, ask: &dyn Ask) -> Outcome {
 /// one lags by a Timer tick, and the number in the dialog is the one the user
 /// is being asked to accept. Both readings go through the same formula, which
 /// is why the formula is in `pathmaster-core` and not at either of them.
-fn gate(run: &Run<'_>, env: &dyn Environment, ask: &dyn Ask) -> bool {
+fn gate(run: &ApplyRun<'_>, env: &dyn Environment, ask: &dyn Ask) -> bool {
     let system = &input_for(&run.scopes, Scope::System).entries;
     let user = &input_for(&run.scopes, Scope::User).entries;
-    let length = thresholds::merged_length_of(system, user, env);
+    let length = thresholds::merged_length(system, user, env);
     match thresholds::classify(length) {
         Overlength::Within => true,
         Overlength::CmdLimit => ask.cmd_limit(length),
@@ -315,7 +323,7 @@ fn gate(run: &Run<'_>, env: &dyn Environment, ask: &dyn Ask) -> bool {
 fn one_scope(
     input: &ScopeInput,
     backups: &Path,
-    run: &Run<'_>,
+    run: &ApplyRun<'_>,
     ask: &dyn Ask,
     records: &mut Vec<Record>,
 ) -> ScopeOutcome {

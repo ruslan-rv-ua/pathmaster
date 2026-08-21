@@ -41,29 +41,25 @@ impl Overlength {
 }
 
 /// The merged length of both Working Copies, in UTF-16 code units:
-/// `len(expand(System WC) + ";" + expand(User WC))` — spec §7's formula, end
-/// to end.
+/// `len(expand(System WC) + ";" + expand(User WC))` — spec §7's formula, whole,
+/// and the only way to ask for it.
 ///
-/// **Two callers ask this at different moments and must get one answer.** The
+/// **Two callers ask at different moments and must get one answer.** The
 /// diagnostic pass asks after every edit, for the StatusBar; an Apply Run asks
-/// again at the gate, because the pass's answer lags by a Timer tick and the
+/// again at its gate, because the pass's answer lags by a Timer tick and the
 /// number in the dialog is the one the user is being asked to accept. Two
 /// moments, one formula — which is why the formula is here rather than at
-/// either of them.
-pub fn merged_length_of(
+/// either of them, and why the expansion is not a step a caller can perform on
+/// its own and hand in half-done.
+///
+/// The separator counts even when a Scope is empty: the formula is the spec's,
+/// taken literally.
+pub fn merged_length(
     system: &[impl AsRef<str>],
     user: &[impl AsRef<str>],
     env: &dyn Environment,
 ) -> usize {
-    merged_length(&expanded_value(system, env), &expanded_value(user, env))
-}
-
-/// The arithmetic half of [`merged_length_of`], over Scope values that are
-/// already expanded — what Windows will materialise, not what the registry
-/// stores. The separator counts even when a Scope is empty: the formula is the
-/// spec's, taken literally.
-pub fn merged_length(system_expanded: &str, user_expanded: &str) -> usize {
-    utf16_len(system_expanded) + 1 + utf16_len(user_expanded)
+    utf16_len(&expanded_value(system, env)) + 1 + utf16_len(&expanded_value(user, env))
 }
 
 /// One Scope's Working Copy as Windows will materialise it: the Entries joined

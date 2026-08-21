@@ -36,10 +36,10 @@ const TIMEOUT_MS: u32 = 2_000;
 
 /// Broadcasts the change on a thread of its own, and answers with its handle.
 ///
-/// The handle is the caller's to keep or drop. An Apply Run drops it: the
-/// registry already holds the new value, so nothing downstream waits on this,
-/// and the thread outliving the run is the whole point. A caller about to end
-/// the process is the one that has a reason to join.
+/// The handle exists so this module's own test can wait for the call to come
+/// back; an Apply Run drops it. Nothing downstream waits on a notification —
+/// the registry already holds the new value — and the thread outliving the run
+/// is the whole point of it being a thread.
 ///
 /// `log_path` is where the `WARN` goes, or `None` in a run without a log.
 pub fn environment_changed(log_path: Option<PathBuf>) -> JoinHandle<()> {

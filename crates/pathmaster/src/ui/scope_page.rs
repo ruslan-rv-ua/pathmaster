@@ -175,15 +175,29 @@ impl ScopePage {
         self.list.ensure_visible(row);
     }
 
-    /// Gives the list the keyboard focus without moving the row it is on —
-    /// what "focus stays on the current Entry" means after an Apply (spec §10).
+    /// Moves the keyboard focus **only if the control holding it has just been
+    /// disabled**, and otherwise leaves it exactly where it is.
     ///
-    /// It has to be said rather than assumed, because the command may have
-    /// arrived from the Apply button, and Apply disables itself the moment it
-    /// succeeds: focus left on a disabled button is focus nowhere, which for
-    /// this application is the same as silence. A list nobody has reached yet
-    /// takes the focus without a row being chosen for them.
-    pub fn keep_focus(&self) {
+    /// Both halves are spec §10. "After Apply — stays on the current Entry"
+    /// means a Ctrl+S pressed from a list row leaves the user on that row —
+    /// and "focus never jumps without a reason" means a Ctrl+S pressed from
+    /// the Move Up button leaves them on Move Up. The one control that cannot
+    /// keep the focus is the one the operation just turned off: Apply and
+    /// Cancel Changes both disable themselves the moment the Session goes
+    /// clean, and focus left on a disabled button is focus nowhere, which for
+    /// this application is the same as silence.
+    ///
+    /// It is asked before the buttons are re-synced, so the answer comes from
+    /// two live facts: which button wx says has the focus, and what the
+    /// Session now says that button's command is worth.
+    pub fn rescue_focus(&self, session: &Session) {
+        let stranded = self
+            .buttons
+            .iter()
+            .any(|(command, button)| button.has_focus() && !command.enabled(Some(session)));
+        if !stranded {
+            return;
+        }
         match self.focused_row() {
             Some(row) => self.focus_row(row),
             None => self.list.set_focus(),

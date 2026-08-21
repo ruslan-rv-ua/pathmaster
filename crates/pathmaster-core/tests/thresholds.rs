@@ -18,41 +18,55 @@ impl Environment for Env {
     }
 }
 
+/// No Scope's Entries at all — the shape a Scope that is Absent or empty
+/// decodes to.
+const NONE: [&str; 0] = [];
+
 // ---- The length ----
 
 #[test]
 fn the_merged_length_counts_both_scopes_and_the_separator() {
     // `len(System + ";" + User)`: 3 + 1 + 4.
-    assert_eq!(thresholds::merged_length("abc", "defg"), 8);
+    assert_eq!(thresholds::merged_length(&["abc"], &["defg"], &Env), 8);
 }
 
 #[test]
 fn the_separator_counts_even_when_a_scope_is_empty() {
     // The spec's formula is literal, and so is this: an empty Scope still
     // contributes the `;` Windows joins with.
-    assert_eq!(thresholds::merged_length("", ""), 1);
-    assert_eq!(thresholds::merged_length("abc", ""), 4);
+    assert_eq!(thresholds::merged_length(&NONE, &NONE, &Env), 1);
+    assert_eq!(thresholds::merged_length(&["abc"], &NONE, &Env), 4);
 }
 
 #[test]
 fn the_unit_is_utf16_code_units_not_bytes_or_characters() {
     // Cyrillic is two bytes each and one code unit each; a non-BMP character
     // is one `char` and two code units — the number Windows counts.
-    assert_eq!(thresholds::merged_length("Програми", ""), 9);
-    assert_eq!(thresholds::merged_length("\u{1D11E}", ""), 3);
+    assert_eq!(thresholds::merged_length(&["Програми"], &NONE, &Env), 9);
+    assert_eq!(thresholds::merged_length(&["\u{1D11E}"], &NONE, &Env), 3);
 }
 
 #[test]
-fn the_formula_joins_each_scope_with_semicolons_and_expands_it_once() {
-    // `len(expand(System WC) + ";" + expand(User WC))`, from the Entries
-    // themselves — the whole of spec §7's formula, which both the diagnostic
-    // pass and an Apply Run ask for and must get one answer to.
+fn each_scopes_entries_are_joined_with_the_semicolon_windows_joins_them_with() {
+    // The Entries are what the formula takes, not a value someone joined on
+    // its behalf: `C:\a;C:\b` is 9, plus the separator, plus an empty User.
+    assert_eq!(
+        thresholds::merged_length(&[r"C:\a", r"C:\b"], &NONE, &Env),
+        10
+    );
+}
+
+#[test]
+fn the_formula_expands_each_scope_once_before_it_counts() {
+    // `len(expand(System WC) + ";" + expand(User WC))` — the whole of spec
+    // §7's formula, which the diagnostic pass and an Apply Run both ask for
+    // and must get one answer to. There is no way to ask for half of it.
     //
     // System expands and joins to `C:\Windows;C:\a`, which is 15; User is
     // `C:\b`, which is 4; and the `;` Windows joins the two with is the
     // twentieth character.
     assert_eq!(
-        thresholds::merged_length_of(&[r"%SystemRoot%", r"C:\a"], &[r"C:\b"], &Env),
+        thresholds::merged_length(&[r"%SystemRoot%", r"C:\a"], &[r"C:\b"], &Env),
         20
     );
 }
@@ -62,13 +76,7 @@ fn an_undefined_reference_is_counted_as_the_literal_text_it_stays() {
     // Expansion leaves an unknown name alone, so the length counts what
     // Windows would actually materialise — a `PATH` with `%NOPE%` still in
     // it: six characters, plus the separator.
-    assert_eq!(thresholds::merged_length_of(&[r"%NOPE%"], &[""], &Env), 7);
-}
-
-#[test]
-fn a_scope_with_no_entries_contributes_nothing_but_the_separator() {
-    let empty: [&str; 0] = [];
-    assert_eq!(thresholds::merged_length_of(&empty, &empty, &Env), 1);
+    assert_eq!(thresholds::merged_length(&[r"%NOPE%"], &NONE, &Env), 7);
 }
 
 // ---- The two numbers ----

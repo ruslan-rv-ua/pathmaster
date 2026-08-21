@@ -261,7 +261,7 @@ pub fn diagnose(
     Diagnosis {
         system: diagnose_scope(system, env, fs, &mut seen),
         user: diagnose_scope(user, env, fs, &mut seen),
-        merged_length: thresholds::merged_length_of(system, user, env),
+        merged_length: thresholds::merged_length(system, user, env),
     }
 }
 

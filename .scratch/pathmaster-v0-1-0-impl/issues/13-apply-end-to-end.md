@@ -155,3 +155,66 @@ asks. The second Ctrl+S wrote the original value back and raised **no** external
 which is the hand-off working — the first run's outcome had already replaced the tab's last-read
 value, so the second run's re-read matched it. Two Snapshots landed in `data\backups\`, the second
 larger than the first: each is of the value that was *re-read*, not of the one being written.
+
+### The review
+
+Both axes ran against `4fc6e9e`, the last of ticket 19. **Spec** confirmed the twenty checkboxes are
+each satisfied by code and matched every Catalogue string against §7, §8, §9 and §10.1 character by
+character, including that the frame-and-cause split composes §8's and §9's sentences verbatim.
+**Standards** confirmed the three things most worth confirming: no `RefCell` is live across a modal
+dialog, no new log record can carry PATH text or an absolute path, and the `FailureCause` rename
+earns itself.
+
+Eight findings applied:
+
+- **`Run` was `CONTEXT.md`'s word for something else.** The glossary gives **Run** to one execution
+  of the application and **Apply Run** to one pass of this sequence, and ADR-0010 exists to keep the
+  two apart — yet `ui/mod.rs` imported a `Run` meaning the second and a `RunFacts` meaning the
+  first. The struct is `ApplyRun` now, and its doc says why.
+- **Two public routes to one formula.** `merged_length` (pre-expanded strings) and
+  `merged_length_of` (Entries plus an `Environment`) differed by a suffix carrying none of the real
+  difference. There is one `thresholds::merged_length` now, taking the Entries — so §7's formula
+  cannot be asked for half-done, which was the whole reason it moved down here.
+- **`absorb`'s `Applied` arm reached into `ScopeTab` three times**; it is `ScopeTab::applied` now,
+  beside `adopt`, which it mirrors. `absorb` itself is `after_apply`, matching `after_edit`.
+- **The Refresh shape was only half extracted.** `App::refresh` and the `Refreshed` arm still shared
+  four lines around `adopt`. `adopt` now answers the **row** rather than the id and takes the focus
+  reading itself, so both call sites are one line — which matters because its own doc says the
+  halves must not come apart.
+- **`Command::menu()` had a catch-all.** `_ => Edit` would have landed ticket 15's Exit in the wrong
+  menu silently, in the one `match` over this enum that was not exhaustive. It is now.
+- **Focus after Apply moved when it had no reason to.** `keep_focus` took the focus into the list
+  unconditionally, which satisfies §10's "after Apply — stays on the current Entry" for a Ctrl+S
+  pressed on a row and breaks its "focus never jumps without a reason" for one pressed on the Move
+  Up button. It is `rescue_focus(session)` now and moves focus only when the control holding it is
+  one this Apply has just disabled — which is the case it existed for, since Apply and Cancel both
+  turn themselves off the moment the Session goes clean.
+- **`broadcast`'s doc overclaimed.** It said the `JoinHandle` was there for "a caller about to end
+  the process"; no such caller exists and `Outcome` does not carry the handle. It now says what is
+  true: the handle is for this module's own test, and the Apply Run drops it.
+
+**Two findings declined, and one deferred with its reasoning.**
+
+- **"modified" in the external-change dialog's title** was flagged against **Dirty**'s `_Avoid_`
+  list. That title is spec §5's text quoted verbatim and ADR-0004 makes Catalogue text load-bearing;
+  the `_Avoid_` entry governs what this project *calls the Dirty concept*, and both "Modified" and
+  the suggested "Changed" are on the same line of it. Not ours to reword.
+- **`Diagnosis::overlength` still has no production caller** — and must not have one. This ticket's
+  own checkbox forbids the gate from reading the last `Diagnosis`, which lags by a Timer tick.
+- **`Overlength::may_proceed` still has no production caller either**, and that one is a fair hit:
+  the ticket's Comments named it among the eight interfaces this sequence was to give a caller.
+  `gate()` matches `classify()`'s three variants directly because the three behaviours are distinct
+  — say nothing, ask, tell — and `may_proceed` collapses two of them into a `bool` the gate cannot
+  use without classifying twice. So the rule "the warning is walkable, the cap is not" is now
+  written in `may_proceed` and enforced by `Ask::hard_cap` returning nothing. **Deferred rather than
+  papered over**: either `gate` should be restructured around it or `may_proceed` should be deleted,
+  and choosing is not this ticket's to do on its last lap.
+
+**One finding worth more than a fix, recorded here for the ticket that settles it.** The over-length
+gate reads **both Working Copies**, which is what this ticket's checkbox says in as many words — but
+§7 asks for the *post-write* merged length, and for a Scope the run is not applying those are
+different numbers. In an elevated run with a large unapplied System edit, a perfectly legal User
+Apply can be stopped by a length that would never have existed. The narrowness is real (the System
+Session is non-writable unless elevated, so an unelevated run cannot reach it) and so is the
+conflict, and resolving it means choosing between the ticket's wording and §7's. Left as the ticket
+specifies it, named here rather than changed quietly.

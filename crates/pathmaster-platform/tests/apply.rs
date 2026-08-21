@@ -27,7 +27,7 @@ use pathmaster_core::normalize::Environment;
 use pathmaster_core::session::{Scope, ValueType};
 use pathmaster_core::snapshot::{Captured, Decoded, Snapshot, SnapshotName};
 use pathmaster_platform::apply::{
-    self, Ask, ExternalChange, Failure, Run, ScopeInput, ScopeOutcome,
+    self, ApplyRun, Ask, ExternalChange, Failure, ScopeInput, ScopeOutcome,
 };
 use pathmaster_platform::registry::{Hive, RawValue, RegistryError, ScopeKey};
 use pathmaster_platform::snapshots;
@@ -218,8 +218,8 @@ fn idle(scope: Scope, key: &TestKey) -> ScopeInput {
 /// A run over `order`, with everything a test usually leaves alone filled in:
 /// no log, a fixed clock, and a budget wide enough that rotation is invisible
 /// until a test makes it the subject.
-fn run<'a>(world: &'a World, scopes: [ScopeInput; 2], order: &'a [Scope]) -> Run<'a> {
-    Run {
+fn run<'a>(world: &'a World, scopes: [ScopeInput; 2], order: &'a [Scope]) -> ApplyRun<'a> {
+    ApplyRun {
         scopes,
         order,
         data_dir: world.data_dir(),
