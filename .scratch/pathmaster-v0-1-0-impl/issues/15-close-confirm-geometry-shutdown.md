@@ -178,3 +178,30 @@ than an oversight.
 - The Ukrainian dialog reads «Незбережені зміни: PATH користувача — зберегти перед закриттям?»
   with [Зберегти] [Відхилити] [Скасувати], and File → `Вихід(&X)` carries `Alt+F4` — the Latin
   mnemonic in parentheses, as ADR-0004 requires.
+
+### Heard, not only seen
+
+The steps this ticket added were run on real NVDA by the user on 2026-08-21 and reported as
+passing: **A26–A30** — the close-confirm answered with [Cancel] leaving the window open and the log
+without its shutdown line, [Discard] closing with the registry untouched, a two-Scope [Save]
+applying User first, a Save whose backup step fails leaving the window open on the failed tab with
+the reason spoken, and File → Exit and Alt+F4 reaching the same dialog as the title bar's [X] — and
+**L3–L7**: the window reopening where it was left, maximised reopening maximised, a remembered place
+that no longer exists falling back to centred, a hand edit's unknown fields surviving the rewrite,
+the Read-only Data run that still reads its geometry and writes nothing back, and a minimised close
+that leaves the remembered place alone.
+
+That closes the gap this ticket's own verification could not. Everything recorded above was
+*measured* — window rectangles through `GetWindowRect`, the dialog's title and buttons through the
+window list, the enabled states off the live menu bar, the Banner's text and the focused control's
+class cross-process — and a window that is in the right place and a screen reader that says what
+just happened are different claims. Only the second one is what this application is for.
+
+**A28's elevated half still has no in-app route.** Section C elevates through Tools → Restart as
+Administrator, which impl ticket 17 builds; until it exists the only way to a two-Scope Save is
+launching the exe elevated by hand, and an *installed* NVDA — a portable one being deaf to elevated
+windows. However it was reached this time, the release pass will reach it through the Checklist's
+own route.
+
+This is history, not a substitute for the release pass: §10.2 wants a filled copy naming the NVDA
+used, produced before every release, and that copy is ticket 18's.
