@@ -216,6 +216,20 @@ impl Record {
         }
     }
 
+    /// The elevation relaunch that did not spawn (spec §9, impl ticket 17):
+    /// the raw code behind a failure that was nobody's answer. The declined
+    /// UAC prompt is deliberately **not** this — that is the user's own
+    /// answer, and the dialog that answers it back is its whole trace. It is
+    /// `ERROR` because a user-requested operation did not happen, the same
+    /// rule [`apply_failed`](Self::apply_failed) reads it by.
+    pub fn relaunch_failed(cause: FailureCause) -> Self {
+        Record {
+            level: Level::Error,
+            area: "elevation",
+            message: format!("not relaunched as administrator ({})", cause.describe()),
+        }
+    }
+
     /// The `WM_SETTINGCHANGE` broadcast that no window answered in time
     /// (spec §4, TC-wm-settingchange).
     ///

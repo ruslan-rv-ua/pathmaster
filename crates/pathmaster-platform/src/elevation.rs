@@ -56,9 +56,14 @@ pub enum StartTab {
 }
 
 impl StartTab {
-    /// The value the spawner writes after `--tab` — and the only spellings
-    /// [`from_args`](Self::from_args) reads, so the pair round-trips by
-    /// construction.
+    /// Every tab, for the callers that search rather than match — the reader
+    /// below, and the window's inverse lookup.
+    pub const ALL: [StartTab; 3] = [StartTab::User, StartTab::System, StartTab::Backups];
+
+    /// The value the spawner writes after `--tab`. [`from_args`](Self::from_args)
+    /// reads by searching this same function over [`ALL`](Self::ALL), so the
+    /// pair round-trips by construction — there is no second spelling to
+    /// drift.
     pub fn argument(self) -> &'static str {
         match self {
             StartTab::User => "user",
@@ -76,12 +81,8 @@ impl StartTab {
     pub fn from_args(args: impl IntoIterator<Item = String>) -> Option<StartTab> {
         let mut args = args.into_iter();
         args.find(|arg| arg == "--tab")?;
-        match args.next()?.as_str() {
-            "user" => Some(StartTab::User),
-            "system" => Some(StartTab::System),
-            "backups" => Some(StartTab::Backups),
-            _ => None,
-        }
+        let value = args.next()?;
+        Self::ALL.into_iter().find(|tab| tab.argument() == value)
     }
 }
 
@@ -93,11 +94,13 @@ pub enum RelaunchFailure {
     /// `ERROR_CANCELLED` (1223): the UAC prompt was declined. The application
     /// carries on unelevated, fully functional.
     Declined,
-    /// Anything else, with the raw Win32 error. `ShellExecuteEx` has already
-    /// shown its own error UI for these — `SEE_MASK_FLAG_NO_UI` is
-    /// deliberately not set — so the caller's whole obligation is to keep
-    /// running.
-    Failed(u32),
+    /// Anything else, with the raw error for the caller's log line. When the
+    /// `ShellExecuteEx` call itself ran, it has already shown its own error
+    /// UI — `SEE_MASK_FLAG_NO_UI` is deliberately not set — but the one path
+    /// that fails before it, a process that cannot name its own executable,
+    /// shows nothing: the log line is that path's only witness, which is why
+    /// the code travels rather than being dropped here.
+    Failed { os_error: Option<i32> },
 }
 
 /// Relaunches this executable elevated — `ShellExecuteEx("runas")` on the
@@ -110,8 +113,9 @@ pub enum RelaunchFailure {
 /// must aim at the binary this process is actually running, the same answer
 /// `main` located the Data Directory from.
 pub fn relaunch_elevated(tab: StartTab) -> Result<(), RelaunchFailure> {
-    let exe = std::env::current_exe()
-        .map_err(|error| RelaunchFailure::Failed(error.raw_os_error().unwrap_or(0) as u32))?;
+    let exe = std::env::current_exe().map_err(|error| RelaunchFailure::Failed {
+        os_error: error.raw_os_error(),
+    })?;
 
     // UTF-16, NUL-terminated, and alive until the call returns.
     let verb: Vec<u16> = "runas".encode_utf16().chain([0]).collect();
@@ -137,7 +141,9 @@ pub fn relaunch_elevated(tab: StartTab) -> Result<(), RelaunchFailure> {
         }
         match GetLastError() {
             ERROR_CANCELLED => Err(RelaunchFailure::Declined),
-            other => Err(RelaunchFailure::Failed(other)),
+            other => Err(RelaunchFailure::Failed {
+                os_error: Some(other as i32),
+            }),
         }
     }
 }

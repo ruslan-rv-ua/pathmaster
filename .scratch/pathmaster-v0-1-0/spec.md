@@ -493,9 +493,12 @@ apart about the spelling. The dedicated discard dialog deliberately offers **no 
 the relaunch's own, its two buttons are its two outcomes, and the standard close-confirm keeps its
 three. On success the original instance exits **through the ordinary close path** — geometry
 written, `shutdown: clean` logged — with the already-answered question not asked twice. A spawn
-failure that is not `ERROR_CANCELLED` keeps the application running and leaves the reporting to
-`ShellExecuteEx`'s own error UI, which is deliberately not suppressed; only the declined prompt is
-ours to answer, and the dialog above answers it. The elevated instance honours `--tab` before the
+failure that is not `ERROR_CANCELLED` keeps the application running and earns one
+`ERROR elevation:` log line with the raw code; the on-screen reporting stays with
+`ShellExecuteEx`'s own error UI, which is deliberately not suppressed — and on the one path that
+fails before that call can show anything, a process that cannot name its own executable, the log
+line is the only witness. Only the declined prompt is ours to answer, and the dialog above answers
+it. The elevated instance honours `--tab` before the
 notebook's handlers exist, so opening on the tab the user left announces nothing — the same
 silence a plain launch opens with.
 

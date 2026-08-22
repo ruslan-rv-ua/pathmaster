@@ -283,3 +283,19 @@ fn a_broadcast_that_timed_out_is_a_warn_and_never_an_error() {
          WM_SETTINGCHANGE timed out, already-open processes keep the old value\n",
     );
 }
+
+#[test]
+fn a_relaunch_that_did_not_spawn_records_the_raw_code() {
+    // The declined UAC prompt is the user's own answer and earns a dialog
+    // instead; this line is for the failure that was nobody's answer, and it
+    // is ERROR because a user-requested operation did not happen (spec §9,
+    // impl ticket 17).
+    assert_eq!(
+        line(
+            &spec_timestamp(),
+            &Record::relaunch_failed(FailureCause::Io { os_error: Some(2) })
+        ),
+        "2026-08-19T15:36:31+03:00 ERROR elevation: \
+         not relaunched as administrator (os error 2)\n",
+    );
+}

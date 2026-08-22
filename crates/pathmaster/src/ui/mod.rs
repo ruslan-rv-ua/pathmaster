@@ -631,8 +631,11 @@ impl App {
     /// and the application carries on, fully functional. Focus returns to
     /// where it was because a modal dialog hands it back to the control that
     /// opened it, the same rule every dialog here rides. Any other spawn
-    /// failure has already shown the shell's own error UI — `relaunch_elevated`
-    /// leaves that UI on — so keeping running is the whole of what is owed.
+    /// failure keeps the application running and earns one `ERROR` log line
+    /// with the raw code; the on-screen reporting stays with `ShellExecuteEx`'s
+    /// own error UI, which `relaunch_elevated` deliberately leaves on — and on
+    /// the one path that fails before that call can show anything, a process
+    /// that cannot name its own executable, the log line is the only witness.
     fn restart_as_administrator(&self) {
         // The close-confirm flow, run through rather than around (ADR-0005):
         // the dedicated title names what is lost. It can only be User changes
@@ -667,22 +670,30 @@ impl App {
             Err(RelaunchFailure::Declined) => {
                 question::tell(&self.frame, &translate(msgids::DIALOG_ELEVATION_CANCELLED));
             }
-            // Nothing was spawned and the shell has already said why; the
-            // application keeps running (spec §9 names only the declined
-            // prompt).
-            Err(RelaunchFailure::Failed(_)) => {}
+            // Nothing was spawned; the application keeps running (spec §9
+            // names only the declined prompt) and the failure lands its one
+            // log record with the raw code — the shell's own error UI covers
+            // the screen where the call itself ran, and the log covers the
+            // path that failed before it.
+            Err(RelaunchFailure::Failed { os_error }) => {
+                self.run
+                    .log(&Record::relaunch_failed(FailureCause::Io { os_error }));
+            }
         }
     }
 
     /// The tab the user is on, as the relaunch's one argument names it — the
-    /// third reading of the page order, kept beside [`tab_index`] and
-    /// [`start_tab_index`] by being their inverse over the live notebook.
+    /// inverse of [`start_tab_index`], and computed as that inverse rather
+    /// than written out again, so a reordered notebook cannot leave the two
+    /// disagreeing. A selection no `StartTab` names cannot occur (every page
+    /// is one), but the search's degraded answer is the User tab, the same
+    /// one a plain launch opens on.
     fn active_start_tab(&self) -> StartTab {
-        match self.notebook.selection() {
-            TAB_INDEX_SYSTEM => StartTab::System,
-            TAB_INDEX_BACKUPS => StartTab::Backups,
-            _ => StartTab::User,
-        }
+        let selection = self.notebook.selection();
+        StartTab::ALL
+            .into_iter()
+            .find(|tab| start_tab_index(*tab) == selection)
+            .unwrap_or(StartTab::User)
     }
 
     /// Tools → Settings…: the two settings the user may change while the
