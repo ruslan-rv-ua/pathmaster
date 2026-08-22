@@ -1,4 +1,4 @@
-//! The thirteen commands the window carries, and the menus they live in
+//! The fourteen commands the window carries, and the menus they live in
 //! (spec §15, §5, §6).
 //!
 //! One enum is the whole map: it names the menu items, the menu each belongs
@@ -22,7 +22,7 @@ use crate::catalog::translate;
 
 /// One user-visible command.
 ///
-/// Ten of them are about a Scope; the last three are not, and are here for the
+/// Ten of them are about a Scope; the last four are not, and are here for the
 /// reason the enum exists at all: they are menu items, and a menu item's id,
 /// label and enabled state are answered in one place or in three.
 ///
@@ -45,6 +45,7 @@ pub enum Command {
     Refresh,
     Settings,
     OpenBackupsFolder,
+    RestartAsAdministrator,
     Exit,
 }
 
@@ -52,24 +53,29 @@ pub enum Command {
 ///
 /// The active Scope's Editing Session answers for the ten that edit one, and
 /// `None` — the Backups tab, which is not a Scope — closes every one of them.
-/// The Run's own facts answer for Open Backups Folder, and nothing at all
-/// answers for Exit or for Settings: a way out of the application is available
-/// on every tab and in every state, dirty Sessions included — that is what the
-/// close-confirm is for — and the settings belong to the Run, not to whichever
-/// tab happens to be showing. Ticket 17 adds its Tools item to the same shape.
+/// The Run's own facts answer for Open Backups Folder and for Restart as
+/// Administrator, and nothing at all answers for Exit or for Settings: a way
+/// out of the application is available on every tab and in every state, dirty
+/// Sessions included — that is what the close-confirm is for — and the
+/// settings belong to the Run, not to whichever tab happens to be showing.
 pub struct Availability<'a> {
     pub session: Option<&'a Session>,
     /// Whether this Run has a Data Directory at all. The one Run that has none
     /// does not know where it is (`ReadOnlyReason::OwnLocationUnknown`), and so
     /// has no folder of Snapshots to show.
     pub data_dir: bool,
+    /// Whether this Run is elevated — decided once at startup, a property of
+    /// the process (spec §9). It answers for exactly one command: Restart as
+    /// Administrator is disabled where it could only restart into what the
+    /// user already has.
+    pub elevated: bool,
 }
 
 impl Command {
     /// Every command, in **button** order — §15's Add, Edit, Delete, Move Up,
     /// Move Down, Apply, Cancel — which is also the order each menu takes its
     /// own items in, since [`menu`](Self::menu) preserves it.
-    pub const ALL: [Command; 13] = [
+    pub const ALL: [Command; 14] = [
         Command::Add,
         Command::Edit,
         Command::Delete,
@@ -82,11 +88,12 @@ impl Command {
         Command::Refresh,
         Command::Settings,
         Command::OpenBackupsFolder,
+        Command::RestartAsAdministrator,
         Command::Exit,
     ];
 
     /// The menus, in menu-bar order. Help arrives with the ticket that fills
-    /// it; Tools gains Restart as Administrator with its own (spec §15).
+    /// it (spec §15).
     const MENUS: [(&'static str, &'static str); 3] = [
         (msgids::MENU_TITLE_FILE, msgids::MENU_GROUP_FILE),
         (msgids::MENU_TITLE_EDIT, msgids::MENU_GROUP_EDIT),
@@ -130,7 +137,9 @@ impl Command {
             | Command::Redo
             | Command::Cancel
             | Command::Refresh => msgids::MENU_GROUP_EDIT,
-            Command::Settings | Command::OpenBackupsFolder => msgids::MENU_GROUP_TOOLS,
+            Command::Settings | Command::OpenBackupsFolder | Command::RestartAsAdministrator => {
+                msgids::MENU_GROUP_TOOLS
+            }
         }
     }
 
@@ -150,6 +159,7 @@ impl Command {
             Command::Refresh => msgids::MENU_REFRESH,
             Command::Settings => msgids::MENU_SETTINGS,
             Command::OpenBackupsFolder => msgids::MENU_OPEN_BACKUPS_FOLDER,
+            Command::RestartAsAdministrator => msgids::MENU_RESTART_AS_ADMIN,
         });
         match self.accelerator() {
             Some(accelerator) => format!("{label}\t{accelerator}"),
@@ -180,6 +190,7 @@ impl Command {
             | Command::Refresh
             | Command::Settings
             | Command::OpenBackupsFolder
+            | Command::RestartAsAdministrator
             | Command::Exit => return None,
         };
         Some(translate(msgid))
@@ -204,7 +215,11 @@ impl Command {
             Command::Apply => Some("Ctrl+S"),
             Command::Exit => Some("Alt+F4"),
             Command::Refresh => Some("F5"),
-            Command::Add | Command::Cancel | Command::Settings | Command::OpenBackupsFolder => None,
+            Command::Add
+            | Command::Cancel
+            | Command::Settings
+            | Command::OpenBackupsFolder
+            | Command::RestartAsAdministrator => None,
         }
     }
 
@@ -226,6 +241,14 @@ impl Command {
             // Not about a Scope: it shows this Run's own directory, so it is
             // available on the Backups tab, where there is no Session at all.
             Command::OpenBackupsFolder => available.data_dir,
+            // About the Run alone: the one entry point into elevation
+            // (spec §9, ADR-0005), available on every tab and in every state
+            // that is not already elevated — Read-only Data included, where
+            // this command is the standing remedy and the reason the state
+            // never grows a second elevation offer. A dirty Session does not
+            // close it either; the command runs through the close-confirm
+            // flow, never around it.
+            Command::RestartAsAdministrator => !available.elevated,
             // Not about anything. An application a dirty Session could disable
             // the way out of is one the user has to kill, and the whole of the
             // close-confirm is that they do not have to.
@@ -269,7 +292,10 @@ impl Command {
             Command::Apply | Command::Cancel => session.is_dirty(),
             // Not Scope commands, and never routed here — but answered rather
             // than caught, so that adding one cannot inherit a default.
-            Command::Settings | Command::OpenBackupsFolder | Command::Exit => false,
+            Command::Settings
+            | Command::OpenBackupsFolder
+            | Command::RestartAsAdministrator
+            | Command::Exit => false,
         }
     }
 }
@@ -277,7 +303,7 @@ impl Command {
 /// Builds the menu bar from [`Command::MENUS`] and [`Command::menu`], so a
 /// command with no menu is a command with no shortcut — which for Ctrl+S would
 /// be a command with no way to reach it at all. Help arrives with the ticket
-/// that fills it; Tools gains its third item with ticket 17.
+/// that fills it.
 ///
 /// Every item's help string is deliberately empty: wx writes it to the status
 /// bar as the user moves through the menu, and the status bar is command-only

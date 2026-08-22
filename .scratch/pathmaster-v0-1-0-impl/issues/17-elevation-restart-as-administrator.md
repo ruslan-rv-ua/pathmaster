@@ -6,12 +6,12 @@
 
 **Blocked by:** 08 (detection already wired; UI shell), 15 (the command runs through the close-confirm flow).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] One entry point: Tools → "Restart as Administrator", disabled when already elevated
-- [ ] When anything is dirty the command runs through the close-confirm flow with the dedicated title "Discard unsaved User changes and restart as administrator?", buttons [Discard and Restart] [Cancel]
-- [ ] Relaunch via `ShellExecuteEx("runas", <current exe>, "--tab <active>")`; on success the original instance exits; the elevated instance honours `--tab` and opens on that tab
-- [ ] On `ERROR_CANCELLED` (1223): dialog titled "Elevation was cancelled — still running without administrator rights", [OK], focus returns to where it was; the app keeps running
-- [ ] The elevated window title is "Administrator: PathMaster"; elevated, the System Session is writable and the command is disabled
-- [ ] Unelevated, the System tab names its reason but never grows a second elevation offer; no single-instance lock interferes (two instances are a designed state)
-- [ ] All strings in the Catalogue with Ukrainian translations
+- [x] One entry point: Tools → "Restart as Administrator", disabled when already elevated
+- [x] When anything is dirty the command runs through the close-confirm flow with the dedicated title "Discard unsaved User changes and restart as administrator?", buttons [Discard and Restart] [Cancel]
+- [x] Relaunch via `ShellExecuteEx("runas", <current exe>, "--tab <active>")`; on success the original instance exits; the elevated instance honours `--tab` and opens on that tab
+- [x] On `ERROR_CANCELLED` (1223): dialog titled "Elevation was cancelled — still running without administrator rights", [OK], focus returns to where it was; the app keeps running
+- [x] The elevated window title is "Administrator: PathMaster"; elevated, the System Session is writable and the command is disabled
+- [x] Unelevated, the System tab names its reason but never grows a second elevation offer; no single-instance lock interferes (two instances are a designed state)
+- [x] All strings in the Catalogue with Ukrainian translations

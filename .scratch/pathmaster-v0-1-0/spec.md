@@ -485,6 +485,20 @@ Settled by ticket [12](issues/12-elevation-model.md);
 > action disabled — §5); the System tab and Read-only Data name reasons but never grow a second
 > elevation offer.
 
+*Amended by impl ticket 17, which built the relaunch.* The argument is spelled
+`--tab user|system|backups` — the Backups tab is a tab the user can leave, so it crosses too — and
+a value the parser does not recognise reads as a plain launch (the User tab), never a guess; the
+writer and the reader are one type in `pathmaster-platform`, so the two instances cannot drift
+apart about the spelling. The dedicated discard dialog deliberately offers **no [Save]**: it is
+the relaunch's own, its two buttons are its two outcomes, and the standard close-confirm keeps its
+three. On success the original instance exits **through the ordinary close path** — geometry
+written, `shutdown: clean` logged — with the already-answered question not asked twice. A spawn
+failure that is not `ERROR_CANCELLED` keeps the application running and leaves the reporting to
+`ShellExecuteEx`'s own error UI, which is deliberately not suppressed; only the declined prompt is
+ours to answer, and the dialog above answers it. The elevated instance honours `--tab` before the
+notebook's handlers exist, so opening on the tab the user left announces nothing — the same
+silence a plain launch opens with.
+
 **Apply failure taxonomy** (the five rows; invariants: **no failure mutates the Working Copy, none
 moves the Baseline**, every failure lands one log record with the raw error code):
 
@@ -874,6 +888,14 @@ enabled state reflects the active Session": **the read-only state is answered in
 which disables its own controls (§13), because an item that read as unavailable would say the
 settings cannot be looked at, and looking at them is exactly what that run can still do. The Tools
 mnemonics are S and O.
+
+*Amended by impl ticket 17, which added Tools → **Restart as Administrator** — last in the menu,
+as the table above has it, with no accelerator and no `…`: what follows is the UAC prompt and a
+relaunch, not a dialog of ours.* It is the fourth item that does not follow the active Session,
+and the second to follow the Run (Open Backups Folder follows its Data Directory): it is enabled
+exactly when the process is **not elevated** — every tab, Read-only Data and dirty Sessions
+included, because the command is Read-only Data's standing remedy (§9 D7) and runs through the
+close-confirm flow rather than around it. The Tools mnemonics are S, O and R.
 
 ## 16. Build, packaging, release
 

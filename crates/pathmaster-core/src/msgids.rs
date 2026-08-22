@@ -215,13 +215,16 @@ pub const MENU_REDO: &str = "&Redo";
 pub const MENU_CANCEL: &str = "&Cancel Changes";
 pub const MENU_REFRESH: &str = "Re&fresh";
 
-/// The Tools menu's items (spec §15). Restart as Administrator arrives with
-/// the ticket that owns it. Open Backups Folder hands the Snapshots' own
-/// directory to the shell, which is why it opens rather than asks — a folder
-/// picker would be a question, and nothing here is asking one. The mnemonic
-/// letters are S and O, unique within the menu, and gated.
+/// The Tools menu's items (spec §15). Open Backups Folder hands the
+/// Snapshots' own directory to the shell, which is why it opens rather than
+/// asks — a folder picker would be a question, and nothing here is asking
+/// one. Restart as Administrator is the **one entry point into elevation**
+/// (spec §9, ADR-0005): no `…` because what follows is the UAC prompt and a
+/// relaunch, not a dialog of ours. The mnemonic letters are S, O and R,
+/// unique within the menu, and gated.
 pub const MENU_SETTINGS: &str = "&Settings…";
 pub const MENU_OPEN_BACKUPS_FOLDER: &str = "&Open Backups Folder";
+pub const MENU_RESTART_AS_ADMIN: &str = "&Restart as Administrator";
 
 /// The per-Scope buttons (spec §15). Their English differs from both the menu
 /// items that share their command and the operation names that announce it —
@@ -359,6 +362,31 @@ pub const BUTTON_APPLY_ANYWAY: &str = "Apply Anyway";
 pub const DIALOG_OVER_HARD_CAP: &str =
     "PATH cannot exceed 32,767 characters ({n} after this Apply)";
 
+/// The elevation texts (spec §9, FR-uac-elevation; ADR-0005).
+///
+/// The first pair is the close-confirm flow's **dedicated dialog** for the one
+/// command that discards and relaunches: the title names User changes and no
+/// other, because only the User Session can be dirty in an instance that
+/// offers the command — System is non-writable unelevated, and elevated the
+/// command is disabled. There is deliberately no [Save] here: the standard
+/// close-confirm offers it, this dialog is the relaunch's own, and its two
+/// buttons are the two outcomes. [`BUTTON_DIALOG_CANCEL`] is the second.
+///
+/// The cancelled dialog answers a declined UAC prompt — `ShellExecuteEx`
+/// reports `ERROR_CANCELLED`, and silence after a security prompt is treated
+/// as a defect (ADR-0005). A dialog and not an Announcement: it answers an
+/// explicit user action, and the Announcement catalogue is closed at seven.
+///
+/// The window title is the cmd.exe convention, and it is Catalogue text
+/// because Alt+Tab speaks the title first — the cheapest always-available
+/// answer to "which instance am I in" (ticket 12 D11).
+pub const DIALOG_DISCARD_AND_RESTART: &str =
+    "Discard unsaved User changes and restart as administrator?";
+pub const BUTTON_DISCARD_AND_RESTART: &str = "Discard and Restart";
+pub const DIALOG_ELEVATION_CANCELLED: &str =
+    "Elevation was cancelled — still running without administrator rights";
+pub const WINDOW_TITLE_ELEVATED: &str = "Administrator: PathMaster";
+
 /// Announcements 4, 5 and 6 (spec §10.1). `{operation}` is itself Catalogue
 /// text — one of the [`Operation`](crate::session::Operation) names below,
 /// translated before it is filled in, and translated as a verbal noun so the
@@ -431,6 +459,11 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::menu_item(MENU_REFRESH, MENU_GROUP_EDIT),
     CatalogueEntry::menu_item(MENU_SETTINGS, MENU_GROUP_TOOLS),
     CatalogueEntry::menu_item(MENU_OPEN_BACKUPS_FOLDER, MENU_GROUP_TOOLS),
+    CatalogueEntry::menu_item(MENU_RESTART_AS_ADMIN, MENU_GROUP_TOOLS),
+    CatalogueEntry::text(DIALOG_DISCARD_AND_RESTART),
+    CatalogueEntry::text(BUTTON_DISCARD_AND_RESTART),
+    CatalogueEntry::text(DIALOG_ELEVATION_CANCELLED),
+    CatalogueEntry::text(WINDOW_TITLE_ELEVATED),
     CatalogueEntry::text(BUTTON_ADD),
     CatalogueEntry::text(BUTTON_EDIT),
     CatalogueEntry::text(BUTTON_DELETE),

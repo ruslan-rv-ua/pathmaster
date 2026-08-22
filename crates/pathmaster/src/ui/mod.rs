@@ -36,6 +36,7 @@ use pathmaster_core::settings::SettingsFile;
 use pathmaster_platform::apply::{self, ApplyRun, Ask, ExternalChange, ScopeInput, ScopeOutcome};
 use pathmaster_platform::datadir::ReadOnlyReason;
 use pathmaster_platform::diagnostics::ProcessEnvironment;
+use pathmaster_platform::elevation::{self, RelaunchFailure, StartTab};
 use pathmaster_platform::geometry::{self, Placement};
 use pathmaster_platform::logwriter;
 use pathmaster_platform::registry::{RawValue, ScopeKey};
@@ -68,6 +69,17 @@ fn tab_index(scope: Scope) -> i32 {
     match scope {
         Scope::User => TAB_INDEX_USER,
         Scope::System => TAB_INDEX_SYSTEM,
+    }
+}
+
+/// The page a [`StartTab`] asks for — the boundary-crossing cousin of
+/// [`tab_index`], kept beside it so the two readings of the page order cannot
+/// drift apart (spec §9, ticket 12 D5).
+fn start_tab_index(tab: StartTab) -> i32 {
+    match tab {
+        StartTab::User => TAB_INDEX_USER,
+        StartTab::System => TAB_INDEX_SYSTEM,
+        StartTab::Backups => TAB_INDEX_BACKUPS,
     }
 }
 
@@ -243,21 +255,39 @@ struct App {
     /// which is exactly why it is not one of the Run's facts (ADR-0010); the
     /// Settings dialog replaces what is here.
     settings: RefCell<SettingsFile>,
+    /// Whether the elevated instance has been spawned and this one is exiting
+    /// (spec §9, ADR-0005). Read in exactly one place: the close path, whose
+    /// standard close-confirm must not re-ask what the restart command's
+    /// dedicated dialog has already answered.
+    relaunched: Cell<bool>,
 }
 
 /// Builds and shows the main window over the two loaded Sessions, and hands it
 /// back so a startup dialog has a parent to sit on and a window to hand focus
 /// back to. A Read-only Data run passes its reason; announcing it is the last
 /// step of startup (spec §11: … → UI → writability → announce).
+///
+/// `start_tab` is the one thing an elevation relaunch carries across the
+/// process boundary — the tab the user left (spec §9, ticket 12 D5). `None`
+/// is a plain launch and opens on the User tab.
 pub fn build_main_window(
     user: SharedScope,
     system: SharedScope,
     readonly: Option<ReadOnlyReason>,
     run: Run,
     settings: SettingsFile,
+    start_tab: Option<StartTab>,
 ) -> Frame {
+    // Which instance this window is, said where Alt+Tab reads first: the
+    // elevated title is the cmd.exe convention and Catalogue text (ticket 12
+    // D11); the unelevated one is the product name, which no translation may
+    // vary.
+    let title = match run.elevated() {
+        true => translate(msgids::WINDOW_TITLE_ELEVATED),
+        false => "PathMaster".to_string(),
+    };
     let frame = Frame::builder()
-        .with_title("PathMaster")
+        .with_title(&title)
         // Crosses the FFI boundary through the implicit FromDIP → 900×650 DIP (spec §12 D2).
         .with_size(Size::new(900, 650))
         .build();
@@ -344,7 +374,20 @@ pub fn build_main_window(
         merged_length: Cell::new(None),
         run,
         settings: RefCell::new(settings),
+        relaunched: Cell::new(false),
     });
+    // The tab the user left, honoured before the handlers exist: a plain
+    // launch announces nothing about the tab it opens on, and an elevated
+    // relaunch is the same start on a different tab — so `set_selection` runs
+    // here, where there is no page-changed handler to speak. The Backups tab
+    // reads its directory on activation, and with no handler yet that read is
+    // made by hand.
+    if let Some(tab) = start_tab {
+        app.notebook.set_selection(start_tab_index(tab) as usize);
+        if tab == StartTab::Backups {
+            app.reload_backups();
+        }
+    }
     app.bind();
     app.sync();
 
@@ -534,9 +577,8 @@ impl App {
         if !available {
             return;
         }
-        // The two commands that are not about a Scope — and so the two
-        // reachable from the Backups tab, where there is no Scope tab to hand
-        // one.
+        // The commands that are not about a Scope — and so the ones reachable
+        // from the Backups tab, where there is no Scope tab to hand one.
         //
         // Exhaustive, like every other `match` over this enum: a catch-all
         // would route the next command someone adds to a Scope it may not be
@@ -544,6 +586,7 @@ impl App {
         match command {
             Command::Settings => return self.open_settings(),
             Command::OpenBackupsFolder => return self.open_backups_folder(),
+            Command::RestartAsAdministrator => return self.restart_as_administrator(),
             // `false`, never `true`: a forced close would be a way past the
             // very dialog the close-confirm exists to ask (spec §5).
             Command::Exit => return self.frame.close(false),
@@ -571,7 +614,74 @@ impl App {
             Command::Cancel => self.cancel(tab),
             Command::Refresh => self.refresh(tab),
             // Answered above, before there was a Scope to answer them over.
-            Command::Settings | Command::OpenBackupsFolder | Command::Exit => {}
+            Command::Settings
+            | Command::OpenBackupsFolder
+            | Command::RestartAsAdministrator
+            | Command::Exit => {}
+        }
+    }
+
+    /// Tools → Restart as Administrator: the **one entry point into
+    /// elevation** (spec §9, ADR-0005). The command does what it says — the
+    /// dedicated close-confirm when anything is dirty, the UAC prompt, and on
+    /// a successful spawn this instance exits, through the same close path as
+    /// every other exit with the question already answered.
+    ///
+    /// A declined prompt is never silent: `ERROR_CANCELLED` earns a dialog
+    /// and the application carries on, fully functional. Focus returns to
+    /// where it was because a modal dialog hands it back to the control that
+    /// opened it, the same rule every dialog here rides. Any other spawn
+    /// failure has already shown the shell's own error UI — `relaunch_elevated`
+    /// leaves that UI on — so keeping running is the whole of what is owed.
+    fn restart_as_administrator(&self) {
+        // The close-confirm flow, run through rather than around (ADR-0005):
+        // the dedicated title names what is lost. It can only be User changes
+        // — System is non-writable unelevated, and elevated this command is
+        // disabled — and there is deliberately no [Save]: this dialog is the
+        // relaunch's own, and its two buttons are its two outcomes. The safe
+        // answer holds the default, the focus and Escape (`question::choose`).
+        if !self.dirty_scopes().is_empty()
+            && question::choose(
+                &self.frame,
+                &translate(msgids::DIALOG_DISCARD_AND_RESTART),
+                &[
+                    &translate(msgids::BUTTON_DISCARD_AND_RESTART),
+                    &translate(msgids::BUTTON_DIALOG_CANCEL),
+                ],
+            ) != 0
+        {
+            return;
+        }
+        // Only the active tab crosses the boundary (ticket 12 D5): Sessions
+        // are dead at a process boundary and stay dead.
+        match elevation::relaunch_elevated(self.active_start_tab()) {
+            Ok(()) => {
+                // The elevated instance is up; on success the original
+                // instance exits (spec §9). Through `close`, not around it,
+                // so the geometry write and the shutdown record still happen
+                // — the flag is what keeps the standard close-confirm from
+                // asking again what the dedicated dialog just answered.
+                self.relaunched.set(true);
+                self.frame.close(false);
+            }
+            Err(RelaunchFailure::Declined) => {
+                question::tell(&self.frame, &translate(msgids::DIALOG_ELEVATION_CANCELLED));
+            }
+            // Nothing was spawned and the shell has already said why; the
+            // application keeps running (spec §9 names only the declined
+            // prompt).
+            Err(RelaunchFailure::Failed(_)) => {}
+        }
+    }
+
+    /// The tab the user is on, as the relaunch's one argument names it — the
+    /// third reading of the page order, kept beside [`tab_index`] and
+    /// [`start_tab_index`] by being their inverse over the live notebook.
+    fn active_start_tab(&self) -> StartTab {
+        match self.notebook.selection() {
+            TAB_INDEX_SYSTEM => StartTab::System,
+            TAB_INDEX_BACKUPS => StartTab::Backups,
+            _ => StartTab::User,
         }
     }
 
@@ -1000,7 +1110,12 @@ impl App {
     /// means; and the shutdown line is last, so its presence in the log says
     /// every step above it ran. A killed process shows as that line's absence.
     fn closing(&self) -> bool {
-        if !self.save_or_discard() {
+        // An elevation relaunch arrives here with its question already asked
+        // — the dedicated dialog, run through the close-confirm flow rather
+        // than around it (spec §9, ADR-0005) — so the standard one would be
+        // the same question twice, this time offering the [Save] the
+        // dedicated dialog deliberately does not.
+        if !self.relaunched.get() && !self.save_or_discard() {
             return false;
         }
         self.remember_geometry();
@@ -1250,6 +1365,7 @@ impl App {
         Availability {
             session,
             data_dir: self.run.data_dir().is_some(),
+            elevated: self.run.elevated(),
         }
     }
 

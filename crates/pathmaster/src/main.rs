@@ -89,6 +89,16 @@ fn main() -> std::process::ExitCode {
             readonly,
             run,
             settings,
+            // The one argument an elevation relaunch carries: the tab the
+            // user left (spec §9, ticket 12 D5). Read at the edge like every
+            // other fact only the running process can answer. Lossily,
+            // because `std::env::args` panics on non-Unicode arguments — a
+            // launcher's garbage must read as a plain launch, not a crash.
+            elevation::StartTab::from_args(
+                std::env::args_os()
+                    .skip(1)
+                    .map(|arg| arg.to_string_lossy().into_owned()),
+            ),
         );
         if settings_unreadable {
             ui::show_settings_unreadable(&frame);

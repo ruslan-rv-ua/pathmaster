@@ -267,6 +267,13 @@ msgstr "&Settings…"
 msgid "&Open Backups Folder"
 msgstr "&Open Backups Folder"
 
+#. Tools menu item: the one entry point into elevation — relaunches the whole
+#. application via the UAC prompt. Disabled when already elevated. No "…":
+#. what follows is the UAC prompt and a relaunch, not a dialog of ours. The
+#. mnemonic letter is Latin in every language.
+msgid "&Restart as Administrator"
+msgstr "&Restart as Administrator"
+
 #. Button under a Scope's list: opens the Add dialog. Buttons carry no
 #. mnemonic — the Tab order is the map, and an "&" would race the menu bar.
 msgid "Add…"
@@ -445,6 +452,29 @@ msgstr "Apply Anyway"
 #. only button is "Cancel". 32,767 is a measured Windows limit.
 msgid "PATH cannot exceed 32,767 characters ({n} after this Apply)"
 msgstr "PATH cannot exceed 32,767 characters ({n} after this Apply)"
+
+#. Dialog title: the restart command's own close-confirm, raised only when the
+#. User Session is dirty — the relaunch destroys unsaved changes, and the
+#. title names what is lost. "User" here is the User PATH Scope.
+msgid "Discard unsaved User changes and restart as administrator?"
+msgstr "Discard unsaved User changes and restart as administrator?"
+
+#. Button of that dialog: both halves of what pressing it does. Not the
+#. Discard of the close-confirm — that one only closes.
+msgid "Discard and Restart"
+msgstr "Discard and Restart"
+
+#. Dialog title after a declined UAC prompt, [OK] only: nothing changed, the
+#. application keeps running unelevated. Never silent — silence after a
+#. security prompt reads as a defect.
+msgid "Elevation was cancelled — still running without administrator rights"
+msgstr "Elevation was cancelled — still running without administrator rights"
+
+#. The elevated instance's window title — the cmd.exe convention. Alt+Tab
+#. speaks it first, which is how the user tells the two instances apart.
+#. "PathMaster" is the product name and stays untranslated.
+msgid "Administrator: PathMaster"
+msgstr "Administrator: PathMaster"
 
 #. Announcement: spoken after Ctrl+Z. {operation} is one of the operation
 #. names in this file, translated as a verbal noun.

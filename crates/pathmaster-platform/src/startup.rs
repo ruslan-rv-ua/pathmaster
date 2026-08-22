@@ -91,14 +91,21 @@ pub struct Run {
     /// the broadcast's `WARN`, appended by a thread that may still be blocked
     /// when the Apply that started it has long since returned (spec §4).
     log_path: Option<PathBuf>,
+    /// Whether this process runs elevated — a property of the Run
+    /// (`CONTEXT.md`), asked once at the edge and never again. The window
+    /// titles the elevated instance and disables its way back into elevation
+    /// from this, never from a Session's writability, which the Read-only
+    /// Data and failed-read runs both fold for other reasons (spec §9).
+    elevated: bool,
 }
 
 impl Run {
-    fn new(logger: Logger, data_dir: Option<PathBuf>) -> Run {
+    fn new(logger: Logger, data_dir: Option<PathBuf>, elevated: bool) -> Run {
         Run {
             log_path: logger.path().map(Path::to_path_buf),
             logger: RefCell::new(logger),
             data_dir,
+            elevated,
         }
     }
 
@@ -114,6 +121,10 @@ impl Run {
 
     pub fn log_path(&self) -> Option<&Path> {
         self.log_path.as_deref()
+    }
+
+    pub fn elevated(&self) -> bool {
+        self.elevated
     }
 }
 
@@ -261,7 +272,7 @@ pub fn decide(
     };
 
     Decisions {
-        run: Run::new(logger, data.dir().map(Path::to_path_buf)),
+        run: Run::new(logger, data.dir().map(Path::to_path_buf), elevated),
         records,
         language,
         readonly,

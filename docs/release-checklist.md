@@ -115,6 +115,9 @@ the header. Elevate via Tools → Restart as Administrator.
 | C5 | Decline the UAC prompt (separate attempt) | Dialog title "Elevation was cancelled — still running without administrator rights"; original instance stays functional | |
 | C6 | Edit and Apply on the System tab, elevated | "System PATH applied" — Announcement 2's other string, which no unelevated run can reach: unelevated, the System Session is non-writable and Apply reads as unavailable | |
 | C7 | Backups tab, elevated: arrow to a System Snapshot and press Restore | Restore now reads as available (step 23's other half); the System tab is activated and speaks its new entry count, and `NVDA+Tab` confirms focus is on the restored list | |
+| C8 | Dirty the User Session, then Tools → Restart as Administrator | Dialog title "Discard unsaved User changes and restart as administrator?" and both buttons spoken — [Discard and Restart] [Cancel]; focus starts on [Cancel] and Escape answers with it: the window stays open, the Session is still dirty, nothing was written | |
+| C9 | Stage C8 again from the **System tab**, answer [Discard and Restart], accept the UAC prompt | The original instance exits — its log ends `INFO  shutdown: clean` — and the elevated one opens **on the System tab**, titled "Administrator: PathMaster"; the registry value is unchanged, because Discard saved nothing | |
+| C10 | Elevated: open the Tools menu | Settings…, Open Backups Folder, then Restart as Administrator reading as **unavailable** («недоступно») — the one entry point, disabled where it could only restart into what already holds | |
 
 ## D. Layout and environment
 

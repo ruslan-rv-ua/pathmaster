@@ -575,3 +575,19 @@ impl Drop for DenyCreateFile {
             .status();
     }
 }
+
+// ---------------------------------------------------------------------------
+// The Run keeps the facts it was decided from (ADR-0010, ticket 17).
+// ---------------------------------------------------------------------------
+
+/// Whether this process is elevated is a property of the Run, decided once and
+/// held for the window: the elevated instance must title itself and disable
+/// its own way back into elevation, and rederiving the answer from a Session's
+/// writability would misread the Read-only Data and failed-read runs (spec §9).
+#[test]
+fn the_run_keeps_the_elevation_answer_it_was_decided_from() {
+    let world = World::new("run-elevated");
+
+    assert!(!world.decide(false).run.elevated());
+    assert!(world.decide(true).run.elevated());
+}
