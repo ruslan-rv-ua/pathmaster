@@ -70,6 +70,18 @@ section of `README.md`; commands and code blocks stay untranslated, and E1 of th
 Checklist is the drift guard. The screenshot's place is reserved rather than filled: the only
 screenshot available here is of this machine's real PATH.
 
+### Heard, not only seen
+
+The steps this ticket added were run on real NVDA by the user on 2026-08-24 and reported as
+passing: **31-33**, the Help menu carrying one item that reads without an accelerator, the About
+dialog whose title is the whole of what it says — name, version and licence — and that item
+reading as available in the two states where every neighbouring item is not, a Read-only Data run
+and the Backups tab. **L8 and L9** are the eyes-on half and passed with them: the window icon in
+the title bar, the taskbar button and Alt+Tab, and the exe's own icon and Details tab in Explorer.
+
+That closes the gap the section below opened. What is still unrun is everything the release
+itself does, which no pass before a tag can reach.
+
 ### Not verified here
 
 **Nothing past `git push --tags`.** The release workflow has never run — it cannot, without a tag
