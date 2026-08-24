@@ -413,6 +413,19 @@ In scope, but not yet sharp enough to ticket. Graduates as the frontier advances
 Ruled beyond this destination. Does not graduate.
 
 - **Building v0.1.0.** This map produces the spec; implementation is a separate effort.
+- **A Help → Documentation item, and a home for `F1`** — **the first v0.2.0 candidate**, raised by
+  the user on 2026-08-24 once impl ticket 18 had built the Help menu. Nothing is missing against
+  plan: §15 fixed that menu at one item and About is what it holds. What is missing is that **`F1`
+  does nothing**, and `F1` is Windows' own help key — while this application's standing rule is
+  that every shortcut has a menu home, because a menu item's label is the only place wxdragon can
+  carry one at all. The item itself is small: a shell invocation of the README's URL, the same
+  shape as Tools → Open Backups Folder. Two things make it a decision rather than a chore, and
+  both are why it did not go into v0.1.0. **The README lives online**, so the item would do
+  nothing on a machine with no network — for an executable people carry on a stick that is a real
+  caveat, and shipping the document beside the exe would end "one portable file", so the shape
+  wants thinking about rather than assuming. And **adding a menu item voids the menu-structure
+  steps of a Checklist pass** (31, B12, the mnemonic gate), which had just been run when this was
+  raised. Revisit at the top of v0.2.0, where the offline question can be answered properly.
 - **Collapsing `ScopeDiagnosis` into `Findings`** — raised by the 2026-08-20 architecture review and
   deferred to v0.2.0. Three types describe one diagnostic pass, and `ScopeDiagnosis` is the shallow one:
   its interface (`issues`, `len`, `is_empty`, `issue_count`) is nearly as wide as its `Vec<Vec<Issue>>`,

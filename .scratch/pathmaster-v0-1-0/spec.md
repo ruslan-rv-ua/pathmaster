@@ -1090,7 +1090,10 @@ Nobody re-adds these by accident; each carries its reason.
 **Deferred to v0.2.0** (live in the tracker, not promised in the README): FR-reorder-dnd (Drag &
 Drop), FR-var-expansion-toggle, FR-search, FR-tree-browser, FR-filter-bar, FR-fix-issues,
 FR-copy-entry — all 🟡, out of the must-only scope. Also parked: a `--data-dir` switch (survives
-the no-relocation principle); in-app deaf-state detection (§19); a network-path deadline prober.
+the no-relocation principle); in-app deaf-state detection (§19); a network-path deadline prober;
+and a **Help → Documentation item giving `F1` a menu home** — the **first v0.2.0 candidate**,
+raised 2026-08-24, small in itself but carrying one open question, since the README is online and
+the item would do nothing offline.
 Plus two architectural deferrals from the 2026-08-20 review, neither blocking anything: **collapsing
 `ScopeDiagnosis` into `Findings`**, so a pass arrives already paired to the Working Copy it ran over
 instead of the window re-pairing it; and **making the UI's borrow discipline structural** rather than
