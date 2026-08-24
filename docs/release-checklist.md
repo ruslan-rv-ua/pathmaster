@@ -154,7 +154,7 @@ users still works.
 
 | # | Step | Expected result | ✓ |
 |---|------|-----------------|---|
-| F1 | If this release changed the README: refresh the main-window screenshot and its alt text in `README.md` and `README.uk.md` | Both carry the same current screenshot, and E1's sync guard passes. For v0.1.0 this is where the reserved place is first filled | |
+| F1 | If this release changed the window: `tools\make-screenshots.ps1`, then check the alt text in `README.md` and `README.uk.md` still describes what the picture shows | Both images regenerate at 900×650 and E1's sync guard passes. The script refuses to run if a row meant to read as healthy would flag `Duplicate` against this machine's System PATH | |
 | F2 | Bump the version in `Cargo.toml` **and** `crates/pathmaster/resources/app.rc`, then `cargo test --workspace` | `the_versioninfo_carries_the_crate_version` passes — which is the two of the three version legs a tag cannot check | |
 | F3 | Push that commit to `develop`, let push CI go green, then tag the commit the release is cut from | The release workflow's three-way version gate passes. **Push CI watches `develop`, not `main`** — so if the tagged commit is a merge or a release branch carrying anything CI never saw, run `cargo test --workspace --locked` and `cargo clippy --workspace --all-targets --locked -- -D warnings` on it by hand before tagging | |
 | F4 | Watch the release workflow | Every gate green — imports (no `VCRUNTIME`/`MSVCP`/`api-ms-win-crt`), size ≤ 40 MB, VERSIONINFO read back out of the linked artifact. The release page carries **exactly two** assets: the `.exe` and its `.sha256`. The PDB is a workflow artifact and is **not** on the release | |

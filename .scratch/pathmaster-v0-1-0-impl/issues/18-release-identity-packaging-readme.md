@@ -75,8 +75,40 @@ screenshot available here is of this machine's real PATH.
 **Nothing past `git push --tags`.** The release workflow has never run — it cannot, without a tag
 and a release to make. Its YAML parses, its action refs are pinned to the commit SHAs behind
 `v7.0.1`, and every gate it runs was rehearsed by hand against a locally built artifact, but the
-run itself is F2/F3 of the checklist. So are both live installs: the symlink-resolve rule and the
+run itself is F3/F4 of the checklist. So are both live installs: the symlink-resolve rule and the
 `upgrade`-keeps / `uninstall`-deletes behaviour are documented in the README from the packaging
-research, and only a real `winget install` can confirm them (F6, F7).
+research, and only a real `winget install` can confirm them (F7, F8).
 
-**Steps 31–33, L8 and L9 are the NVDA and eyes-on half**, and are the user's to run.
+### Heard, not only seen
+
+The steps this ticket added were run on real NVDA by the user on 2026-08-24 and reported as
+passing: **31–33** — the Help menu last on the bar with its one item carrying no accelerator, the
+About dialog whose title is the whole of it (name, version, licence) with a single OK, and that
+item reading as **available** on the Backups tab and in the unwritable-`data\` run alike, because
+it names the build and that is true in every state the application can be in. And **L8, L9** — the
+icon in the title bar, the taskbar button and Alt+Tab, and the same design on the `.exe` in
+Explorer at both sizes with the Details tab reading PathMaster / Ruslan Iskov / 0.1.0.
+
+That last pair is the half no automated check could have made. `WM_GETICON` answering with a
+handle proves an icon was *set*; only eyes prove it is the right one, in all five places, and that
+the exe resource and `Frame::set_icon` did not diverge into two designs.
+
+### The screenshot the README reserved a place for
+
+Filled on 2026-08-24, in both languages, by `tools/make-screenshots.ps1` — checklist F1.
+
+**The picture shows no real `PATH`.** It could not: the application reads the registry, and there
+is no switch that overrides it. So the list is staged through the Backups tab's **Restore**, which
+loads a Snapshot into the Working Copy and writes nothing — Apply is what writes, and Apply is
+never pressed. The demo `PATH` carries one Entry of every Issue type, so the Status column earns
+its place in the picture: four healthy rows with an empty column, then Missing, "Missing, Quoted",
+Relative, Duplicate and Empty.
+
+**Two constraints turned out to be load-bearing, and both are asserted in the script.** The clean
+rows must be real directories the *System* `PATH` does not also hold — duplicates are evaluated
+across both Scopes, System first, so the first attempt produced a list where almost every row
+flagged `Duplicate`. And the driving must not take the foreground: the first attempt tried, was
+refused, and the foreground window turned out to be the user's browser — synthetic keystrokes
+would have gone there. What replaced it is `--tab backups` for the page, a posted `WM_KEYDOWN` for
+the row and `BM_CLICK` for the button, none of which needs focus and none of which carries a
+pointer across the process boundary.

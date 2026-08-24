@@ -8,7 +8,9 @@ correct, tells you which entries are broken and why, and saves a copy of a list 
 it. It is built for a screen-reader user first, and it is one portable executable that keeps
 everything it writes in a folder beside itself.
 
-<!-- Screenshot of the main window, with full alt text, goes here at release time. -->
+![The PathMaster main window: a message line reading "User PATH: 10 entries", three tabs (User PATH, System PATH, Backups), and a two-column list of Path and Status. Healthy entries leave Status empty; the flagged ones read Missing, "Missing, Quoted", Relative, Duplicate and Empty. A row of buttons follows — Add, Edit, Delete, Move Up, Move Down, Apply, Cancel Changes — and the status bar counts entries and issues for each PATH and gives the merged PATH length.](docs/images/main-window-en.png)
+
+*The PATH in that picture is a deliberately broken example, not anyone's real one: it carries one of every problem PathMaster reports.*
 
 ## Accessibility
 

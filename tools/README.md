@@ -23,6 +23,29 @@ It is a hand-run script rather than a build step deliberately. A build that rast
 would need ImageMagick on every machine that compiles this application, to produce a file that
 changes about once a year.
 
+## `make-screenshots.ps1`
+
+Regenerates the READMEs' main-window screenshots, one per language, into `docs/images/`. This is
+checklist step F1, which asks for them to be refreshed whenever the README changes.
+
+```powershell
+.\make-screenshots.ps1
+```
+
+It exists because the staging is not obvious. The list in the picture must not be anyone's real
+`PATH`, so it is filled through the Backups tab's **Restore** — which loads a Snapshot into the
+Working Copy and writes nothing, Apply being what would write. And it must not steal the
+foreground, because synthetic keystrokes go wherever focus is and somebody may be using the
+machine: the Backups tab comes from the app's own `--tab backups`, the Snapshot row is focused by
+posting `WM_KEYDOWN` to the list, and Restore is pressed with `BM_CLICK`. All three carry handles
+and scalars, never a pointer this process owns — which is the one thing a cross-process
+`SendMessage` cannot dereference.
+
+The demo `PATH` carries one Entry of every Issue type. Its **clean** rows have to be real
+directories that the machine's System `PATH` does not also hold, or they flag `Duplicate`
+(evaluation runs across both Scopes, System first) and the picture shows a list where nothing is
+healthy. The script asserts that before it launches anything.
+
 ## `nvda-drive.ps1`
 
 Drives a prototype with synthetic keystrokes and returns what NVDA said, so a screen-reader
