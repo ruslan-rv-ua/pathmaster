@@ -152,6 +152,12 @@ half**, and like E3 they are required once for v0.1.0 and thereafter only when p
 F5 is not one of them and runs every release: it is the step that proves the instruction given to
 users still works.
 
+> **Precondition for the whole section: the repository must be public.** Not a preference — a
+> release from a private repository does not work at all. The asset URLs both manifests download
+> from are unreachable, `LicenseUrl` 404s, and the README's own CI and release badges render
+> broken. Check it once, before F1, and the rest of this section is about the software rather
+> than about permissions.
+
 | # | Step | Expected result | ✓ |
 |---|------|-----------------|---|
 | F1 | If this release changed the window: `tools\make-screenshots.ps1`, then check the alt text in `README.md` and `README.uk.md` still describes what the picture shows | Both images regenerate at 900×650 and E1's sync guard passes. The script refuses to run if a row meant to read as healthy would flag `Duplicate` against this machine's System PATH | |

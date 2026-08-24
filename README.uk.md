@@ -4,6 +4,11 @@
 
 Портативний редактор і діагностика змінної `PATH` у Windows.
 
+[![Стан CI](https://github.com/ruslan-rv-ua/pathmaster2/actions/workflows/ci.yml/badge.svg)](https://github.com/ruslan-rv-ua/pathmaster2/actions/workflows/ci.yml)
+[![Останній випуск](https://img.shields.io/github/v/release/ruslan-rv-ua/pathmaster2)](https://github.com/ruslan-rv-ua/pathmaster2/releases/latest)
+[![Ліцензія: MIT](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
+![Windows 10 і 11, 64-біт](https://img.shields.io/badge/Windows-10%20%7C%2011%20x64-blue)
+
 ![Головне вікно PathMaster: рядок повідомлень «PATH користувача: 10 записів», три вкладки (PATH користувача, PATH системи, Резервні копії) і список із двох колонок — «Шлях» і «Стан». У справних записів колонка «Стан» порожня; у позначених — «Відсутній», «Відсутній, У лапках», «Відносний», «Дублікат» і «Порожній». Нижче — кнопки «Додати», «Змінити», «Видалити», «Перемістити вгору», «Перемістити вниз», «Застосувати», «Відхилити зміни», а рядок стану показує кількість записів і проблем для кожного PATH та довжину об'єднаного PATH.](docs/images/main-window-uk.png)
 
 *PATH на цьому знімку — навмисно зіпсований приклад: у ньому є по одній кожній проблемі, про які
