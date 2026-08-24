@@ -1,0 +1,48 @@
+// The exe's resources: its icon and its identity (spec §12, §16).
+//
+// Compiled by build.rs with llvm-rc, which sits in the LLVM install this build already
+// requires for bindgen — so the icon costs no dependency that was not already mandatory.
+//
+// Exactly one ICON statement, at the lowest id. Where several RT_GROUP_ICON resources
+// exist the shell takes the first in the resource directory and the directory is sorted
+// by id, so "one icon" is what makes "which icon" a question nobody has to answer.
+//
+// VERSIONINFO is the whole of an unsigned binary's identity: FileDescription is what
+// SmartScreen and Task Manager put in front of the user, and CompanyName is what winget's
+// PackageIdentifier is built from (RuslanIskov.PathMaster). Keep this file ASCII —
+// llvm-rc's input codepage is not the file's, and a mojibaked company name is exactly the
+// identity this block exists to carry.
+//
+// The two version strings are load-bearing and are gated three ways: this file against
+// Cargo.toml by `the_versioninfo_carries_the_crate_version` in src/version.rs on every
+// `cargo test`, and both against the git tag by the release workflow before it builds.
+
+1 ICON "app.ico"
+
+1 VERSIONINFO
+FILEVERSION 0, 1, 0, 0
+PRODUCTVERSION 0, 1, 0, 0
+FILEOS 0x40004L      // VOS_NT_WINDOWS32
+FILETYPE 0x1L        // VFT_APP
+FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        // 0409 = en-US, 04B0 = 1200 = Unicode.
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName",      "Ruslan Iskov"
+            VALUE "FileDescription",  "PathMaster - portable Windows PATH editor"
+            VALUE "FileVersion",      "0.1.0"
+            VALUE "InternalName",     "PathMaster"
+            VALUE "LegalCopyright",   "Copyright (C) 2026 Ruslan Iskov. MIT License."
+            VALUE "OriginalFilename", "PathMaster.exe"
+            VALUE "ProductName",      "PathMaster"
+            VALUE "ProductVersion",   "0.1.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

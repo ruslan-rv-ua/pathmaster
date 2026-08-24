@@ -699,6 +699,22 @@ requirement does not state:
   maximises over it, so an un-maximise afterwards lands on a window the size of the screen rather
   than on nothing at all.
 
+**Amended by impl ticket 18**, which built the icon — two assets from one source design, and
+three rules the requirement does not state:
+
+- **The `.ico` is generated, never drawn.** `tools/make-icon.ps1` rasterises `icon.svg` into the
+  five layers and assembles the file; the result is committed because the build reads it, but
+  nothing hand-edits it. "One source design" is otherwise a rule someone has to keep, and the two
+  assets would drift the first time one of them was touched.
+- **The 256 layer costs a hand-written ICO writer.** ImageMagick refuses a 256 px layer outright
+  (`InvalidDimensions`) and will write 255, which is not a size Windows looks for. The format is a
+  6-byte directory, one 16-byte entry per layer and then either a headerless BMP or — for 256 — the
+  PNG file verbatim with its width and height written as `0`, which is how 256 is spelled in a byte.
+- **The two icon surfaces fail independently.** The exe resource governs Explorer, Alt+Tab from the
+  file and pinned shortcuts; `Frame::set_icon` governs the title bar, the taskbar button and Alt+Tab
+  from the window. A build can get either one right alone, and the Release Checklist looks at both
+  (L8, L9) because the file's icon looking right is exactly what hides the other half being wrong.
+
 ## 13. Settings and its failure taxonomy
 
 Settled by tickets [20](issues/20-failure-taxonomy-remainder.md) and [11](issues/11-i18n-mechanism.md).
@@ -900,6 +916,17 @@ exactly when the process is **not elevated** — every tab, Read-only Data and d
 included, because the command is Read-only Data's standing remedy (§9 D7) and runs through the
 close-confirm flow rather than around it. The Tools mnemonics are S, O and R.
 
+*Amended by impl ticket 18, which added the **Help** menu and its one item, **About** — the
+fourth menu and the last item on the bar, as the table above has it.* No accelerator and no `…`:
+the `…` in this application marks the two items that open a dialog *asking* something, and About
+states and is dismissed. It is the **fifth item that does not follow the active Session**, and the
+first that follows nothing at all — not the Run, not a Scope: it names the build, which is true in
+every state the application can be in, and a user checking what they are running is likeliest to do
+it when something else has already gone wrong. The bar's mnemonics are F, E, T, H and the Help
+menu's is A, alone in its menu and so unable to collide. The dialog is one sentence because it is
+one title (§10 D6), carrying §16's three facts — name, version, licence — of which only the version
+is filled in.
+
 ## 16. Build, packaging, release
 
 Settled by tickets [04](issues/04-single-exe-build-profile.md) and
@@ -935,6 +962,28 @@ Settled by tickets [04](issues/04-single-exe-build-profile.md) and
 - **Still owed before the first release** (release-time actions, not open decisions): one clean-VM
   run with no VC++ redistributable; one live winget install observing the symlink-resolve and
   uninstall behaviour; the repo URL filled into the manifest drafts.
+
+**Amended by impl ticket 18**, which built the pipeline and the manifests — four rules §16 does
+not state:
+
+- **The gates run on the staged file, and the sidecar is written after them.** "Gate the artifact"
+  is only true if the gated bytes are the published bytes, so the copy into `dist\` happens before
+  the gates rather than after; and a run that fails a gate leaves **no** `.sha256` behind, because a
+  published hash is an invitation to install what it names.
+- **A fourth gate: the identity, read back out of the linked exe.** A `.res` that failed to link
+  leaves a perfectly working binary with no `VERSIONINFO` at all — no company, no version, nothing.
+  For a binary that is unsigned by decision that is the whole of its identity, so the workflow reads
+  `CompanyName`, `ProductName` and both versions off `dist\`'s file rather than trusting the `.rc`
+  it compiled.
+- **Two of the three version legs are checked on every `cargo test`, not only on a tag.**
+  `crates/pathmaster/src/version.rs` compares `Cargo.toml`'s version with the `.rc`'s, which is where
+  drift is actually introduced — a bump is a `Cargo.toml` edit and the `.rc` is the file it is easy
+  to forget. The tag is the leg only a release can check, and the three-way gate keeps it.
+- **The release URL is the repository's, and that fixes the manifests.** `ruslan-rv-ua/pathmaster2`
+  is where `gh release create` publishes, so it is what both manifests download from; the scoop
+  bucket is its own repository (`ruslan-rv-ua/scoop-bucket`) and the manifests live at
+  `packaging/`, submitted from there rather than consumed by anything here. The licence field both
+  of them left open is **MIT**, which is also the `LegalCopyright` line in the exe.
 
 ## 17. Repository layout
 

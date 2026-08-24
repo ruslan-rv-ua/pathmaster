@@ -1,0 +1,5 @@
+# The exe's icon resource is the repository's only binary asset, and this repository is worked
+# on with core.autocrlf=true. Git's own heuristic already reads app.ico as binary, but a file
+# whose bytes are the artifact would be destroyed by one wrong guess — so it is declared rather
+# than detected.
+*.ico binary

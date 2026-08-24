@@ -178,17 +178,19 @@ pub const MERGED_LENGTH_EXCEEDS: &str = " — exceeds 8,191 (cmd.exe limit)";
 ///
 /// These are **not** Catalogue strings and are never translated — they are
 /// group keys, and the only thing that reads them is the gate. Nothing here
-/// reaches a user, which is why they are the three `MENU_GROUP_` constants
-/// absent from [`REGISTRY`].
+/// reaches a user, which is why they are the `MENU_GROUP_` constants absent
+/// from [`REGISTRY`].
 pub const MENU_GROUP_BAR: &str = "menu bar";
 pub const MENU_GROUP_EDIT: &str = "Edit";
 pub const MENU_GROUP_FILE: &str = "File";
+pub const MENU_GROUP_HELP: &str = "Help";
 pub const MENU_GROUP_TOOLS: &str = "Tools";
 
-/// The menu bar's titles. Help arrives with the ticket that fills it
-/// (spec §15). The mnemonics are F, E, T — unique across the bar, and gated.
+/// The menu bar's titles (spec §15), complete: the mnemonics are F, E, T, H —
+/// unique across the bar, and gated.
 pub const MENU_TITLE_EDIT: &str = "&Edit";
 pub const MENU_TITLE_FILE: &str = "&File";
+pub const MENU_TITLE_HELP: &str = "&Help";
 pub const MENU_TITLE_TOOLS: &str = "&Tools";
 
 /// The File menu's items (spec §15). Apply is here because Ctrl+S can only
@@ -225,6 +227,22 @@ pub const MENU_REFRESH: &str = "Re&fresh";
 pub const MENU_SETTINGS: &str = "&Settings…";
 pub const MENU_OPEN_BACKUPS_FOLDER: &str = "&Open Backups Folder";
 pub const MENU_RESTART_AS_ADMIN: &str = "&Restart as Administrator";
+
+/// The Help menu's one item, and the dialog it opens (spec §15, §16).
+///
+/// No `…` on the item: §15 spells it "About", and the `…` in this application
+/// marks the two items that open a dialog *asking* something — About states
+/// and is dismissed. Its mnemonic is A, and being alone in its menu it cannot
+/// collide.
+///
+/// The dialog is one sentence because it is one title, which is all NVDA
+/// speaks of a dialog (§10, D6). It carries the three things §16 makes it
+/// carry — name, version, licence — and only `{version}` is filled in: the
+/// product name and the licence identifier are proper nouns no translation may
+/// vary, and the same two the exe's `VERSIONINFO` carries, which is the only
+/// other place an unsigned binary says who it is.
+pub const MENU_ABOUT: &str = "&About";
+pub const DIALOG_ABOUT: &str = "PathMaster {version} — MIT License";
 
 /// The per-Scope buttons (spec §15). Their English differs from both the menu
 /// items that share their command and the operation names that announce it —
@@ -445,6 +463,7 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::text(MERGED_LENGTH_EXCEEDS),
     CatalogueEntry::menu_item(MENU_TITLE_EDIT, MENU_GROUP_BAR),
     CatalogueEntry::menu_item(MENU_TITLE_FILE, MENU_GROUP_BAR),
+    CatalogueEntry::menu_item(MENU_TITLE_HELP, MENU_GROUP_BAR),
     CatalogueEntry::menu_item(MENU_TITLE_TOOLS, MENU_GROUP_BAR),
     CatalogueEntry::menu_item(MENU_APPLY, MENU_GROUP_FILE),
     CatalogueEntry::menu_item(MENU_EXIT, MENU_GROUP_FILE),
@@ -460,6 +479,8 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::menu_item(MENU_SETTINGS, MENU_GROUP_TOOLS),
     CatalogueEntry::menu_item(MENU_OPEN_BACKUPS_FOLDER, MENU_GROUP_TOOLS),
     CatalogueEntry::menu_item(MENU_RESTART_AS_ADMIN, MENU_GROUP_TOOLS),
+    CatalogueEntry::menu_item(MENU_ABOUT, MENU_GROUP_HELP),
+    CatalogueEntry::text(DIALOG_ABOUT),
     CatalogueEntry::text(DIALOG_DISCARD_AND_RESTART),
     CatalogueEntry::text(BUTTON_DISCARD_AND_RESTART),
     CatalogueEntry::text(DIALOG_ELEVATION_CANCELLED),

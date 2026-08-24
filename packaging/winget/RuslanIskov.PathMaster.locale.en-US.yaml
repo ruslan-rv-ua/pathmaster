@@ -1,0 +1,42 @@
+# Default locale manifest — submitted as
+# manifests/r/RuslanIskov/PathMaster/<version>/RuslanIskov.PathMaster.locale.en-US.yaml
+#
+# Publisher and PackageName here must match the exe's VERSIONINFO (CompanyName / ProductName):
+# for a portable install winget writes the Add/Remove Programs entry from THIS manifest, and
+# consistency between the two is the only identity an unsigned binary has. The Rust side of
+# that pairing is gated by `the_versioninfo_carries_the_identity_the_package_managers_were_built_from`
+# in crates/pathmaster/src/version.rs.
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.12.0.schema.json
+PackageIdentifier: "RuslanIskov.PathMaster"
+PackageVersion: "0.1.0"
+PackageLocale: "en-US"
+Publisher: "Ruslan Iskov"
+PublisherUrl: "https://github.com/ruslan-rv-ua"
+PublisherSupportUrl: "https://github.com/ruslan-rv-ua/pathmaster2/issues"
+PackageName: "PathMaster"
+PackageUrl: "https://github.com/ruslan-rv-ua/pathmaster2"
+License: "MIT"
+LicenseUrl: "https://github.com/ruslan-rv-ua/pathmaster2/blob/main/LICENSE"
+Copyright: "Copyright (C) 2026 Ruslan Iskov"
+ShortDescription: "Portable, screen-reader-friendly editor and diagnostics for the Windows PATH environment variable."
+Description: |-
+  PathMaster reads, edits and diagnoses the Windows PATH environment variable for the current
+  user and for the machine. It is built for a screen-reader user first: every action has a
+  keyboard route and a menu home, announcements are both spoken and shown, and the application
+  never sets a colour, so High Contrast works.
+
+  It is portable. Everything it writes — settings, snapshots and its log — lives in a `data`
+  folder beside the executable, and a snapshot of a PATH is taken before that PATH is changed.
+Moniker: "pathmaster"
+Tags:
+- "path"
+- "environment-variables"
+- "environment"
+- "portable"
+- "accessibility"
+- "nvda"
+- "registry"
+- "utilities"
+ReleaseNotesUrl: "https://github.com/ruslan-rv-ua/pathmaster2/releases/tag/v0.1.0"
+ManifestType: "defaultLocale"
+ManifestVersion: "1.12.0"

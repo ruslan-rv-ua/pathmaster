@@ -1,0 +1,177 @@
+# Release CI (spec §16): a tag push produces the gated release.
+#
+# The standing rule here is **gate the artifact, never the build config**. A `RUSTFLAGS`
+# environment variable silently overrides `.cargo/config.toml`, so a build that quietly lost
+# `crt-static` is green everywhere except in the linked exe's import table — which is what the
+# dumpbin step reads. Every gate below runs on the file that is about to be uploaded.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # gh release create
+
+jobs:
+  release:
+    # Pinned label, NOT windows-latest. The label pins the OS image family, not tool versions:
+    # windows-2025 is the VS2026 image, and its LLVM/CMake/Ninja move with image releases.
+    # Correctness is guarded by the artifact gates below, not by the image contents.
+    runs-on: windows-2025
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      # NFR-portable itself. Kept at job level; a step that overrode it would be caught by the
+      # dumpbin gate, which is the real guard.
+      RUSTFLAGS: "-C target-feature=+crt-static"
+      # bindgen runs unconditionally in wxdragon-sys, and libclang.dll is not discoverable on
+      # the runner without this. build.rs also takes llvm-rc from here, which is what puts the
+      # icon and the VERSIONINFO in the exe — the SDK's rc.exe is not on PATH on this image.
+      LIBCLANG_PATH: 'C:\Program Files\LLVM\bin'
+      # MAX_PATH trap: the wxWidgets CMake build breaks on deep paths with an error that blames
+      # the C++ compiler. A short target dir instead of fighting the checkout path.
+      CARGO_TARGET_DIR: 'C:\t'
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Assert build-shape env hazards are unset
+        run: |
+          # DOCS_RS / RUST_ANALYZER silently switch wxdragon-sys to "bindings only".
+          if ($env:DOCS_RS -or $env:RUST_ANALYZER) {
+            throw "DOCS_RS/RUST_ANALYZER present - build would silently change shape"
+          }
+          if (-not (Test-Path $env:LIBCLANG_PATH)) { throw "LIBCLANG_PATH missing: $env:LIBCLANG_PATH" }
+          if (-not (Test-Path "$env:LIBCLANG_PATH\llvm-rc.exe")) {
+            throw "llvm-rc.exe missing beside libclang - the exe would ship with no icon and no VERSIONINFO"
+          }
+
+      # Load-bearing, not convenience: wxdragon-sys hardcodes the Ninja CMake generator on
+      # x64 MSVC. Installed explicitly rather than inherited from the image, as in push CI.
+      - name: Install Ninja
+        run: choco install ninja --no-progress -y
+
+      - name: Install pinned toolchain (rust-toolchain.toml)
+        # rustup is preinstalled; `rustup show` installs the exact channel and targets pinned in
+        # rust-toolchain.toml — never `stable`, which drifts silently.
+        run: |
+          rustup show
+          cargo --version
+          rustc --version
+
+      - name: Three-way version gate (tag vs Cargo.toml vs VERSIONINFO)
+        # Two of the three agree on every `cargo test` (crates/pathmaster/src/version.rs); the
+        # tag is the leg only a release can check, and getting it wrong publishes a v0.2.0 that
+        # says 0.1.0 in the one place an unsigned binary states its identity.
+        run: |
+          $tag = '${{ github.ref_name }}'
+          $ver = $tag.TrimStart('v')
+          $cargo = (Select-String -Path Cargo.toml -Pattern '^version\s*=\s*"([^"]+)"' |
+                    Select-Object -First 1).Matches[0].Groups[1].Value
+          if ($cargo -ne $ver) { throw "Cargo.toml version '$cargo' != tag '$ver'" }
+          $rc = 'crates/pathmaster/resources/app.rc'
+          $rcText = Get-Content $rc -Raw
+          foreach ($field in 'FileVersion', 'ProductVersion') {
+            if ($rcText -notmatch ('VALUE\s+"' + $field + '",\s*"' + [regex]::Escape($ver) + '"')) {
+              throw "$rc $field does not match tag version '$ver'"
+            }
+          }
+          "VERSION=$ver" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Build
+        # --target explicit: with --target present, RUSTFLAGS does NOT apply to host build
+        # scripts and proc-macros (wxdragon-macros). Load-bearing, not style.
+        # --locked: Cargo.lock is the pin for wxdragon and its ~130 build dependencies.
+        run: cargo build --release --locked --target x86_64-pc-windows-msvc
+
+      - name: Stage the artifact
+        # Everything downstream gates and publishes *this* file, so the copy happens before the
+        # gates rather than after them. This is also the one place the release asset is named:
+        # scoop renames it back to PathMaster.exe with a URL fragment and winget renames it with
+        # `Commands`, and both manifests in packaging/ are written against this shape.
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          $name = "PathMaster-v$env:VERSION-x64.exe"
+          Copy-Item "$env:CARGO_TARGET_DIR\x86_64-pc-windows-msvc\release\PathMaster.exe" "dist\$name"
+          "ASSET=$name" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Gate on the artifact's import table (dumpbin /DEPENDENTS)
+        # The only reliable guard for NFR-portable: a dropped crt-static is invisible in a green
+        # build and visible here.
+        run: |
+          $exe = "dist\$env:ASSET"
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $dumpbin = & $vswhere -latest -products * -find '**\Hostx64\x64\dumpbin.exe' | Select-Object -First 1
+          if (-not $dumpbin) { throw "dumpbin.exe not found via vswhere" }
+          $deps = (& $dumpbin /DEPENDENTS $exe) -join "`n"
+          Write-Host $deps
+          # Self-sensitivity: without this, an unparsed or empty output would pass as "no CRT".
+          if ($deps -notmatch 'KERNEL32\.dll') { throw "import table not parsed - no KERNEL32.dll seen" }
+          if ($deps -match 'VCRUNTIME|MSVCP|api-ms-win-crt') {
+            throw "CRT dependency leaked into the release exe - crt-static was dropped"
+          }
+
+      - name: Gate on the artifact's size (NFR-exe-size)
+        # 40 MB is the rewritten requirement; the measured build is around 7.3 MB, so this
+        # fires on a change of kind — a vendored asset, a debug-info setting — not on drift.
+        run: |
+          $exe = Get-Item "dist\$env:ASSET"
+          $limit = 40MB
+          "{0} = {1:N0} bytes ({2:N2} MB), limit {3:N0}" -f $exe.Name, $exe.Length, ($exe.Length / 1MB), $limit
+          if ($exe.Length -gt $limit) { throw "exe is $($exe.Length) bytes, over the $limit limit" }
+
+      - name: Gate on the artifact's identity (VERSIONINFO)
+        # The exe is unsigned by decision, so this block is the only claim it makes about who
+        # built it. Read back out of the linked binary rather than trusted from the .rc: a
+        # resource that failed to link leaves a perfectly working exe with no identity at all.
+        run: |
+          $info = (Get-Item "dist\$env:ASSET").VersionInfo
+          $info | Format-List CompanyName, ProductName, FileDescription, FileVersion, ProductVersion
+          if ($info.CompanyName -ne 'Ruslan Iskov') { throw "CompanyName is '$($info.CompanyName)'" }
+          if ($info.ProductName -ne 'PathMaster') { throw "ProductName is '$($info.ProductName)'" }
+          if ($info.FileVersion -ne $env:VERSION) { throw "FileVersion '$($info.FileVersion)' != '$env:VERSION'" }
+          if ($info.ProductVersion -ne $env:VERSION) { throw "ProductVersion '$($info.ProductVersion)' != '$env:VERSION'" }
+
+      - name: Publish the SHA256 sidecar
+        # Written only once every gate has passed, so a failed run leaves no hash for a file
+        # nobody should install. `<hex64> *<filename>` is sha256sum's own format: `Get-FileHash`
+        # users read the hash, `sha256sum -c` verifies the line, and scoop's autoupdate lifts
+        # the hash straight out of it.
+        run: |
+          $exe = "dist\$env:ASSET"
+          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash *$env:ASSET" | Out-File -FilePath "$exe.sha256" -Encoding ascii -NoNewline
+          Get-Content "$exe.sha256"
+          Get-ChildItem dist
+
+      - name: Keep the PDB as a CI artifact (never on the release)
+        # ~52 MB, and the only way to symbolicate a field crash of an unsigned binary. Not
+        # shipping it is what makes "single exe" true on MSVC — `strip` moves zero bytes there.
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: PathMaster-v${{ env.VERSION }}-x64-pdb
+          path: ${{ env.CARGO_TARGET_DIR }}\x86_64-pc-windows-msvc\release\PathMaster.pdb
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Create the GitHub release
+        # Bare exe plus its sidecar, no zip: a screen-reader user downloading a release should
+        # not have to negotiate an archive to reach one file.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create '${{ github.ref_name }}' `
+            "dist\$env:ASSET" `
+            "dist\$env:ASSET.sha256" `
+            --verify-tag `
+            --title "PathMaster v$env:VERSION" `
+            --generate-notes
+          # Downstream of a published release, and deliberately not automated here:
+          #   * scoop  - the bucket's excavator bumps packaging/scoop/pathmaster.json on its own
+          #              schedule, reading the version from this release and the hash from the
+          #              sidecar above.
+          #   * winget - one PR per version to microsoft/winget-pkgs. The first submission is
+          #              always a manual PR; later ones can be `wingetcreate update --submit`.
+          # Both, and the manual release checklist, are in docs/release-checklist.md section F.

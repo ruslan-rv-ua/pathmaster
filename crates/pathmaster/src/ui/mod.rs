@@ -53,6 +53,7 @@ use crate::pump::Pump;
 use crate::ui::backups_page::BackupsPage;
 use crate::ui::command::{Availability, Command};
 use crate::ui::scope_page::ScopePage;
+use crate::version;
 use crate::SharedScope;
 
 /// The notebook's page order (spec §12): the two Scopes, then Backups —
@@ -262,6 +263,34 @@ struct App {
     relaunched: Cell<bool>,
 }
 
+/// Gives the window its icon — which the exe's own icon resource does **not**
+/// do (spec §12 D7).
+///
+/// wxMSW never adopts the executable's `RT_GROUP_ICON` for a frame: with the
+/// resource correctly embedded, `WM_GETICON` and the class icon both still
+/// answer 0 (research/04 §4.2 measured exactly that). So a build with a
+/// perfect Explorer icon shows the generic Windows one in the taskbar, the
+/// title bar and Alt+Tab — the half of the job that is easy to miss precisely
+/// because the other half looks right.
+///
+/// One embedded SVG covers every DPI from a single asset, and it is the same
+/// source design `resources/app.ico` is rasterised from, so the two assets
+/// cannot become two designs. `get_bitmap_for` renders it at this window's
+/// scale, which matters because wx takes **one** icon rather than a bundle.
+///
+/// A failure is silent by design: an icon that would not render is a window
+/// with the generic icon, which is exactly what this run would have had
+/// anyway, and nothing a user could act on.
+fn set_frame_icon(frame: &Frame) {
+    const ICON: &[u8] = include_bytes!("../../resources/icon.svg");
+
+    if let Some(bitmap) = BitmapBundle::from_svg_data(ICON, Size::new(32, 32))
+        .and_then(|bundle| bundle.get_bitmap_for(frame))
+    {
+        frame.set_icon(&bitmap);
+    }
+}
+
 /// Builds and shows the main window over the two loaded Sessions, and hands it
 /// back so a startup dialog has a parent to sit on and a window to hand focus
 /// back to. A Read-only Data run passes its reason; announcing it is the last
@@ -292,6 +321,7 @@ pub fn build_main_window(
         .with_size(Size::new(900, 650))
         .build();
     frame.set_min_size(Size::new(800, 600));
+    set_frame_icon(&frame);
     frame.set_menu_bar(command::build_menu_bar());
 
     // The one Catalogue, built here and shared by everything that composes a
@@ -587,6 +617,7 @@ impl App {
             Command::Settings => return self.open_settings(),
             Command::OpenBackupsFolder => return self.open_backups_folder(),
             Command::RestartAsAdministrator => return self.restart_as_administrator(),
+            Command::About => return self.about(),
             // `false`, never `true`: a forced close would be a way past the
             // very dialog the close-confirm exists to ask (spec §5).
             Command::Exit => return self.frame.close(false),
@@ -617,8 +648,20 @@ impl App {
             Command::Settings
             | Command::OpenBackupsFolder
             | Command::RestartAsAdministrator
-            | Command::Exit => {}
+            | Command::Exit
+            | Command::About => {}
         }
+    }
+
+    /// Help → About: what this build is (spec §15, §16).
+    ///
+    /// Name, version and licence, in the title, because the title is what NVDA
+    /// speaks of a dialog. For an **unsigned** binary this is not decoration:
+    /// it and the exe's `VERSIONINFO` are the only two places the application
+    /// says who it is, and the one of them a screen-reader user can reach
+    /// without leaving the keyboard.
+    fn about(&self) {
+        question::inform(&self.frame, &self.catalogue.about_dialog(version::VERSION));
     }
 
     /// Tools → Restart as Administrator: the **one entry point into

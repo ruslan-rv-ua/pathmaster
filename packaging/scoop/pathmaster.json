@@ -1,0 +1,52 @@
+{
+    "##": [
+        "Manifest for the own bucket at https://github.com/ruslan-rv-ua/scoop-bucket, generated",
+        "from ScoopInstaller/BucketTemplate — whose excavator.yml runs checkver/autoupdate on a",
+        "schedule, which is how this file gets bumped after a release.",
+        "",
+        "The '#/PathMaster.exe' fragment renames the download, so 'bin' and 'shortcuts' stay",
+        "stable across versions while the release asset keeps its version in its name.",
+        "",
+        "A GUI app needs nothing special: scoop patches the shim's PE subsystem to GUI when the",
+        "target is GUI, so the PATH shim does not flash a console; 'shortcuts' adds the Start",
+        "Menu entry.",
+        "",
+        "'persist' junctions <app>\\data into ~\\scoop\\persist\\pathmaster\\data, so settings,",
+        "snapshots and the log survive an update. A junction is compatible with the rule that",
+        "the Data Directory is resolved from the executable's own location (spec §3).",
+        "",
+        "autoupdate's hash comes from the release's .sha256 sidecar. '$url' there is the",
+        "download URL with the '#/' fragment stripped, so '$url.sha256' is the sidecar beside",
+        "the asset — and the sidecar's '<hex64> *<filename>' line is exactly what scoop's",
+        "default hash extraction reads."
+    ],
+    "version": "0.1.0",
+    "description": "Portable, screen-reader-friendly editor and diagnostics for the Windows PATH environment variable",
+    "homepage": "https://github.com/ruslan-rv-ua/pathmaster2",
+    "license": "MIT",
+    "architecture": {
+        "64bit": {
+            "url": "https://github.com/ruslan-rv-ua/pathmaster2/releases/download/v0.1.0/PathMaster-v0.1.0-x64.exe#/PathMaster.exe",
+            "hash": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
+    },
+    "bin": "PathMaster.exe",
+    "shortcuts": [
+        [
+            "PathMaster.exe",
+            "PathMaster"
+        ]
+    ],
+    "persist": "data",
+    "checkver": "github",
+    "autoupdate": {
+        "architecture": {
+            "64bit": {
+                "url": "https://github.com/ruslan-rv-ua/pathmaster2/releases/download/v$version/PathMaster-v$version-x64.exe#/PathMaster.exe",
+                "hash": {
+                    "url": "$url.sha256"
+                }
+            }
+        }
+    }
+}

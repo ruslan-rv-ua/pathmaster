@@ -67,6 +67,9 @@ interface expect the Catalogue's Ukrainian equivalents.
 | 28 | Dirty **both** Scopes (elevated — see section C), close, answer [Save] | The title names both, User first; "User PATH applied" then "System PATH applied"; the application closes and `data\backups\` holds one new file per Scope | |
 | 29 | Stage B11's unwritable `data\backups\`, dirty a Session, close, answer [Save] | "Apply failed — could not write a backup, no changes were made."; the **window stays open** on the failed Scope's tab, `NVDA+Tab` confirms focus is on that tab's list, the Session is still dirty, and the log has no `shutdown: clean` line | |
 | 30 | File → Exit, and Alt+F4 | Each is spoken as a menu item carrying `Alt+F4`, and each reaches the same close-confirm as the title bar's [X] | |
+| 31 | `Alt+H`, then arrow through the Help menu | One item, **About**, spoken and carrying no accelerator; the menu is the last on the bar | |
+| 32 | Activate Help → About | Dialog whose **title** is "PathMaster {version} — MIT License" («PathMaster {version} — ліцензія MIT»), with the version of the build under test; a single [OK] which Escape also answers; `NVDA+Tab` afterwards confirms focus is back where it was | |
+| 33 | Open Help → About in the step-17 unwritable-`data\` run, and again on the Backups tab | The item is **available** in both: it names the build, which is true in every state | |
 
 Steps 20 and 21 need Snapshots to exist. Apply once to make a real one (step 10), or hand-place
 files in `data\backups\`: `YYYY-MM-DDTHH-MM-SS-User.json` holding
@@ -130,6 +133,8 @@ the header. Elevate via Tools → Restart as Administrator.
 | L5 | Hand-edit `settings.json` to add an unknown field and an unknown member inside `window`, then close cleanly | Both survive the rewrite, as do `language` and `maxBackups` and the file's key order | |
 | L6 | Repeat L3 in the step-17 unwritable-`data\` run | The remembered geometry is still **read** and restored; `settings.json` is byte-identical afterwards, and the run has no log at all to hold a shutdown line | |
 | L7 | Move the window somewhere memorable and close cleanly; reopen, **minimise** it, and close it from the taskbar | It reopens where it was left before minimising, never centred: a minimised window is not written at all, so `window` in `settings.json` is unchanged by that second close | |
+| L8 | Look at the title bar, the taskbar button and `Alt+Tab` | Each shows the PathMaster icon, never the generic Windows one. **Two separate mechanisms**: the exe resource governs Explorer and pinned shortcuts, `Frame::set_icon` governs these three — a build can get one right and the other wrong | |
+| L9 | Look at the `.exe` in Explorer, at Large icons and at Details, and open its Properties → Details tab | The icon is the same design at both sizes; the tab reads product PathMaster, company Ruslan Iskov, and the version being released | |
 
 ## E. Non-NVDA release checks
 
@@ -139,5 +144,23 @@ the header. Elevate via Tools → Restart as Administrator.
 | E2 | Process Monitor, filtered to `PathMaster.exe`: normal session incl. one Browse use | No file/registry write outside `<exe dir>\data\`, the two PATH values, and ComDlg32 MRU after Browse | |
 | E3 | Clean-VM run (no VC++ redistributable) | App starts and lists PATH. Required once for v0.1.0, then only when packaging changes; note "not repeated — packaging unchanged" otherwise | |
 
-CI gates (version gate, `cargo test`, dumpbin imports, exe ≤ 40 MB) run automatically and are not
-part of this manual pass.
+## F. Release-time actions (the pre-release checklist)
+
+Sections A–E are about the application. This one is about **the release itself**, and its steps
+run in this order: nothing below can be done before the one above it. F4–F6 are the packaging
+half, and like E3 they are required once for v0.1.0 and thereafter only when packaging changes.
+
+| # | Step | Expected result | ✓ |
+|---|------|-----------------|---|
+| F1 | Bump the version in `Cargo.toml` **and** `crates/pathmaster/resources/app.rc`, then `cargo test --workspace` | `the_versioninfo_carries_the_crate_version` passes — which is the two of the three version legs a tag cannot check | |
+| F2 | Push that commit and let push CI go green, **then** tag it `v<version>` and push the tag | The release workflow's three-way version gate passes; a tag on a commit push CI has not passed is the one thing this order exists to prevent | |
+| F3 | Watch the release workflow | Every gate green — imports (no `VCRUNTIME`/`MSVCP`/`api-ms-win-crt`), size ≤ 40 MB, VERSIONINFO read back out of the linked artifact. The release page carries **exactly two** assets: the `.exe` and its `.sha256`. The PDB is a workflow artifact and is **not** on the release | |
+| F4 | Download both assets afresh and run the README's own `Get-FileHash` comparison | `True`. This is the step that proves the instruction given to users actually works, not just that a hash was written | |
+| F5 | Clean VM, no VC++ redistributable: run the downloaded `.exe` (this is E3, done here on the released file) | SmartScreen shows the warning the README describes and "More info → Run anyway" gets past it; the app starts and lists PATH | |
+| F6 | Submit `packaging/winget/` (hash filled in from F4) as a PR to microsoft/winget-pkgs, then `winget install RuslanIskov.PathMaster` on a clean machine | Installs; `pathmaster` is a command; **`data\` is created beside the real exe in the package folder, not in winget's shared `Links\` directory** — the symlink-resolve rule (spec §3), and the one thing only a live install can show | |
+| F7 | On that machine: make a change, Apply, then `winget upgrade`, then `winget uninstall` | `upgrade` keeps `data\` with its settings and Snapshots; `uninstall` deletes the package folder and `data\` with it — both exactly as the README says | |
+| F8 | Put `packaging/scoop/pathmaster.json` in the bucket (hash from F4), then `scoop install pathmaster` | Installs; the shim launches the app with **no console flash**; a Start Menu shortcut exists; `~\scoop\persist\pathmaster\data` holds the Data Directory, and `scoop update` leaves it alone | |
+| F9 | Attach the filled copy of this document to the GitHub release | The release carries the record the README promises: the NVDA version used and every step marked | |
+
+CI gates (version gate, `cargo test`, dumpbin imports, exe ≤ 40 MB, VERSIONINFO) run
+automatically and are not part of this manual pass.

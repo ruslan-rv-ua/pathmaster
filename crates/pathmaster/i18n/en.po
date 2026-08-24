@@ -205,6 +205,10 @@ msgid "&File"
 msgstr "&File"
 
 #. Menu bar title. The mnemonic letter is Latin in every language.
+msgid "&Help"
+msgstr "&Help"
+
+#. Menu bar title. The mnemonic letter is Latin in every language.
 msgid "&Tools"
 msgstr "&Tools"
 
@@ -273,6 +277,17 @@ msgstr "&Open Backups Folder"
 #. mnemonic letter is Latin in every language.
 msgid "&Restart as Administrator"
 msgstr "&Restart as Administrator"
+
+#. Help menu item: opens the About dialog. No "…" — it states rather than
+#. asks. The mnemonic letter is Latin in every language.
+msgid "&About"
+msgstr "&About"
+
+#. The About dialog, which is entirely its title. "PathMaster" is the product
+#. name and "MIT" the licence identifier: both are proper nouns and stay as
+#. they are. {version} is the build's version number.
+msgid "PathMaster {version} — MIT License"
+msgstr "PathMaster {version} — MIT License"
 
 #. Button under a Scope's list: opens the Add dialog. Buttons carry no
 #. mnemonic — the Tab order is the map, and an "&" would race the menu bar.

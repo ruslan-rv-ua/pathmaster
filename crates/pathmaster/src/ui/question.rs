@@ -84,14 +84,27 @@ pub fn ask(parent: &dyn WxWidget, title: &str, affirmative: &str, negative: &str
     choose(parent, title, &[affirmative, negative]) == 0
 }
 
-/// States something with a single OK — the whole of it in the title.
+/// Reports something that went wrong, with a single OK — the whole of it in
+/// the title.
 ///
-/// This is the one dialog left with a stock button (spec §11): "OK" is the
-/// same word in both shipped languages and carries no meaning we would have to
-/// own. The body repeats the title so the message is visible as well as spoken.
+/// This is the one shape left with a stock button (spec §11): "OK" is the same
+/// word in both shipped languages and carries no meaning we would have to own.
+/// The body repeats the title so the message is visible as well as spoken.
 pub fn tell(parent: &dyn WxWidget, title: &str) {
+    single_ok(parent, title, MessageDialogStyle::IconWarning);
+}
+
+/// States something that is simply true, in the same shape.
+///
+/// The icon is the only difference, and it is not decoration: Windows plays a
+/// different sound for each, and About is not a warning about anything.
+pub fn inform(parent: &dyn WxWidget, title: &str) {
+    single_ok(parent, title, MessageDialogStyle::IconInformation);
+}
+
+fn single_ok(parent: &dyn WxWidget, title: &str, icon: MessageDialogStyle) {
     MessageDialog::builder(parent, title, title)
-        .with_style(MessageDialogStyle::OK | MessageDialogStyle::IconWarning)
+        .with_style(MessageDialogStyle::OK | icon)
         .build()
         .show_modal();
 }

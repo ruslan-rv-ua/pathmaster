@@ -1,4 +1,4 @@
-//! The fourteen commands the window carries, and the menus they live in
+//! The fifteen commands the window carries, and the menus they live in
 //! (spec §15, §5, §6).
 //!
 //! One enum is the whole map: it names the menu items, the menu each belongs
@@ -22,7 +22,7 @@ use crate::catalog::translate;
 
 /// One user-visible command.
 ///
-/// Ten of them are about a Scope; the last four are not, and are here for the
+/// Ten of them are about a Scope; the last five are not, and are here for the
 /// reason the enum exists at all: they are menu items, and a menu item's id,
 /// label and enabled state are answered in one place or in three.
 ///
@@ -47,6 +47,7 @@ pub enum Command {
     OpenBackupsFolder,
     RestartAsAdministrator,
     Exit,
+    About,
 }
 
 /// What a command's availability is decided from.
@@ -75,7 +76,7 @@ impl Command {
     /// Every command, in **button** order — §15's Add, Edit, Delete, Move Up,
     /// Move Down, Apply, Cancel — which is also the order each menu takes its
     /// own items in, since [`menu`](Self::menu) preserves it.
-    pub const ALL: [Command; 14] = [
+    pub const ALL: [Command; 15] = [
         Command::Add,
         Command::Edit,
         Command::Delete,
@@ -90,14 +91,15 @@ impl Command {
         Command::OpenBackupsFolder,
         Command::RestartAsAdministrator,
         Command::Exit,
+        Command::About,
     ];
 
-    /// The menus, in menu-bar order. Help arrives with the ticket that fills
-    /// it (spec §15).
-    const MENUS: [(&'static str, &'static str); 3] = [
+    /// The menus, in menu-bar order — the whole of spec §15's table.
+    const MENUS: [(&'static str, &'static str); 4] = [
         (msgids::MENU_TITLE_FILE, msgids::MENU_GROUP_FILE),
         (msgids::MENU_TITLE_EDIT, msgids::MENU_GROUP_EDIT),
         (msgids::MENU_TITLE_TOOLS, msgids::MENU_GROUP_TOOLS),
+        (msgids::MENU_TITLE_HELP, msgids::MENU_GROUP_HELP),
     ];
 
     /// The id this command's menu item is appended under, and the id its
@@ -140,6 +142,7 @@ impl Command {
             Command::Settings | Command::OpenBackupsFolder | Command::RestartAsAdministrator => {
                 msgids::MENU_GROUP_TOOLS
             }
+            Command::About => msgids::MENU_GROUP_HELP,
         }
     }
 
@@ -160,6 +163,7 @@ impl Command {
             Command::Settings => msgids::MENU_SETTINGS,
             Command::OpenBackupsFolder => msgids::MENU_OPEN_BACKUPS_FOLDER,
             Command::RestartAsAdministrator => msgids::MENU_RESTART_AS_ADMIN,
+            Command::About => msgids::MENU_ABOUT,
         });
         match self.accelerator() {
             Some(accelerator) => format!("{label}\t{accelerator}"),
@@ -191,7 +195,8 @@ impl Command {
             | Command::Settings
             | Command::OpenBackupsFolder
             | Command::RestartAsAdministrator
-            | Command::Exit => return None,
+            | Command::Exit
+            | Command::About => return None,
         };
         Some(translate(msgid))
     }
@@ -219,7 +224,8 @@ impl Command {
             | Command::Cancel
             | Command::Settings
             | Command::OpenBackupsFolder
-            | Command::RestartAsAdministrator => None,
+            | Command::RestartAsAdministrator
+            | Command::About => None,
         }
     }
 
@@ -235,8 +241,9 @@ impl Command {
     /// external change without a restart.
     pub fn enabled(self, available: &Availability) -> bool {
         // Exhaustive, like every `match` over this enum: the split is between
-        // the two commands that answer to the Run and the ten that answer to a
-        // Scope, and the next command someone adds has to say which it is.
+        // the commands that answer to the Run, the ones that answer to nothing
+        // at all, and the ten that answer to a Scope — and the next command
+        // someone adds has to say which it is.
         match self {
             // Not about a Scope: it shows this Run's own directory, so it is
             // available on the Backups tab, where there is no Session at all.
@@ -259,7 +266,12 @@ impl Command {
             // because an item reading as unavailable would say the settings
             // cannot be looked at — and in that run looking at them is exactly
             // what is still possible.
-            Command::Exit | Command::Settings => true,
+            //
+            // About is the third, and the least conditional of them: it names
+            // the build, which is true in every state this application can be
+            // in — and a user checking what they are running is likeliest to
+            // do it when something else has gone wrong.
+            Command::Exit | Command::Settings | Command::About => true,
             Command::Add
             | Command::Edit
             | Command::Delete
@@ -295,15 +307,15 @@ impl Command {
             Command::Settings
             | Command::OpenBackupsFolder
             | Command::RestartAsAdministrator
-            | Command::Exit => false,
+            | Command::Exit
+            | Command::About => false,
         }
     }
 }
 
 /// Builds the menu bar from [`Command::MENUS`] and [`Command::menu`], so a
 /// command with no menu is a command with no shortcut — which for Ctrl+S would
-/// be a command with no way to reach it at all. Help arrives with the ticket
-/// that fills it.
+/// be a command with no way to reach it at all.
 ///
 /// Every item's help string is deliberately empty: wx writes it to the status
 /// bar as the user moves through the menu, and the status bar is command-only

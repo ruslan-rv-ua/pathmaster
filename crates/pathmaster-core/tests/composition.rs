@@ -707,3 +707,27 @@ fn the_selector_shows_one_item_per_choice_it_offers() {
         LanguageChoice::SELECTABLE.len()
     );
 }
+
+// ---- Help → About (spec §15, §16) ----
+
+#[test]
+fn about_names_the_application_its_version_and_its_licence() {
+    // All three in the title, because the title is all NVDA speaks — and all
+    // three because an unsigned binary's About is where a user checks that the
+    // thing they downloaded is the thing they meant to (spec §16).
+    assert_eq!(
+        the_catalogue().about_dialog("0.1.0"),
+        "PathMaster 0.1.0 — MIT License"
+    );
+}
+
+#[test]
+fn about_varies_by_nothing_but_the_version_it_is_handed() {
+    // The name and the licence are literal in the msgid rather than filled in:
+    // both are proper nouns no translation may vary, and neither is assembled
+    // from parts a caller could hand over wrong.
+    assert_eq!(
+        the_catalogue().about_dialog("9.9.9"),
+        "PathMaster 9.9.9 — MIT License"
+    );
+}

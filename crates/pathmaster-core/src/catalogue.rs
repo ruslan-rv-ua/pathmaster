@@ -310,6 +310,21 @@ impl Catalogue {
         self.overlength(msgids::DIALOG_OVER_HARD_CAP, length)
     }
 
+    /// Help → About: what this build is, in the one line NVDA speaks of a
+    /// dialog (spec §15, §16).
+    ///
+    /// `version` is handed in rather than read here because this crate is pure
+    /// — the version is the *binary's*, taken from Cargo at compile time and
+    /// gated against the exe's `VERSIONINFO`. The name and the licence are in
+    /// the msgid itself, so this composes exactly one thing and cannot compose
+    /// it wrong.
+    pub fn about_dialog(&self, version: &str) -> String {
+        fill(
+            &self.lookup.translate(msgids::DIALOG_ABOUT),
+            &[("version", version)],
+        )
+    }
+
     /// The number both over-length titles name, filled into whichever of them
     /// is being spoken.
     fn overlength(&self, msgid: &str, length: usize) -> String {

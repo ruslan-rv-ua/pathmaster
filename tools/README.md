@@ -1,9 +1,27 @@
 # tools
 
-Measurement harness backing the Release Checklist's Sanity Check ([docs/release-checklist.md](../docs/release-checklist.md)).
-Originally built for the v0.1.0 wayfinding effort's accessibility tickets; promoted to the repo root
-by ticket 23 because the Checklist is a permanent document. Nothing here ships. The ticket-24
-`WM_GETOBJECT` watcher joins this directory when built.
+Scripts the repository needs but the executable never carries. **Nothing here ships**, and nothing
+here runs as part of a build: each is invoked by hand, and what it produces is committed.
+
+The measurement half backs the Release Checklist's Sanity Check
+([docs/release-checklist.md](../docs/release-checklist.md)). It was built for the v0.1.0
+wayfinding effort's accessibility tickets and promoted to the repo root by ticket 23, because the
+Checklist is a permanent document. The ticket-24 `WM_GETOBJECT` watcher joins this directory when
+built.
+
+## `make-icon.ps1`
+
+Rasterises `crates/pathmaster/resources/icon.svg` into the multi-resolution
+`crates/pathmaster/resources/app.ico` the exe carries as a resource — the second of the **two
+assets from one source design** spec §12 asks for. Run it after editing the SVG, and commit both:
+
+```powershell
+.\make-icon.ps1
+```
+
+It is a hand-run script rather than a build step deliberately. A build that rasterised the icon
+would need ImageMagick on every machine that compiles this application, to produce a file that
+changes about once a year.
 
 ## `nvda-drive.ps1`
 

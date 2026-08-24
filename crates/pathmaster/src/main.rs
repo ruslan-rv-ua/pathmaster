@@ -15,6 +15,7 @@ mod announce;
 mod catalog;
 mod pump;
 mod ui;
+mod version;
 
 use std::cell::RefCell;
 use std::rc::Rc;
