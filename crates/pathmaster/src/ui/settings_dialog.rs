@@ -123,7 +123,7 @@ pub fn ask_for_settings(
             // A bare lookup: this title carries no number and no name, so
             // there is no composition rule for the Catalogue to hold and it
             // stays here with the other labels (`pathmaster_core::catalogue`).
-            question::tell(&dialog, &translate(msgids::REJECTED_SNAPSHOTS_TO_KEEP));
+            question::warn(&dialog, &translate(msgids::REJECTED_SNAPSHOTS_TO_KEEP));
             // The text is never touched — the user goes back to what they
             // typed, one character away from a legal budget.
             budget.set_focus();

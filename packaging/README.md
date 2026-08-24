@@ -19,8 +19,8 @@ Add/Remove Programs key under `HKCU`, and puts a symlink named by `Commands` in 
 directory (which is on the user `PATH`). The README's *What gets written where* section is the
 user-facing half of that sentence.
 
-`InstallerSha256` is a placeholder until a release exists to hash. Filling it in and submitting
-is step F3 of the [release checklist](../docs/release-checklist.md).
+`InstallerSha256` is a placeholder until a release exists to hash: the hash comes from step **F5**
+of the [release checklist](../docs/release-checklist.md) and the submission is **F7**.
 
 ## `scoop/`
 
@@ -37,5 +37,6 @@ reads.
 and `ProductName`: for a portable install winget writes the ARP entry from the manifest, and for
 an unsigned binary that agreement is the whole of its identity. The Rust half is gated by
 `the_versioninfo_carries_the_identity_the_package_managers_were_built_from` in
-[crates/pathmaster/src/version.rs](../crates/pathmaster/src/version.rs); the manifest half is a
+[crates/pathmaster-core/tests/versioninfo.rs](../crates/pathmaster-core/tests/versioninfo.rs); the
+manifest half is a
 review step, because these files leave the repository.

@@ -96,7 +96,7 @@ pub fn ask_for_entry(
     commit.on_click(move |_| match rejection(&field.get_value()) {
         None => dialog.end_modal(ID_COMMIT),
         Some(reason) => {
-            question::tell(&dialog, &catalogue.rejection(reason));
+            question::warn(&dialog, &catalogue.rejection(reason));
             // The text is never touched — the user goes back to what they
             // typed, one character away from a legal Entry.
             field.set_focus();

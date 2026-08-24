@@ -976,9 +976,12 @@ not state:
   `CompanyName`, `ProductName` and both versions off `dist\`'s file rather than trusting the `.rc`
   it compiled.
 - **Two of the three version legs are checked on every `cargo test`, not only on a tag.**
-  `crates/pathmaster/src/version.rs` compares `Cargo.toml`'s version with the `.rc`'s, which is where
-  drift is actually introduced — a bump is a `Cargo.toml` edit and the `.rc` is the file it is easy
-  to forget. The tag is the leg only a release can check, and the three-way gate keeps it.
+  `crates/pathmaster-core/tests/versioninfo.rs` compares `Cargo.toml`'s version with the `.rc`'s,
+  which is where drift is actually introduced — a bump is a `Cargo.toml` edit and the `.rc` is the
+  file it is easy to forget. It sits in `core` and not with the resource it reads, because the
+  check is pure text and the binary's tests link wxWidgets: ADR-0009's "the only test that links
+  wxWidgets" stays true of the msgid smoke test alone. The tag is the leg only a release can
+  check, and the three-way gate keeps it.
 - **The release URL is the repository's, and that fixes the manifests.** `ruslan-rv-ua/pathmaster2`
   is where `gh release create` publishes, so it is what both manifests download from; the scoop
   bucket is its own repository (`ruslan-rv-ua/scoop-bucket`) and the manifests live at
@@ -1017,11 +1020,20 @@ ever links wxWidgets.
 - **`crates/pathmaster`** — **bin-only, no lib target**: `ui/*`, `announce`, `pump` (Timer drain),
   `catalog` (TranslationsLoader), `main.rs` (the composition root: the located directory,
   `startup::decide`, the Catalogue, the window),
-  `build.rs` (polib → `.mo`; llvm-rc → icon/VERSIONINFO), `i18n/*.po`.
+  `build.rs` (polib → `.mo`; llvm-rc → icon/VERSIONINFO), `i18n/*.po`,
+  `resources/` (`icon.svg` — the design, embedded for the frame; `app.ico` — generated from it;
+  `app.rc` — the one ICON statement and the VERSIONINFO — impl ticket 18).
   `[[bin]] name = "PathMaster"` — no CI rename step.
+  **The binary gains no module for the icon or the version**: the frame reads the SVG where it
+  sets it and the About dialog reads `CARGO_PKG_VERSION` where it speaks it, and the gate that
+  keeps the `.rc` and `Cargo.toml` agreeing is `core/tests/versioninfo.rs` — pure text over two
+  files, kept out of the crate that links wxWidgets so that ADR-0009's "the only test that links
+  wxWidgets" stays true of the msgid smoke test alone (impl ticket 18).
 
 `tools/` at the repo root is permanent: `nvda-drive.ps1` (promoted out of `.scratch/` by this
-ticket) and, when built, the ticket-24 `WM_GETOBJECT` watcher.
+ticket), `make-icon.ps1` (the icon generator — impl ticket 18) and, when built, the ticket-24
+`WM_GETOBJECT` watcher. **`packaging/`** joins it as a permanent root directory: the winget and
+scoop manifests, which are submitted elsewhere and consumed by nothing here (impl ticket 18).
 
 ## 18. Test and verification strategy
 

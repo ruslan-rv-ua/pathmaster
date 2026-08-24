@@ -20,8 +20,11 @@ This is the part of PathMaster that is not a feature. Everything else was decide
   Windows controls and makes no custom accessibility calls at all, so anything that reads a
   native list and a native menu should read this application. Nobody has measured that.
 - **Nothing is audio-only.** Every message the application speaks is also shown, in one message
-  line above the tabs. Nothing sets a colour anywhere, so High Contrast works because there is
-  nothing punching through it.
+  line above the tabs.
+- **The interface sets no colours of its own.** Every control and every piece of text takes the
+  colours Windows gives it, so High Contrast works because there is nothing punching through it.
+  The application icon is the one coloured thing PathMaster ships, and it is never part of the
+  window's contents.
 - **Every action has a keyboard route and a menu home.** No scenario requires a mouse — see the
   [keyboard map](#keyboard).
 - **An entry's problems are read as part of the row.** Arrowing onto an entry reads the path and
@@ -121,6 +124,7 @@ through the menus — this table is the same information in one place.
 | `Ctrl+S` | Apply — write this PATH to the registry, after saving a backup of it |
 | `F5` | Refresh — re-read this PATH from the registry |
 | `Alt+F4` | Close, asking first if anything is unsaved |
+| `Enter` or `Space` | Press the focused button |
 | `Alt+F` / `Alt+E` / `Alt+T` / `Alt+H` | Open the File / Edit / Tools / Help menu |
 | `NVDA+End` | Read the status bar: the entry and problem counts, and the merged PATH length |
 | `NVDA+Tab` | Not a PathMaster shortcut — the check described under [If NVDA goes quiet](#if-nvda-goes-quiet-on-the-list) |
@@ -201,6 +205,10 @@ exact words NVDA is expected to speak, run personally on real NVDA before every 
 with and marking every step passed, failed or skipped. A failed step blocks the release. For an
 unsigned binary, that recorded manual pass is the honest trust signal — and you can read the
 script before you decide whether to trust it.
+
+Its last section is about the release itself rather than the application: verifying the published
+hash the way this README tells you to, a run on a clean machine with no Visual C++ runtime
+installed, and an actual `winget` and `scoop` install taken through upgrade and uninstall.
 
 Automated gates run on every release too, on the published file rather than on the build that
 made it: it must have no dependency on the Visual C++ runtime, must be under 40 MB, and must

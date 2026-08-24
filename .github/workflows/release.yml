@@ -35,6 +35,8 @@ jobs:
       CARGO_TARGET_DIR: 'C:\t'
       CARGO_TERM_COLOR: always
     steps:
+      # Action refs are pinned to commit SHAs here and only here: push CI reads code, this job
+      # holds `contents: write` and publishes what users download, so a moved tag matters more.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Assert build-shape env hazards are unset
@@ -53,6 +55,16 @@ jobs:
       - name: Install Ninja
         run: choco install ninja --no-progress -y
 
+      # What is and is not pinned, deliberately. Pinned: the runner label, the Rust toolchain
+      # (rust-toolchain.toml), Cargo.lock, and the action SHAs. NOT pinned: the image's LLVM and
+      # the Ninja version above. bindgen's output is generated and compiled in the same run, so
+      # it is self-consistent whatever libclang produced it, and Ninja only drives CMake — the
+      # guard against either mattering is the artifact gates below, not a version number. To hard
+      # -pin LLVM for byte-stable builds, uncomment and set the version the image then carries:
+      #
+      # - name: Install exact LLVM
+      #   run: choco install llvm --version=20.1.8 -y   # LIBCLANG_PATH already points there
+
       - name: Install pinned toolchain (rust-toolchain.toml)
         # rustup is preinstalled; `rustup show` installs the exact channel and targets pinned in
         # rust-toolchain.toml — never `stable`, which drifts silently.
@@ -62,9 +74,10 @@ jobs:
           rustc --version
 
       - name: Three-way version gate (tag vs Cargo.toml vs VERSIONINFO)
-        # Two of the three agree on every `cargo test` (crates/pathmaster/src/version.rs); the
-        # tag is the leg only a release can check, and getting it wrong publishes a v0.2.0 that
-        # says 0.1.0 in the one place an unsigned binary states its identity.
+        # Two of the three agree on every `cargo test`
+        # (crates/pathmaster-core/tests/versioninfo.rs); the tag is the leg only a release can
+        # check, and getting it wrong publishes a v0.2.0 that says 0.1.0 in the one place an
+        # unsigned binary states its identity.
         run: |
           $tag = '${{ github.ref_name }}'
           $ver = $tag.TrimStart('v')

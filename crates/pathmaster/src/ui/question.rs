@@ -6,8 +6,10 @@
 //!
 //! [`choose`] builds its own buttons because a `MessageDialog` cannot relabel
 //! its own and `add_std_catalog()` is never called — wx's built-in "Yes"/"No"
-//! would stay English in a Ukrainian run. [`tell`] is the one place a stock
-//! button survives: a lone OK carries no meaning of its own to lose.
+//! would stay English in a Ukrainian run. [`warn`] and [`inform`] are the one
+//! place a stock button survives: a lone OK carries no meaning of its own to
+//! lose. Those two are named for the only thing that differs between them —
+//! whether what they say is a warning — since their shape is identical.
 
 use wxdragon::prelude::*;
 
@@ -87,17 +89,20 @@ pub fn ask(parent: &dyn WxWidget, title: &str, affirmative: &str, negative: &str
 /// Reports something that went wrong, with a single OK — the whole of it in
 /// the title.
 ///
-/// This is the one shape left with a stock button (spec §11): "OK" is the same
-/// word in both shipped languages and carries no meaning we would have to own.
-/// The body repeats the title so the message is visible as well as spoken.
-pub fn tell(parent: &dyn WxWidget, title: &str) {
+/// This and [`inform`] are the one shape left with a stock button (spec §11):
+/// "OK" is the same word in both shipped languages and carries no meaning we
+/// would have to own. The body repeats the title so the message is visible as
+/// well as spoken.
+pub fn warn(parent: &dyn WxWidget, title: &str) {
     single_ok(parent, title, MessageDialogStyle::IconWarning);
 }
 
 /// States something that is simply true, in the same shape.
 ///
-/// The icon is the only difference, and it is not decoration: Windows plays a
-/// different sound for each, and About is not a warning about anything.
+/// The icon is the only difference from [`warn`], and it is not decoration:
+/// Windows plays a different sound for each, and About is not a warning about
+/// anything. The two are named for that difference rather than for their
+/// shape, which is identical.
 pub fn inform(parent: &dyn WxWidget, title: &str) {
     single_ok(parent, title, MessageDialogStyle::IconInformation);
 }

@@ -5,7 +5,7 @@
 # for a portable install winget writes the Add/Remove Programs entry from THIS manifest, and
 # consistency between the two is the only identity an unsigned binary has. The Rust side of
 # that pairing is gated by `the_versioninfo_carries_the_identity_the_package_managers_were_built_from`
-# in crates/pathmaster/src/version.rs.
+# in crates/pathmaster-core/tests/versioninfo.rs.
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.12.0.schema.json
 PackageIdentifier: "RuslanIskov.PathMaster"
 PackageVersion: "0.1.0"

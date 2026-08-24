@@ -14,8 +14,11 @@
 // identity this block exists to carry.
 //
 // The two version strings are load-bearing and are gated three ways: this file against
-// Cargo.toml by `the_versioninfo_carries_the_crate_version` in src/version.rs on every
-// `cargo test`, and both against the git tag by the release workflow before it builds.
+// Cargo.toml by `the_versioninfo_carries_the_crate_version` in
+// ../../pathmaster-core/tests/versioninfo.rs on every `cargo test`, and both against the git
+// tag by the release workflow before it builds. That gate reads this file as text, so keep the
+// `VALUE "Field", "value"` shape — one statement per line, the value in the second pair of
+// quotes — and keep prose about a field out of the same line as the field.
 
 1 ICON "app.ico"
 

@@ -53,7 +53,6 @@ use crate::pump::Pump;
 use crate::ui::backups_page::BackupsPage;
 use crate::ui::command::{Availability, Command};
 use crate::ui::scope_page::ScopePage;
-use crate::version;
 use crate::SharedScope;
 
 /// The notebook's page order (spec §12): the two Scopes, then Backups —
@@ -660,8 +659,15 @@ impl App {
     /// it and the exe's `VERSIONINFO` are the only two places the application
     /// says who it is, and the one of them a screen-reader user can reach
     /// without leaving the keyboard.
+    ///
+    /// The version comes from Cargo rather than from a constant of ours, so
+    /// there is one version in the build and no second place to forget. That
+    /// it agrees with the `VERSIONINFO` compiled into the exe is gated by
+    /// `pathmaster-core`'s `versioninfo.rs`, which reads the resource script
+    /// without linking wxWidgets to do it.
     fn about(&self) {
-        question::inform(&self.frame, &self.catalogue.about_dialog(version::VERSION));
+        let version = env!("CARGO_PKG_VERSION");
+        question::inform(&self.frame, &self.catalogue.about_dialog(version));
     }
 
     /// Tools → Restart as Administrator: the **one entry point into
@@ -711,7 +717,7 @@ impl App {
                 self.frame.close(false);
             }
             Err(RelaunchFailure::Declined) => {
-                question::tell(&self.frame, &translate(msgids::DIALOG_ELEVATION_CANCELLED));
+                question::warn(&self.frame, &translate(msgids::DIALOG_ELEVATION_CANCELLED));
             }
             // Nothing was spawned; the application keeps running (spec §9
             // names only the declined prompt) and the failure lands its one
@@ -792,7 +798,7 @@ impl App {
         // seven, and this belongs beside the startup dialog its unreadable
         // twin already earns.
         if !self.record_settings(data_dir, amended) {
-            question::tell(&self.frame, &translate(msgids::DIALOG_SETTINGS_UNWRITABLE));
+            question::warn(&self.frame, &translate(msgids::DIALOG_SETTINGS_UNWRITABLE));
         }
     }
 
@@ -1525,5 +1531,5 @@ impl Ask for Dialogs<'_> {
 /// Shown after the main window rather than before it, so that dismissing it
 /// leaves focus in the window the user came for.
 pub fn show_settings_unreadable(parent: &Frame) {
-    question::tell(parent, &translate(msgids::DIALOG_SETTINGS_UNREADABLE));
+    question::warn(parent, &translate(msgids::DIALOG_SETTINGS_UNREADABLE));
 }

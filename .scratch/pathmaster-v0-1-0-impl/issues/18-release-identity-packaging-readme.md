@@ -34,9 +34,14 @@ where the user actually works, which is why the Release Checklist now looks at b
 
 **Two of the three version legs are now checked on every `cargo test`.** The three-way gate the
 spec asks for lives in the release workflow, but a tag is a bad place to first learn that a
-version bump forgot the `.rc`. `crates/pathmaster/src/version.rs` compares `Cargo.toml` with the
-resource script on every test run — sensitivity confirmed by breaking it — and the workflow keeps
-the tag leg, which is the one only a release can check.
+version bump forgot the `.rc`. `crates/pathmaster-core/tests/versioninfo.rs` compares `Cargo.toml`
+with the resource script on every test run — sensitivity confirmed by breaking both legs — and the
+workflow keeps the tag leg, which is the one only a release can check. It lives in `core` rather
+than beside the resource it reads, on the precedent `tests/catalogue.rs` set by reaching into
+`../pathmaster/i18n`: a pure text check does not need a wxWidgets link, and ADR-0009 says the msgid
+smoke test "remains the only test that links wxWidgets". It also asserts the thing that makes one
+version stand for the other — that the binary's manifest says `version.workspace = true` — and
+reads the executable's name out of that manifest rather than repeating it.
 
 **A fourth CI gate the ticket does not name: the identity, read back out of the artifact.** A
 `.res` that failed to link leaves a perfectly working binary carrying no `VERSIONINFO` at all. For
@@ -51,6 +56,14 @@ must download from. The scoop bucket is its own repository
 (`ruslan-rv-ua/scoop-bucket`); the winget manifests validate against the real 1.12.0 schema
 (`winget validate`). The `License` field both drafts left as TODO is **MIT**, which is also the
 `LegalCopyright` line in the exe and the `LICENSE` file the winget manifest links to.
+
+**The release-time actions went to the Release Checklist, not into the README.** The box says
+"in the README or release notes"; `docs/release-checklist.md` gains a section F because that
+document already *is* what the README points a user at, and because a release attaches a filled
+copy of it — so the steps are in the release notes by the route the project already had, rather
+than as a maintainer's to-do list in a document written for users. The README's
+"How releases are verified" section names what section F covers, which is the "in the README"
+half kept as a pointer rather than as a copy that could drift.
 
 **The README is two complete documents, not one and a summary.** `README.uk.md` mirrors every
 section of `README.md`; commands and code blocks stay untranslated, and E1 of the Release

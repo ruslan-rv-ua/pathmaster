@@ -146,21 +146,24 @@ the header. Elevate via Tools → Restart as Administrator.
 
 ## F. Release-time actions (the pre-release checklist)
 
-Sections A–E are about the application. This one is about **the release itself**, and its steps
-run in this order: nothing below can be done before the one above it. F4–F6 are the packaging
-half, and like E3 they are required once for v0.1.0 and thereafter only when packaging changes.
+Sections A-E are about the application. This one is about **the release itself**, and its steps
+run in this order: nothing below can be done before the one above it. **F6-F9 are the packaging
+half**, and like E3 they are required once for v0.1.0 and thereafter only when packaging changes.
+F5 is not one of them and runs every release: it is the step that proves the instruction given to
+users still works.
 
 | # | Step | Expected result | ✓ |
 |---|------|-----------------|---|
-| F1 | Bump the version in `Cargo.toml` **and** `crates/pathmaster/resources/app.rc`, then `cargo test --workspace` | `the_versioninfo_carries_the_crate_version` passes — which is the two of the three version legs a tag cannot check | |
-| F2 | Push that commit and let push CI go green, **then** tag it `v<version>` and push the tag | The release workflow's three-way version gate passes; a tag on a commit push CI has not passed is the one thing this order exists to prevent | |
-| F3 | Watch the release workflow | Every gate green — imports (no `VCRUNTIME`/`MSVCP`/`api-ms-win-crt`), size ≤ 40 MB, VERSIONINFO read back out of the linked artifact. The release page carries **exactly two** assets: the `.exe` and its `.sha256`. The PDB is a workflow artifact and is **not** on the release | |
-| F4 | Download both assets afresh and run the README's own `Get-FileHash` comparison | `True`. This is the step that proves the instruction given to users actually works, not just that a hash was written | |
-| F5 | Clean VM, no VC++ redistributable: run the downloaded `.exe` (this is E3, done here on the released file) | SmartScreen shows the warning the README describes and "More info → Run anyway" gets past it; the app starts and lists PATH | |
-| F6 | Submit `packaging/winget/` (hash filled in from F4) as a PR to microsoft/winget-pkgs, then `winget install RuslanIskov.PathMaster` on a clean machine | Installs; `pathmaster` is a command; **`data\` is created beside the real exe in the package folder, not in winget's shared `Links\` directory** — the symlink-resolve rule (spec §3), and the one thing only a live install can show | |
-| F7 | On that machine: make a change, Apply, then `winget upgrade`, then `winget uninstall` | `upgrade` keeps `data\` with its settings and Snapshots; `uninstall` deletes the package folder and `data\` with it — both exactly as the README says | |
-| F8 | Put `packaging/scoop/pathmaster.json` in the bucket (hash from F4), then `scoop install pathmaster` | Installs; the shim launches the app with **no console flash**; a Start Menu shortcut exists; `~\scoop\persist\pathmaster\data` holds the Data Directory, and `scoop update` leaves it alone | |
-| F9 | Attach the filled copy of this document to the GitHub release | The release carries the record the README promises: the NVDA version used and every step marked | |
+| F1 | If this release changed the README: refresh the main-window screenshot and its alt text in `README.md` and `README.uk.md` | Both carry the same current screenshot, and E1's sync guard passes. For v0.1.0 this is where the reserved place is first filled | |
+| F2 | Bump the version in `Cargo.toml` **and** `crates/pathmaster/resources/app.rc`, then `cargo test --workspace` | `the_versioninfo_carries_the_crate_version` passes — which is the two of the three version legs a tag cannot check | |
+| F3 | Push that commit to `develop`, let push CI go green, then tag the commit the release is cut from | The release workflow's three-way version gate passes. **Push CI watches `develop`, not `main`** — so if the tagged commit is a merge or a release branch carrying anything CI never saw, run `cargo test --workspace --locked` and `cargo clippy --workspace --all-targets --locked -- -D warnings` on it by hand before tagging | |
+| F4 | Watch the release workflow | Every gate green — imports (no `VCRUNTIME`/`MSVCP`/`api-ms-win-crt`), size ≤ 40 MB, VERSIONINFO read back out of the linked artifact. The release page carries **exactly two** assets: the `.exe` and its `.sha256`. The PDB is a workflow artifact and is **not** on the release | |
+| F5 | Download both assets afresh and run the README's own `Get-FileHash` comparison | `True`. Every release: this is the step that proves the instruction given to users actually works, not just that a hash was written | |
+| F6 | Clean VM, no VC++ redistributable: run the downloaded `.exe` (this is E3, done here on the released file) | SmartScreen shows the warning the README describes and "More info → Run anyway" gets past it; the app starts and lists PATH. **Note the VM's Windows build** — the winget manifest claims a floor of 10.0.17763 and nothing has tested below it | |
+| F7 | Submit `packaging/winget/` (hash filled in from F5) as a PR to microsoft/winget-pkgs, then `winget install RuslanIskov.PathMaster` on a clean machine | Installs; `pathmaster` is a command; **`data\` is created beside the real exe in the package folder, not in winget's shared `Links\` directory** — the symlink-resolve rule (spec §3), and the one thing only a live install can show | |
+| F8 | On that machine: make a change, Apply, then `winget upgrade`, then `winget uninstall` | `upgrade` keeps `data\` with its settings and Snapshots; `uninstall` deletes the package folder and `data\` with it — both exactly as the README says | |
+| F9 | Put `packaging/scoop/pathmaster.json` in the bucket (hash from F5), then `scoop install pathmaster` | Installs; the shim launches the app with **no console flash**; a Start Menu shortcut exists; `~\scoop\persist\pathmaster\data` holds the Data Directory, and `scoop update` leaves it alone | |
+| F10 | Attach the filled copy of this document to the GitHub release | The release carries the record the README promises: the NVDA version used and every step marked | |
 
 CI gates (version gate, `cargo test`, dumpbin imports, exe ≤ 40 MB, VERSIONINFO) run
 automatically and are not part of this manual pass.

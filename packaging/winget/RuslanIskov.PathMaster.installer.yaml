@@ -8,8 +8,10 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.12.0.schema.json
 PackageIdentifier: "RuslanIskov.PathMaster"
 PackageVersion: "0.1.0"
-# Plausible rather than established: no ticket pinned the OS floor, and nothing in the app or
-# in statically linked wxWidgets is known to need more than this.
+# Windows 10 1809, and a conservative guess rather than a measurement: no ticket pinned the OS
+# floor, and nothing in the app or in statically linked wxWidgets is known to need this much. It
+# errs towards excluding machines that might work, which is the safe direction for a claim nobody
+# has tested — checklist step F6 records the Windows build of the one VM that has.
 MinimumOSVersion: "10.0.17763.0"
 InstallerType: "portable"
 # Commands[0] names BOTH the symlink winget puts in its Links directory and the installed exe
@@ -21,6 +23,9 @@ InstallerType: "portable"
 # must still find `data\` beside the real file (spec §3).
 Commands:
 - "pathmaster"
+# ReleaseDate is deliberately absent rather than guessed. It is optional in schema 1.12.0, and a
+# date invented before the release exists would be a false statement in a public manifest; add the
+# real one when the manifest is submitted (checklist step F7).
 Installers:
 - Architecture: "x64"
   InstallerUrl: "https://github.com/ruslan-rv-ua/pathmaster2/releases/download/v0.1.0/PathMaster-v0.1.0-x64.exe"
