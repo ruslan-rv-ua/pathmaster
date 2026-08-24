@@ -92,3 +92,37 @@ stay untranslated. Drift guard: the Release Checklist (ticket 19) gains one non-
 
 This closes the list the resolved tickets accumulated: every item named in the Question and the
 ticket-20 comment has a home in the skeleton above.
+
+## Amended 2026-08-24, by the user, during impl ticket 18
+
+The section skeleton above shipped once and was then **redirected**, on the ground that the Answer
+had got the positioning wrong: PathMaster is built on **universal design**, and its users are
+sighted as well as blind. A headline Accessibility section with two screen-reader subsections
+under it reads as an application *for* blind users rather than one that works for everyone — and
+front-loading it pushes what the thing actually does below the fold.
+
+**What changed.**
+
+- **"Accessibility first" is one item in a Features list**, not section 2. It says universal
+  design is a principle rather than a mode, names the three things that make it true (a keyboard
+  route and a menu home for every action, every message shown as well as spoken, no colour ever
+  set), and notes that NVDA is what it is tested with. One bullet, where it used to be a screen.
+- **The keyboard table lists only PathMaster's own bindings** — F2, Del, Alt+arrows, Ctrl+Z/Y,
+  Ctrl+S, F5. Tab, Shift+Tab, Ctrl+Tab, the arrows, Enter/Space and the Alt mnemonics came out:
+  they are Windows, everybody knows them, and printing them made the six that matter hard to find.
+  `NVDA+End` came out too — it is the screen reader's shortcut, not ours.
+- **Nothing required was dropped.** The ticket-18 deaf-list ladder (spec §19 requires it in the
+  README) and the installed-NVDA requirement for the elevated window (ticket 12) are now two short
+  paragraphs in a **Troubleshooting** section, where somebody who has hit the problem will look —
+  rather than in front of somebody who has not.
+- **The structure follows Standard Readme and current practice**, checked against them rather than
+  invented: a short description under 120 characters on its own line, matching the package
+  managers' (which is why `ShortDescription` in the winget manifest and `description` in the scoop
+  one lost "screen-reader-friendly" — discoverability for the people who search on that word lives
+  in `Tags`, which is what winget actually searches); the screenshot immediately under it; a table
+  of contents, since both files run past 100 lines; then Features, Install, Usage, the rest, and
+  **Contributing** and **License** last. Contributing is new and was missing.
+
+**Unchanged:** one `README.md` mirrored in full by `README.uk.md`, English canonical, no badges,
+code blocks untranslated, and E1 of the Release Checklist as the drift guard. Both files are now
+1,388 and 1,306 words and mirror each other section for section.

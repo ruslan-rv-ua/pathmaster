@@ -21,7 +21,7 @@
         "default hash extraction reads."
     ],
     "version": "0.1.0",
-    "description": "Portable, screen-reader-friendly editor and diagnostics for the Windows PATH environment variable",
+    "description": "Portable editor and diagnostics for the Windows PATH environment variable",
     "homepage": "https://github.com/ruslan-rv-ua/pathmaster2",
     "license": "MIT",
     "architecture": {

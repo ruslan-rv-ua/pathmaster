@@ -18,12 +18,16 @@ PackageUrl: "https://github.com/ruslan-rv-ua/pathmaster2"
 License: "MIT"
 LicenseUrl: "https://github.com/ruslan-rv-ua/pathmaster2/blob/main/LICENSE"
 Copyright: "Copyright (C) 2026 Ruslan Iskov"
-ShortDescription: "Portable, screen-reader-friendly editor and diagnostics for the Windows PATH environment variable."
+ShortDescription: "Portable editor and diagnostics for the Windows PATH environment variable."
 Description: |-
   PathMaster reads, edits and diagnoses the Windows PATH environment variable for the current
-  user and for the machine. It is built for a screen-reader user first: every action has a
-  keyboard route and a menu home, announcements are both spoken and shown, and the application
-  never sets a colour, so High Contrast works.
+  user and for the machine. It reports folders that do not exist, relative paths, quoted
+  entries, duplicates across both PATHs and a combined PATH too long for cmd.exe, and it has
+  full undo.
+
+  Accessibility is a design principle rather than a feature: every action has a keyboard route
+  and a home in the menus, every message is shown as well as spoken, and the application sets no
+  colours of its own, so the system theme and High Contrast apply as they are. Tested with NVDA.
 
   It is portable. Everything it writes — settings, snapshots and its log — lives in a `data`
   folder beside the executable, and a snapshot of a PATH is taken before that PATH is changed.
