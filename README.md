@@ -4,8 +4,8 @@
 
 Portable editor and diagnostics for the Windows `PATH` environment variable.
 
-[![CI status](https://github.com/ruslan-rv-ua/pathmaster2/actions/workflows/ci.yml/badge.svg)](https://github.com/ruslan-rv-ua/pathmaster2/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/github/v/release/ruslan-rv-ua/pathmaster2)](https://github.com/ruslan-rv-ua/pathmaster2/releases/latest)
+[![CI status](https://github.com/ruslan-rv-ua/pathmaster/actions/workflows/ci.yml/badge.svg)](https://github.com/ruslan-rv-ua/pathmaster/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/ruslan-rv-ua/pathmaster)](https://github.com/ruslan-rv-ua/pathmaster/releases/latest)
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
 ![Windows 10 and 11, 64-bit](https://img.shields.io/badge/Windows-10%20%7C%2011%20x64-blue)
 
@@ -64,7 +64,7 @@ scoop install pathmaster
 ### Direct download
 
 Take `PathMaster-v<version>-x64.exe` and the `.sha256` file beside it from the
-[releases page](https://github.com/ruslan-rv-ua/pathmaster2/releases). There is no archive to
+[releases page](https://github.com/ruslan-rv-ua/pathmaster/releases). There is no archive to
 unpack and no installer to run — the `.exe` is the whole application. Put it where you want it to
 live; it creates its `data` folder next to itself.
 
@@ -180,7 +180,7 @@ the executable's own properties.
 ## Contributing
 
 Questions, bug reports and feature requests belong in
-[Issues](https://github.com/ruslan-rv-ua/pathmaster2/issues). Pull requests are welcome; for
+[Issues](https://github.com/ruslan-rv-ua/pathmaster/issues). Pull requests are welcome; for
 anything larger than a fix, open an issue first so the design can be agreed before the work.
 
 ## Licence

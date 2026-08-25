@@ -22,11 +22,11 @@
     ],
     "version": "0.1.0",
     "description": "Portable editor and diagnostics for the Windows PATH environment variable",
-    "homepage": "https://github.com/ruslan-rv-ua/pathmaster2",
+    "homepage": "https://github.com/ruslan-rv-ua/pathmaster",
     "license": "MIT",
     "architecture": {
         "64bit": {
-            "url": "https://github.com/ruslan-rv-ua/pathmaster2/releases/download/v0.1.0/PathMaster-v0.1.0-x64.exe#/PathMaster.exe",
+            "url": "https://github.com/ruslan-rv-ua/pathmaster/releases/download/v0.1.0/PathMaster-v0.1.0-x64.exe#/PathMaster.exe",
             "hash": "0000000000000000000000000000000000000000000000000000000000000000"
         }
     },
@@ -42,7 +42,7 @@
     "autoupdate": {
         "architecture": {
             "64bit": {
-                "url": "https://github.com/ruslan-rv-ua/pathmaster2/releases/download/v$version/PathMaster-v$version-x64.exe#/PathMaster.exe",
+                "url": "https://github.com/ruslan-rv-ua/pathmaster/releases/download/v$version/PathMaster-v$version-x64.exe#/PathMaster.exe",
                 "hash": {
                     "url": "$url.sha256"
                 }

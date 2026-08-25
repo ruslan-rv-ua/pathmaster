@@ -983,13 +983,15 @@ not state:
   check is pure text and the binary's tests link wxWidgets: ADR-0009's "the only test that links
   wxWidgets" stays true of the msgid smoke test alone. The tag is the leg only a release can
   check, and the three-way gate keeps it.
-- **The release URL is the repository's, and that fixes the manifests.** `ruslan-rv-ua/pathmaster2`
-  is where `gh release create` publishes, so it is what both manifests download from; the scoop
+- **The release URL is the repository's, and that fixes the manifests.** `ruslan-rv-ua/pathmaster`
+  is where `gh release create` publishes, so it is what both manifests download from. The scoop
   bucket is its own repository (`ruslan-rv-ua/scoop-bucket`) and the manifests live at
   `packaging/`, submitted from there rather than consumed by anything here. The licence field both
-  of them left open is **MIT**, which is also the `LegalCopyright` line in the exe.
+  of them left open is **MIT**, which is also the `LegalCopyright` line in the exe. The repository
+  was named `pathmaster2` until 2026-08-25 — impl ticket 01's note still says so, being a dated
+  record of a CI run rather than a live URL, and GitHub redirects the old name in any case.
 
-**Amended 2026-08-24**, closing the gap the ticket-18 review named: **the release workflow runs the
+**Amended 2026-08-25**, closing the gap the ticket-18 review named: **the release workflow runs the
 tests itself.** §18 puts push CI on `develop`, but a release branch starts from `develop` and
 finishes into `main`, and the tag lands there — so without this the commit a release is cut from is
 one no CI has ever seen, and anything that branch carried went past the gate unexamined. The step
@@ -1104,7 +1106,7 @@ Drop), FR-var-expansion-toggle, FR-search, FR-tree-browser, FR-filter-bar, FR-fi
 FR-copy-entry — all 🟡, out of the must-only scope. Also parked: a `--data-dir` switch (survives
 the no-relocation principle); in-app deaf-state detection (§19); a network-path deadline prober;
 and a **Help → Documentation item giving `F1` a menu home** — the **first v0.2.0 candidate**,
-raised 2026-08-24, small in itself but carrying one open question, since the README is online and
+raised 2026-08-25, small in itself but carrying one open question, since the README is online and
 the item would do nothing offline.
 Plus two architectural deferrals from the 2026-08-20 review, neither blocking anything: **collapsing
 `ScopeDiagnosis` into `Findings`**, so a pass arrives already paired to the Working Copy it ran over

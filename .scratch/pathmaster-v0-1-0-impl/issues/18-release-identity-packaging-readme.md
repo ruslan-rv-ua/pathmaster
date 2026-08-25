@@ -50,7 +50,7 @@ a binary unsigned by decision that is the whole of its identity, so the workflow
 `.sha256` sidecar is written **after** every gate has passed: a published hash is an invitation to
 install what it names, and a failed run must not leave one.
 
-**The repo URL the drafts left open is `ruslan-rv-ua/pathmaster2`** — not a choice but a
+**The repo URL the drafts left open is `ruslan-rv-ua/pathmaster`** — not a choice but a
 consequence, since that is where `gh release create` publishes and therefore what both manifests
 must download from. The scoop bucket is its own repository
 (`ruslan-rv-ua/scoop-bucket`); the winget manifests validate against the real 1.12.0 schema
@@ -72,7 +72,7 @@ screenshot available here is of this machine's real PATH.
 
 ### Heard, not only seen
 
-The steps this ticket added were run on real NVDA by the user on 2026-08-24 and reported as
+The steps this ticket added were run on real NVDA by the user on 2026-08-25 and reported as
 passing: **31-33**, the Help menu carrying one item that reads without an accelerator, the About
 dialog whose title is the whole of what it says — name, version and licence — and that item
 reading as available in the two states where every neighbouring item is not, a Read-only Data run
@@ -93,7 +93,7 @@ research, and only a real `winget install` can confirm them (F7, F8).
 
 ### Heard, not only seen
 
-The steps this ticket added were run on real NVDA by the user on 2026-08-24 and reported as
+The steps this ticket added were run on real NVDA by the user on 2026-08-25 and reported as
 passing: **31–33** — the Help menu last on the bar with its one item carrying no accelerator, the
 About dialog whose title is the whole of it (name, version, licence) with a single OK, and that
 item reading as **available** on the Backups tab and in the unwritable-`data\` run alike, because
@@ -107,7 +107,7 @@ the exe resource and `Frame::set_icon` did not diverge into two designs.
 
 ### The screenshot the README reserved a place for
 
-Filled on 2026-08-24, in both languages, by `tools/make-screenshots.ps1` — checklist F1.
+Filled on 2026-08-25, in both languages, by `tools/make-screenshots.ps1` — checklist F1.
 
 **The picture shows no real `PATH`.** It could not: the application reads the registry, and there
 is no switch that overrides it. So the list is staged through the Backups tab's **Restore**, which

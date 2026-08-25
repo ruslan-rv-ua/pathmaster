@@ -28,7 +28,7 @@ Commands:
 # real one when the manifest is submitted (checklist step F7).
 Installers:
 - Architecture: "x64"
-  InstallerUrl: "https://github.com/ruslan-rv-ua/pathmaster2/releases/download/v0.1.0/PathMaster-v0.1.0-x64.exe"
+  InstallerUrl: "https://github.com/ruslan-rv-ua/pathmaster/releases/download/v0.1.0/PathMaster-v0.1.0-x64.exe"
   InstallerSha256: "0000000000000000000000000000000000000000000000000000000000000000"
 ManifestType: "installer"
 ManifestVersion: "1.12.0"

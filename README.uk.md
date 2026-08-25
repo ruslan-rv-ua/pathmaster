@@ -4,8 +4,8 @@
 
 Портативний редактор і діагностика змінної `PATH` у Windows.
 
-[![Стан CI](https://github.com/ruslan-rv-ua/pathmaster2/actions/workflows/ci.yml/badge.svg)](https://github.com/ruslan-rv-ua/pathmaster2/actions/workflows/ci.yml)
-[![Останній випуск](https://img.shields.io/github/v/release/ruslan-rv-ua/pathmaster2)](https://github.com/ruslan-rv-ua/pathmaster2/releases/latest)
+[![Стан CI](https://github.com/ruslan-rv-ua/pathmaster/actions/workflows/ci.yml/badge.svg)](https://github.com/ruslan-rv-ua/pathmaster/actions/workflows/ci.yml)
+[![Останній випуск](https://img.shields.io/github/v/release/ruslan-rv-ua/pathmaster)](https://github.com/ruslan-rv-ua/pathmaster/releases/latest)
 [![Ліцензія: MIT](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
 ![Windows 10 і 11, 64-біт](https://img.shields.io/badge/Windows-10%20%7C%2011%20x64-blue)
 
@@ -65,7 +65,7 @@ scoop install pathmaster
 ### Пряме завантаження
 
 Візьміть `PathMaster-v<версія>-x64.exe` і файл `.sha256` поруч із ним на
-[сторінці випусків](https://github.com/ruslan-rv-ua/pathmaster2/releases). Немає ні архіву, який
+[сторінці випусків](https://github.com/ruslan-rv-ua/pathmaster/releases). Немає ні архіву, який
 треба розпаковувати, ні інсталятора, який треба запускати — `.exe` це і є вся програма. Покладіть
 його там, де він має жити; теку `data` він створить поруч із собою сам.
 
@@ -182,7 +182,7 @@ PathMaster портативний, і це твердження варто сф�
 ## Внесок
 
 Питання, повідомлення про помилки й побажання — до
-[Issues](https://github.com/ruslan-rv-ua/pathmaster2/issues). Pull request'и вітаються; якщо це
+[Issues](https://github.com/ruslan-rv-ua/pathmaster/issues). Pull request'и вітаються; якщо це
 більше за просте виправлення, спершу відкрийте issue, щоб узгодити задум до роботи.
 
 ## Ліцензія

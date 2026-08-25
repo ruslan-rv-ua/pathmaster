@@ -414,7 +414,7 @@ Ruled beyond this destination. Does not graduate.
 
 - **Building v0.1.0.** This map produces the spec; implementation is a separate effort.
 - **A Help → Documentation item, and a home for `F1`** — **the first v0.2.0 candidate**, raised by
-  the user on 2026-08-24 once impl ticket 18 had built the Help menu. Nothing is missing against
+  the user on 2026-08-25 once impl ticket 18 had built the Help menu. Nothing is missing against
   plan: §15 fixed that menu at one item and About is what it holds. What is missing is that **`F1`
   does nothing**, and `F1` is Windows' own help key — while this application's standing rule is
   that every shortcut has a menu home, because a menu item's label is the only place wxdragon can

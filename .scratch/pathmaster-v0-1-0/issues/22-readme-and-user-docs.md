@@ -93,7 +93,7 @@ stay untranslated. Drift guard: the Release Checklist (ticket 19) gains one non-
 This closes the list the resolved tickets accumulated: every item named in the Question and the
 ticket-20 comment has a home in the skeleton above.
 
-## Amended 2026-08-24, by the user, during impl ticket 18
+## Amended 2026-08-25, by the user, during impl ticket 18
 
 The section skeleton above shipped once and was then **redirected**, on the ground that the Answer
 had got the positioning wrong: PathMaster is built on **universal design**, and its users are
