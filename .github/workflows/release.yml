@@ -93,6 +93,30 @@ jobs:
           }
           "VERSION=$ver" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
+      - name: Verify - the same gate push CI applies to develop
+        # The gap this closes: push CI watches `develop`, but a git-flow release branch
+        # starts from develop and *finishes into main*, where the tag lands - so the commit a
+        # release is cut from is one no CI has ever seen. Anything the release branch carried,
+        # a version bump or a last-minute fix, went straight past the gate. Running the same
+        # three commands here gates the exact commit that becomes the release, which is the
+        # only commit that matters, and turns "remember to check first" from a discipline into
+        # something that cannot be forgotten at two in the morning.
+        #
+        # `--release --target`, matching the Build step below, so wxWidgets is compiled once
+        # for the whole job rather than once per profile. Measured locally: both share the one
+        # target/x86_64-pc-windows-msvc/release/build/wxdragon-sys-*/ output, and the tests
+        # cost 46 s on a warm tree.
+        #
+        # All three commands, not just the tests: a second, shorter list would be a second
+        # thing to keep in step with push CI, and formatting that reaches a tag means code
+        # reached it without passing through develop - which is what this step is here to
+        # catch. Ordered as push CI orders them, formatting first, because it needs no
+        # compilation and so fails in seconds rather than after a wxWidgets build.
+        run: |
+          cargo fmt --all -- --check
+          cargo test --workspace --locked --release --target x86_64-pc-windows-msvc
+          cargo clippy --workspace --all-targets --locked --release --target x86_64-pc-windows-msvc -- -D warnings
+
       - name: Build
         # --target explicit: with --target present, RUSTFLAGS does NOT apply to host build
         # scripts and proc-macros (wxdragon-macros). Load-bearing, not style.

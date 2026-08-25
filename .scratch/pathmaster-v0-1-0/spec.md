@@ -955,9 +955,10 @@ Settled by tickets [04](issues/04-single-exe-build-profile.md) and
   shim to GUI subsystem — no console flash.
 - **Release workflow**: tag `v*` → `windows-2025` (VS2026 image; LLVM/libclang + Ninja are
   load-bearing pins, `LIBCLANG_PATH` set explicitly) → three-way version gate (tag / `Cargo.toml` /
-  `.rc`) → build with `CARGO_TARGET_DIR=C:\t` (MAX_PATH — a deep path breaks the wxWidgets build
-  while blaming the compiler) → **dumpbin gate failing on `VCRUNTIME|MSVCP|api-ms-win-crt`** →
-  exe-size gate ≤ 40 MB → release via `gh`; PDB to CI artifacts only. **Rule: gate the artifact,
+  `.rc`) → **`cargo fmt --check` + `cargo test` + `cargo clippy`, the gate push CI applies to
+  `develop`** → build with `CARGO_TARGET_DIR=C:\t` (MAX_PATH — a deep path breaks the wxWidgets
+  build while blaming the compiler) → **dumpbin gate failing on `VCRUNTIME|MSVCP|api-ms-win-crt`**
+  → exe-size gate ≤ 40 MB → release via `gh`; PDB to CI artifacts only. **Rule: gate the artifact,
   never the build config** (`RUSTFLAGS` silently overrides `.cargo/config.toml`).
 - **Still owed before the first release** (release-time actions, not open decisions): one clean-VM
   run with no VC++ redistributable; one live winget install observing the symlink-resolve and
@@ -987,6 +988,17 @@ not state:
   bucket is its own repository (`ruslan-rv-ua/scoop-bucket`) and the manifests live at
   `packaging/`, submitted from there rather than consumed by anything here. The licence field both
   of them left open is **MIT**, which is also the `LegalCopyright` line in the exe.
+
+**Amended 2026-08-24**, closing the gap the ticket-18 review named: **the release workflow runs the
+tests itself.** §18 puts push CI on `develop`, but a release branch starts from `develop` and
+finishes into `main`, and the tag lands there — so without this the commit a release is cut from is
+one no CI has ever seen, and anything that branch carried went past the gate unexamined. The step
+runs `--release --target`, matching the build below it, so wxWidgets is compiled once for the job
+rather than once per profile (measured: one shared `wxdragon-sys` build directory, and 46 s of
+tests on a warm tree). It runs **all three** of push CI's commands rather than the tests alone: a
+shorter list would be a second thing to keep in step, and formatting that reaches a tag is itself
+evidence that code got there without passing through `develop`. This is the one gate in §16 that is
+**not** about the artifact — the artifact rule governs everything downstream of the build.
 
 ## 17. Repository layout
 
