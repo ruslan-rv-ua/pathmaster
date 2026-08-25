@@ -123,7 +123,7 @@ means the intent survives with changed acceptance criteria; the section column h
 | TC-registry-keys | rewritten — raw read/write, Value Type preserved, Absent distinct | 05 | §4 |
 | TC-wm-settingchange | rewritten (**PRD spec bug**) — 1000–2000 ms, off the UI thread | 05, 12 | §4 |
 | OS-other-env-vars, OS-sync, OS-plugins, OS-web-cli, OS-auto-update | kept — out of scope | PRD | §20 |
-| Additional: scoop + winget | kept — detailed manifests and pipeline | 15 | §16 |
+| Additional: scoop + winget | kept — detailed manifests and pipeline; winget submission deferred indefinitely 2026-08-25 (§16) | 15 | §16 |
 
 ## 3. Data Directory and portability
 
@@ -465,7 +465,8 @@ Snapshot is or what Restore does:
 
 Apply-time backup failure (Announcement): "Apply failed — could not write a backup, no changes
 were made." `winget uninstall` deletes `data\`, Snapshots included; `winget upgrade` keeps it —
-README material.
+README material while the winget channel is offered; the bullet left the README with the
+2026-08-25 deferral (§16) and returns with the submission.
 
 ## 9. Elevation and failure taxonomy
 
@@ -944,7 +945,8 @@ Settled by tickets [04](issues/04-single-exe-build-profile.md) and
   **License: MIT**. Unsigned by decision; SmartScreen documented in the README with `Get-FileHash`
   verification against the `.sha256` sidecar.
 - **Release shape**: bare `PathMaster.exe` + `.sha256` sidecar (`<hex64> *<name>`), no zip.
-- **winget**: schema 1.12.0, three-file manifest, `InstallerType: portable`,
+- **winget** (*submission deferred indefinitely 2026-08-25 — the amendment at the end of this
+  section*): schema 1.12.0, three-file manifest, `InstallerType: portable`,
   `Commands: ["pathmaster"]` (names the Links symlink and renames the installed exe), submitted to
   `microsoft/winget-pkgs`. winget writes an HKCU ARP key (16 values) and puts its Links dir on the
   user PATH; `upgrade` keeps `data\`, `uninstall` deletes it — README material, not our promise
@@ -961,8 +963,9 @@ Settled by tickets [04](issues/04-single-exe-build-profile.md) and
   → exe-size gate ≤ 40 MB → release via `gh`; PDB to CI artifacts only. **Rule: gate the artifact,
   never the build config** (`RUSTFLAGS` silently overrides `.cargo/config.toml`).
 - **Still owed before the first release** (release-time actions, not open decisions): one clean-VM
-  run with no VC++ redistributable; one live winget install observing the symlink-resolve and
-  uninstall behaviour; the repo URL filled into the manifest drafts.
+  run with no VC++ redistributable; the repo URL filled into the manifest drafts. The live winget
+  install that stood here — observing the symlink-resolve and uninstall behaviour — moved out with
+  the 2026-08-25 deferral: it is owed when the submission is, not before the first release.
 
 **Amended by impl ticket 18**, which built the pipeline and the manifests — four rules §16 does
 not state:
@@ -1001,6 +1004,15 @@ tests on a warm tree). It runs **all three** of push CI's commands rather than t
 shorter list would be a second thing to keep in step, and formatting that reaches a tag is itself
 evidence that code got there without passing through `develop`. This is the one gate in §16 that is
 **not** about the artifact — the artifact rule governs everything downstream of the build.
+
+**Amended 2026-08-25**: **the winget submission is deferred indefinitely** — a channel decision,
+not a product one. scoop and direct download are the release channels; the manifests stay in
+`packaging/` finished and identity-guarded (the versioninfo test still asserts the
+`CompanyName`/`ProductName` they were built from), the Release Checklist keeps F7-F8 under their
+own numbers in a deferred block, and the README no longer offers the command. Nothing in the
+product moves with this: §3's junction-resolve rule stands as written — it is a measured property
+of launcher junctions, winget is merely where it was measured — and the `MinimumOSVersion` pin
+(§1) stays in the manifest it describes. Resuming costs the version and that release's F5 hash.
 
 ## 17. Repository layout
 
