@@ -8,11 +8,11 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.12.0.schema.json
 PackageIdentifier: "RuslanIskov.PathMaster"
 PackageVersion: "0.1.0"
-# Windows 10 1809, and a conservative guess rather than a measurement: no ticket pinned the OS
-# floor, and nothing in the app or in statically linked wxWidgets is known to need this much. It
-# errs towards excluding machines that might work, which is the safe direction for a claim nobody
-# has tested — checklist step F6 records the Windows build of the one VM that has.
-MinimumOSVersion: "10.0.17763.0"
+# Windows 10 21H2 — the spec assembly's pin (spec §1, closing ticket 15's open floor), equal to
+# NFR-compatibility's own claim: the manifest must not offer the install on a Windows the product
+# does not support. Still a claim rather than a measurement below the one VM that has run it —
+# checklist step F6 records that VM's Windows build.
+MinimumOSVersion: "10.0.19044.0"
 InstallerType: "portable"
 # Commands[0] names BOTH the symlink winget puts in its Links directory and the installed exe
 # itself: %LOCALAPPDATA%\Microsoft\WinGet\Packages\<id>_<source>\pathmaster.exe (winget appends
