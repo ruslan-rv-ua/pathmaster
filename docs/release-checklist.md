@@ -149,8 +149,10 @@ the header. Elevate via Tools → Restart as Administrator.
 Sections A-E are about the application. This one is about **the release itself**, and its steps
 run in this order: nothing below can be done before the one above it. **F6 and F9 are the
 packaging half**, and like E3 they are required once for v0.1.0 and thereafter only when packaging
-changes. F5 is not one of them and runs every release: it is the step that proves the instruction
-given to users still works. F7 and F8 — the winget submission — are **deferred indefinitely** and
+changes — F9 in particular is the one-time seeding of the bucket, and F10 is what replaces it
+every release after. F5 is not one of them and runs every release: it is the step that proves the
+instruction given to users still works. F7 and F8 — the winget submission — are **deferred
+indefinitely** and
 live in their own block after the table: scoop and direct download are the release channels until
 that decision is revisited.
 
@@ -168,7 +170,8 @@ that decision is revisited.
 | F4 | Watch the release workflow | Every gate green — imports (no `VCRUNTIME`/`MSVCP`/`api-ms-win-crt`), size ≤ 40 MB, VERSIONINFO read back out of the linked artifact. The release page carries **exactly two** assets: the `.exe` and its `.sha256`. The PDB is a workflow artifact and is **not** on the release | |
 | F5 | Download both assets afresh and run the README's own `Get-FileHash` comparison | `True`. Every release: this is the step that proves the instruction given to users actually works, not just that a hash was written | |
 | F6 | Clean VM, no VC++ redistributable: run the downloaded `.exe` (this is E3, done here on the released file) | SmartScreen shows the warning the README describes and "More info → Run anyway" gets past it; the app starts and lists PATH. **Note the VM's Windows build** — the deferred winget manifest claims a floor of 10.0.19044 (the spec §1 pin) and nothing has tested below it | |
-| F9 | Put `packaging/scoop/pathmaster.json` in the bucket (hash from F5), then `scoop install pathmaster` | Installs; the shim launches the app with **no console flash**; a Start Menu shortcut exists; `~\scoop\persist\pathmaster\data` holds the Data Directory, and `scoop update` leaves it alone | |
+| F9 | **Once, for the first release only** — copy `packaging/scoop/pathmaster.json` into the bucket's `bucket/` by hand, with the hash from F5 and the matching `version` and `url`, and push. Then `scoop install pathmaster` | The bucket's CI validates the manifest and does **not** revert the push. Installs; the shim launches the app with **no console flash**; a Start Menu shortcut exists; `~\scoop\persist\pathmaster\data` holds the Data Directory, and `scoop update` leaves it alone. By hand because the bucket's dispatch handler fails on a missing `bucket/<app>.json` rather than creating one — F10 can bump a manifest, never seed it | |
+| F10 | **Every release after that** — run the *Update Scoop manifest* workflow in this repository (Actions → Run workflow, version blank for the latest release), then `scoop update pathmaster` | The workflow reads the sidecar and dispatches; the bucket re-downloads the URL, agrees on the hash, and commits `Update pathmaster to <version>`; its CI stays green. The upgrade keeps `~\scoop\persist\pathmaster\data` with its settings and Snapshots. A hash mismatch in the bucket's log means the release assets and the sidecar disagree — go back to F5, do not hand-edit the manifest | |
 
 ### Deferred: winget (F7-F8)
 

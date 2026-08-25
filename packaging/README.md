@@ -32,11 +32,24 @@ of the [release checklist](../docs/release-checklist.md) and the submission is *
 ## `scoop/`
 
 One manifest for the own bucket at
-[ruslan-rv-ua/scoop-bucket](https://github.com/ruslan-rv-ua/scoop-bucket), which is generated
-from `ScoopInstaller/BucketTemplate` — its `excavator.yml` runs `checkver`/`autoupdate` on a
-schedule, so after the first submission this file is bumped by the bucket rather than by hand.
-The copy here is the source of truth for what is put in the bucket, not a second manifest scoop
-reads.
+[ruslan-rv-ua/scoop-bucket](https://github.com/ruslan-rv-ua/scoop-bucket). The copy here is the
+source of truth for what is **first placed** in the bucket, not a second manifest scoop reads.
+
+**How it gets bumped.** The bucket runs no excavator. It takes a `repository_dispatch` named
+`update-<app>` from the application's own repository, verifies the URL and hash it is given by
+re-downloading, rewrites `bucket/<app>.json` and pushes; its CI then validates the manifest and
+reverts the push if the structure is wrong. Our side of that is
+[.github/workflows/update-scoop.yml](../.github/workflows/update-scoop.yml), started by hand at
+release checklist step **F9** — the same shape the bucket's other five applications use.
+
+So the sequence is: **F9 places this file in the bucket once, by hand**, with the hash from F5;
+every release after that, the workflow bumps it. The bucket's dispatch handler fails on a missing
+`bucket/<app>.json` rather than creating one, which is why the first placement cannot be
+automated away.
+
+`checkver` and `autoupdate` in the manifest are kept and correct, but nothing in this setup runs
+them on a schedule — they serve `scoop update` and would be what an excavator read, if one were
+ever added.
 
 ## Keeping the two honest
 
