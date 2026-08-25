@@ -35,21 +35,26 @@ One manifest for the own bucket at
 [ruslan-rv-ua/scoop-bucket](https://github.com/ruslan-rv-ua/scoop-bucket). The copy here is the
 source of truth for what is **first placed** in the bucket, not a second manifest scoop reads.
 
-**How it gets bumped.** The bucket runs no excavator. It takes a `repository_dispatch` named
-`update-<app>` from the application's own repository, verifies the URL and hash it is given by
-re-downloading, rewrites `bucket/<app>.json` and pushes; its CI then validates the manifest and
-reverts the push if the structure is wrong. Our side of that is
-[.github/workflows/update-scoop.yml](../.github/workflows/update-scoop.yml), started by hand at
-release checklist step **F9** — the same shape the bucket's other five applications use.
+**How it gets bumped — and why nothing here does it.** The bucket runs Scoop's own **Excavator**:
+it reads `checkver` in each manifest, looks at the application's releases page, and where it finds
+a newer version follows `autoupdate` to rebuild the URL and lift the hash from the `.sha256`
+sidecar, then commits the result. Its CI validates the manifest afterwards and reverts the push if
+the structure is wrong.
 
-So the sequence is: **F9 places this file in the bucket once, by hand**, with the hash from F5;
-every release after that, the workflow bumps it. The bucket's dispatch handler fails on a missing
-`bucket/<app>.json` rather than creating one, which is why the first placement cannot be
-automated away.
+That job lives entirely on the bucket's side, and that is the point: a workflow **here** that
+edited another repository would need a personal access token stored in this repository's secrets —
+a credential to rotate, which fails silently when it expires. The Excavator edits the repository
+it already lives in, so it needs no token at all. Nothing in this repository talks to the bucket.
 
-`checkver` and `autoupdate` in the manifest are kept and correct, but nothing in this setup runs
-them on a schedule — they serve `scoop update` and would be what an excavator read, if one were
-ever added.
+It is started **by hand** from the bucket's Actions tab (release checklist step **F10**), with a
+daily scheduled run as a backstop for a release whose button was forgotten. So `checkver` and
+`autoupdate` in the manifest are not decoration — they are the instructions the Excavator reads,
+and the sidecar format `release.yml` writes (`<hex64> *<filename>`) is one of the two shapes
+scoop's default hash extraction understands.
+
+**The first placement is still by hand.** The Excavator only *updates* manifests it already sees;
+it will not create `bucket/pathmaster.json` from nothing. Step **F9** seeds the bucket from this
+file once, with the hash from F5. F10 is every release after that.
 
 ## Keeping the two honest
 
