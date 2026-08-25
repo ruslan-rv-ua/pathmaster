@@ -306,28 +306,24 @@ pub fn build_main_window(
     settings: SettingsFile,
     start_tab: Option<StartTab>,
 ) -> Frame {
-    // Which instance this window is, said where Alt+Tab reads first: the
-    // elevated title is the cmd.exe convention and Catalogue text (ticket 12
-    // D11); the unelevated one is the product name, which no translation may
-    // vary.
-    let title = match run.elevated() {
-        true => translate(msgids::WINDOW_TITLE_ELEVATED),
-        false => "PathMaster".to_string(),
-    };
+    // The one Catalogue, built before the window it titles and shared by
+    // everything that composes a string out of it: this window, the Announcer,
+    // and each Scope tab's Status column (ADR-0009). `install` has already
+    // given wx its own, which is what `catalog::Installed` asks.
+    let catalogue = Rc::new(Catalogue::new(catalog::Installed));
+
     let frame = Frame::builder()
-        .with_title(&title)
+        // Which instance this window is, said where Alt+Tab reads first
+        // (spec §9, ticket 12 D11). Composed rather than chosen here: which of
+        // the two titles an elevated process earns is a rule, and rules live
+        // beside the msgids they fill.
+        .with_title(&catalogue.window_title(run.elevated()))
         // Crosses the FFI boundary through the implicit FromDIP → 900×650 DIP (spec §12 D2).
         .with_size(Size::new(900, 650))
         .build();
     frame.set_min_size(Size::new(800, 600));
     set_frame_icon(&frame);
     frame.set_menu_bar(command::build_menu_bar());
-
-    // The one Catalogue, built here and shared by everything that composes a
-    // string out of it: this window, the Announcer, and each Scope tab's
-    // Status column (ADR-0009). `install` has already given wx its own, which
-    // is what `catalog::Installed` asks.
-    let catalogue = Rc::new(Catalogue::new(catalog::Installed));
 
     let root = Panel::builder(&frame).build();
 

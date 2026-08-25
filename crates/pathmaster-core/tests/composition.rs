@@ -722,3 +722,26 @@ fn about_names_the_application_its_version_and_its_licence() {
         "PathMaster 0.1.0 — MIT License"
     );
 }
+
+#[test]
+fn the_window_title_names_which_instance_the_user_is_in() {
+    // Alt+Tab speaks the title first, which is the cheapest always-available
+    // answer to "am I in the elevated one?" (spec §9, ticket 12 D11).
+    assert_eq!(the_catalogue().window_title(false), "PathMaster");
+    assert_eq!(
+        the_catalogue().window_title(true),
+        msgids::WINDOW_TITLE_ELEVATED
+    );
+}
+
+#[test]
+fn the_product_name_is_not_looked_up_while_the_elevated_title_is() {
+    // The same split `language_items` makes for the endonyms: one half is
+    // Catalogue text and the other is deliberately outside it, and only a
+    // marked lookup can tell which is which.
+    assert_eq!(Catalogue::new(Marked).window_title(false), "PathMaster");
+    assert_eq!(
+        Catalogue::new(Marked).window_title(true),
+        format!("[{}]", msgids::WINDOW_TITLE_ELEVATED)
+    );
+}

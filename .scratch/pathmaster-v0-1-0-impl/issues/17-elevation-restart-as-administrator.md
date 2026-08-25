@@ -40,3 +40,24 @@ secure desktop, which no synthesised input can reach, and the elevated instance 
 window a medium-integrity probe may not drive. So the exit-on-success, the declined-prompt dialog
 and every elevated reading rest on the manual pass alone — which is the arrangement ADR-0005
 predicted when it named the elevated instance a separate accessibility surface.
+
+### One thing ticket 19's seam caught afterwards
+
+Reviewed against [ticket 19](19-catalogue-lookup-seam.md) once this was merged, and it found one
+place where this ticket added back to the pile that ticket exists to clear. **The window title is a
+rule**, not a label: which of two strings an instance earns is decided from a fact about the
+process, and one of the two — the product name — is deliberately outside the Catalogue, exactly as
+the language selector's endonyms are. Written at the window it was pinned to the wx-linking crate,
+where no test can reach it; `Catalogue::window_title(elevated)` now composes it beside the msgid it
+fills, with `PRODUCT_NAME` named and documented rather than a literal in a `match` arm.
+
+Two tests came with it, both through the identity adapter and neither linking wx: the pair of
+titles, and — through the `Marked` lookup — that the elevated one really is looked up while the
+product name really is not. That second assertion is the one `language_items` already makes for the
+endonyms, and it is the only way to tell a string that is deliberately untranslated from one that
+was forgotten.
+
+The rest of this ticket's strings are bare labels with no rule to test, which ticket 19 leaves on
+`catalog::translate` on purpose — the two dialog titles and the button carry no placeholder and no
+choice. Nothing here reaches the Announcement catalogue, which stays closed at seven: a declined
+UAC prompt answers an explicit user action and is a dialog, by ADR-0005's own reasoning.

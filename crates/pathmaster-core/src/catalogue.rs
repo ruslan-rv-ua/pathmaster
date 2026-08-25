@@ -124,6 +124,17 @@ pub struct ScopeCounts {
     pub issues: Option<usize>,
 }
 
+/// The product's own name, deliberately **outside** the Catalogue: it is what
+/// this application is called in every language, and a translated one would
+/// name a program the user could not then find in Alt+Tab or the taskbar. It
+/// is the same string the exe's `VERSIONINFO` carries as `ProductName`
+/// (spec §16), which `tests/versioninfo.rs` reads back off the built binary.
+///
+/// It lives here rather than at the window because the rule that picks
+/// between it and the elevated title is composition, and composition lives
+/// beside the msgids it fills (ADR-0009).
+const PRODUCT_NAME: &str = "PathMaster";
+
 /// The Catalogue, holding the lookup it was built with.
 ///
 /// Never a global. A global lookup is the trap this module exists to leave:
@@ -308,6 +319,28 @@ impl Catalogue {
     /// because this one has no way past it.
     pub fn hard_cap_dialog(&self, length: usize) -> String {
         self.overlength(msgids::DIALOG_OVER_HARD_CAP, length)
+    }
+
+    /// The main window's title: which of the two instances the user is in
+    /// (spec §9, ticket 12 D11).
+    ///
+    /// Alt+Tab speaks a window's title first, which makes this the cheapest
+    /// always-available answer to "am I in the elevated one?" — so the
+    /// elevated title is Catalogue text and carries the cmd.exe convention,
+    /// while the unelevated one is [`PRODUCT_NAME`], which no language
+    /// varies.
+    ///
+    /// Composed here rather than at the window for the reason
+    /// [`language_items`](Self::language_items) is: **choosing between a
+    /// translated string and a deliberately untranslated one is a rule**, and
+    /// a rule pinned to the wx-linking crate is a rule no test can reach
+    /// (ADR-0009). `elevated` is handed in because it is a fact about the
+    /// process, which this crate is pure of.
+    pub fn window_title(&self, elevated: bool) -> String {
+        match elevated {
+            true => self.lookup.translate(msgids::WINDOW_TITLE_ELEVATED),
+            false => PRODUCT_NAME.to_string(),
+        }
     }
 
     /// Help → About: what this build is, in the one line NVDA speaks of a
