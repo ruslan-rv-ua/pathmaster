@@ -147,10 +147,12 @@ the header. Elevate via Tools → Restart as Administrator.
 ## F. Release-time actions (the pre-release checklist)
 
 Sections A-E are about the application. This one is about **the release itself**, and its steps
-run in this order: nothing below can be done before the one above it. **F6-F9 are the packaging
-half**, and like E3 they are required once for v0.1.0 and thereafter only when packaging changes.
-F5 is not one of them and runs every release: it is the step that proves the instruction given to
-users still works.
+run in this order: nothing below can be done before the one above it. **F6 and F9 are the
+packaging half**, and like E3 they are required once for v0.1.0 and thereafter only when packaging
+changes. F5 is not one of them and runs every release: it is the step that proves the instruction
+given to users still works. F7 and F8 — the winget submission — are **deferred indefinitely** and
+live in their own block after the table: scoop and direct download are the release channels until
+that decision is revisited.
 
 > **Precondition for the whole section: the repository must be public.** Not a preference — a
 > release from a private repository does not work at all. The asset URLs both manifests download
@@ -165,11 +167,22 @@ users still works.
 | F3 | Push that commit to `develop`, let push CI go green, then cut the release with `git flow release start` / `finish`, which merges into `main` and tags it there | The release workflow re-runs the whole gate itself — `cargo fmt --check`, `cargo test`, `cargo clippy` — before it builds anything, and only then the three-way version gate. **The tag has to land on `main`**, because a hotfix branches from `main`: tag `develop` instead and the first urgent fix has an empty branch to start from. Push CI watches `develop` while the tag lands on `main`, so the tagged commit may be one push CI never saw — going through `develop` first gets you the answer sooner, it is not the only thing standing between a release and untested code | |
 | F4 | Watch the release workflow | Every gate green — imports (no `VCRUNTIME`/`MSVCP`/`api-ms-win-crt`), size ≤ 40 MB, VERSIONINFO read back out of the linked artifact. The release page carries **exactly two** assets: the `.exe` and its `.sha256`. The PDB is a workflow artifact and is **not** on the release | |
 | F5 | Download both assets afresh and run the README's own `Get-FileHash` comparison | `True`. Every release: this is the step that proves the instruction given to users actually works, not just that a hash was written | |
-| F6 | Clean VM, no VC++ redistributable: run the downloaded `.exe` (this is E3, done here on the released file) | SmartScreen shows the warning the README describes and "More info → Run anyway" gets past it; the app starts and lists PATH. **Note the VM's Windows build** — the winget manifest claims a floor of 10.0.17763 and nothing has tested below it | |
-| F7 | Submit `packaging/winget/` (hash filled in from F5) as a PR to microsoft/winget-pkgs, then `winget install RuslanIskov.PathMaster` on a clean machine | Installs; `pathmaster` is a command; **`data\` is created beside the real exe in the package folder, not in winget's shared `Links\` directory** — the symlink-resolve rule (spec §3), and the one thing only a live install can show | |
-| F8 | On that machine: make a change, Apply, then `winget upgrade`, then `winget uninstall` | `upgrade` keeps `data\` with its settings and Snapshots; `uninstall` deletes the package folder and `data\` with it — both exactly as the README says | |
+| F6 | Clean VM, no VC++ redistributable: run the downloaded `.exe` (this is E3, done here on the released file) | SmartScreen shows the warning the README describes and "More info → Run anyway" gets past it; the app starts and lists PATH. **Note the VM's Windows build** — the deferred winget manifest claims a floor of 10.0.17763 and nothing has tested below it | |
 | F9 | Put `packaging/scoop/pathmaster.json` in the bucket (hash from F5), then `scoop install pathmaster` | Installs; the shim launches the app with **no console flash**; a Start Menu shortcut exists; `~\scoop\persist\pathmaster\data` holds the Data Directory, and `scoop update` leaves it alone | |
 | F10 | Attach the filled copy of this document to the GitHub release | The release carries the record the README promises: the NVDA version used and every step marked | |
+
+### Deferred: winget (F7-F8)
+
+The winget submission is postponed indefinitely. The manifests in `packaging/winget/` stay
+finished and identity-guarded, so taking this up again costs only the version and the F5 hash of
+whichever release is being submitted; these two steps then run once, after that release's F5,
+exactly as written. Until then they are not part of any release pass — not even as
+skipped-with-reason rows.
+
+| # | Step | Expected result | ✓ |
+|---|------|-----------------|---|
+| F7 | Submit `packaging/winget/` (hash filled in from F5) as a PR to microsoft/winget-pkgs, then `winget install RuslanIskov.PathMaster` on a clean machine | Installs; `pathmaster` is a command; **`data\` is created beside the real exe in the package folder, not in winget's shared `Links\` directory** — the symlink-resolve rule (spec §3), and the one thing only a live install can show | |
+| F8 | On that machine: make a change, Apply, then `winget upgrade`, then `winget uninstall` | `upgrade` keeps `data\` with its settings and Snapshots; `uninstall` deletes the package folder and `data\` with it — both exactly as the README said while the winget section stood; restore that section as part of this block | |
 
 CI gates (version gate, `cargo test`, dumpbin imports, exe ≤ 40 MB, VERSIONINFO) run
 automatically and are not part of this manual pass.

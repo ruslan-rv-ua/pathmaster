@@ -45,12 +45,6 @@ PathMaster reports.*
 
 ## Install
 
-### winget
-
-```powershell
-winget install RuslanIskov.PathMaster
-```
-
 ### scoop
 
 ```powershell
@@ -116,13 +110,8 @@ records the folders you visited in its own "recently used" registry keys
 (`HKCU\...\Explorer\ComDlg32`). That is the operating system writing, inside this process, and
 PathMaster cannot prevent it. If you never press Browse, it never happens.
 
-**What the package managers write is theirs, not ours:**
+**What the package manager writes is its own, not ours:**
 
-- **winget** copies the exe into its own package folder under `%LOCALAPPDATA%`, renames it to
-  `pathmaster.exe`, adds an entry under `HKCU` so it appears in Apps & features, and puts a
-  symbolic link in its Links folder — which is on your user `PATH`. That is how `pathmaster`
-  becomes a command you can type. `winget upgrade` **keeps** your `data` folder; `winget uninstall`
-  **deletes** it, saved copies included, so move anything you want to keep first.
 - **scoop** installs into `~\scoop\apps\pathmaster`, puts a shim on your `PATH`, adds a Start Menu
   shortcut, and links your `data` folder out to `~\scoop\persist\pathmaster\data`, so settings and
   saved copies survive `scoop update`.

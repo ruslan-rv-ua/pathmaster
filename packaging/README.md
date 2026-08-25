@@ -10,14 +10,21 @@ Both are finalised against the release shape the workflow produces
 
 ## `winget/`
 
+**Deferred indefinitely.** Scoop and direct download are the release channels for now; nothing
+below is submitted until that decision is revisited, and the README no longer offers the winget
+command. The manifests stay here finished — the identity test named at the bottom still guards
+them — so resuming costs only the version and the F5 hash. The checklist's F7-F8 sit in their own
+deferred block for the same reason.
+
 Three files, winget manifest schema 1.12.0, submitted as one directory to
 [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) under
 `manifests/r/RuslanIskov/PathMaster/<version>/`.
 
 `InstallerType: portable`, so winget copies the exe rather than running an installer, writes an
 Add/Remove Programs key under `HKCU`, and puts a symlink named by `Commands` in its Links
-directory (which is on the user `PATH`). The README's *What gets written where* section is the
-user-facing half of that sentence.
+directory (which is on the user `PATH`). The user-facing half of that sentence was a bullet in the
+README's *What gets written where* section, removed with the deferral; F8's row in the checklist
+says to restore it when the submission is taken up.
 
 `InstallerSha256` is a placeholder until a release exists to hash: the hash comes from step **F5**
 of the [release checklist](../docs/release-checklist.md) and the submission is **F7**.
