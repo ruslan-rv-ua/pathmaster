@@ -16,7 +16,11 @@ PublisherSupportUrl: "https://github.com/ruslan-rv-ua/pathmaster/issues"
 PackageName: "PathMaster"
 PackageUrl: "https://github.com/ruslan-rv-ua/pathmaster"
 License: "MIT"
-LicenseUrl: "https://github.com/ruslan-rv-ua/pathmaster/blob/main/LICENSE"
+# Pinned to the tag, like InstallerUrl and ReleaseNotesUrl above and below it: this manifest
+# describes one version, so its licence link should show the licence *that version* shipped
+# under, not whatever the default branch says years later. It also stops a published field
+# depending on branch topology.
+LicenseUrl: "https://github.com/ruslan-rv-ua/pathmaster/blob/v0.1.0/LICENSE"
 Copyright: "Copyright (C) 2026 Ruslan Iskov"
 ShortDescription: "Portable editor and diagnostics for the Windows PATH environment variable."
 Description: |-
