@@ -159,8 +159,8 @@ the screen reader, which always fixes it. To tell this state from a genuinely em
 
 There is no automated test of this application's user interface. Instead there is
 [a checklist](docs/release-checklist.md) — a written script of every step, naming the exact words
-a screen reader is expected to speak — run by hand before every release, and **every release
-attaches a filled-in copy of it**. A failed step blocks the release.
+a screen reader is expected to speak — run by hand before every release. A failed step blocks the
+release.
 
 Automated gates run too, on the published file rather than on the build that made it: no
 dependency on the Visual C++ runtime, under 40 MB, and the same version in the tag, the source and

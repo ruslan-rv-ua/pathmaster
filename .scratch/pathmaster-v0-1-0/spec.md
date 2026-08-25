@@ -590,8 +590,8 @@ US-accessibility's acceptance criteria are replaced by the
 **[Release Checklist](../../docs/release-checklist.md)** (canonical there; summarized: ticket 09's
 17 steps naming expected speech, the ticket-10 dialog steps, the elevated-instance section, the
 DPI-drag step, every NVDA step gated on the Sanity Check). Run personally by the user on real NVDA
-before every release; a filled copy naming the NVDA used is attached to each release; a failed step
-blocks the release.
+before every release; a filled copy naming the NVDA used is kept in the maintainer's records; a
+failed step blocks the release.
 
 ## 11. Internationalisation
 

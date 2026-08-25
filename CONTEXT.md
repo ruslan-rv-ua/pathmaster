@@ -146,8 +146,8 @@ _Avoid_: Locale (that is the system's, not ours), Language setting, Culture
 **Release Checklist**:
 The manual, personally-run verification script that gates every release: each step names the action
 and the exact text NVDA is expected to speak, and every NVDA step is void unless the sanity check
-passes first. A release produces a filled copy — results and the NVDA used — kept as a release
-artifact, so a pass is a record, not a ritual.
+passes first. A release produces a filled copy — results and the NVDA used — kept in the
+maintainer's records, so a pass is a record, not a ritual.
 _Avoid_: Test plan, QA pass, Smoke test, Manual testing (the Checklist is one specific, recorded script)
 
 **Sanity Check**:

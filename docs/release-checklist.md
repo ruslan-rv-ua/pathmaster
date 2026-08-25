@@ -4,10 +4,10 @@ The canonical, manual verification script that gates every release. Defined by t
 10 (D8), 12, 17 (D5), 18/24, 19 (D6) and 22 of the v0.1.0 wayfinder map; the spec
 ([.scratch/pathmaster-v0-1-0/spec.md](../.scratch/pathmaster-v0-1-0/spec.md), §10.2/§18) points here.
 
-**How it is used.** Run personally, on real NVDA, before each release. Each release attaches a
-**filled copy** of this document to the GitHub Release — every step marked pass / fail / void /
-skipped-with-reason, plus the header below. **A failed step blocks the release.** A pass is a
-record, not a ritual.
+**How it is used.** Run personally, on real NVDA, before each release, filling a **copy** of this
+document — every step marked pass / fail / void / skipped-with-reason, plus the header below. The
+filled copy stays in the maintainer's records; it is not published on the release. **A failed step
+blocks the release.** A pass is a record, not a ritual.
 
 ```
 Release:        v_._._
@@ -169,7 +169,6 @@ that decision is revisited.
 | F5 | Download both assets afresh and run the README's own `Get-FileHash` comparison | `True`. Every release: this is the step that proves the instruction given to users actually works, not just that a hash was written | |
 | F6 | Clean VM, no VC++ redistributable: run the downloaded `.exe` (this is E3, done here on the released file) | SmartScreen shows the warning the README describes and "More info → Run anyway" gets past it; the app starts and lists PATH. **Note the VM's Windows build** — the deferred winget manifest claims a floor of 10.0.19044 (the spec §1 pin) and nothing has tested below it | |
 | F9 | Put `packaging/scoop/pathmaster.json` in the bucket (hash from F5), then `scoop install pathmaster` | Installs; the shim launches the app with **no console flash**; a Start Menu shortcut exists; `~\scoop\persist\pathmaster\data` holds the Data Directory, and `scoop update` leaves it alone | |
-| F10 | Attach the filled copy of this document to the GitHub release | The release carries the record the README promises: the NVDA version used and every step marked | |
 
 ### Deferred: winget (F7-F8)
 
