@@ -1,8 +1,10 @@
 {
     "##": [
-        "Manifest for the own bucket at https://github.com/ruslan-rv-ua/scoop-bucket, generated",
-        "from ScoopInstaller/BucketTemplate — whose excavator.yml runs checkver/autoupdate on a",
-        "schedule, which is how this file gets bumped after a release.",
+        "Manifest for the own bucket at https://github.com/ruslan-rv-ua/scoop-bucket. This copy is",
+        "what the bucket is first seeded from, by hand, at release checklist step F9. After that",
+        "the bucket's own copy is bumped by its Excavator, which reads the checkver and autoupdate",
+        "fields below — started by hand at F10, with a daily run as a backstop. Nothing bumps this",
+        "copy; it is the seed, not the live manifest. See packaging/README.md.",
         "",
         "The '#/PathMaster.exe' fragment renames the download, so 'bin' and 'shortcuts' stay",
         "stable across versions while the release asset keeps its version in its name.",

@@ -206,9 +206,12 @@ jobs:
             --title "PathMaster v$env:VERSION" `
             --generate-notes
           # Downstream of a published release, and deliberately not automated here:
-          #   * scoop  - the bucket's excavator bumps packaging/scoop/pathmaster.json on its own
-          #              schedule, reading the version from this release and the hash from the
-          #              sidecar above.
+          #   * scoop  - the bucket's own Excavator reads `checkver`/`autoupdate` in
+          #              bucket/pathmaster.json, finds this release, lifts the hash from the
+          #              sidecar above and commits the bump. It is started by hand from the
+          #              bucket (release checklist F10), with a daily run as a backstop. Nothing
+          #              in this repository talks to the bucket, and no token crosses between
+          #              them - which is the whole reason that side owns the job.
           #   * winget - one PR per version to microsoft/winget-pkgs. The first submission is
           #              always a manual PR; later ones can be `wingetcreate update --submit`.
           # Both, and the manual release checklist, are in docs/release-checklist.md section F.
