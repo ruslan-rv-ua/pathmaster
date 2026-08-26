@@ -27,9 +27,10 @@ either effort — disagree, the ticket wins.
 should-features the v0.1.0 charting cut, plus the small items parked beside them. Not field feedback
 (v0.1.0 shipped 2026-08-25; there is none yet), not architecture for its own sake.
 
-**In scope**: FR-reorder-dnd (with the right to die — see its ticket), FR-var-expansion-toggle,
-FR-search, FR-filter-bar, FR-tree-browser, FR-fix-issues, FR-copy-entry; the Help → Documentation item
-giving `F1` a menu home; a `--data-dir` switch; making the UI's borrow discipline structural.
+**In scope**: FR-reorder-dnd (carried the right to die and used it — see its ticket and Out of
+scope), FR-var-expansion-toggle, FR-search, FR-filter-bar, FR-tree-browser, FR-fix-issues,
+FR-copy-entry; the Help → Documentation item giving `F1` a menu home; a `--data-dir` switch; making
+the UI's borrow discipline structural.
 
 **Settled at charting** (standing constraints for every session):
 
@@ -134,6 +135,11 @@ reverse, surprising, and a genuine trade-off earns an ADR under `docs/adr/`.
   Edit → "Fix issues…" enabled iff ≥ 1 fixable row ∧ writable Session; staleness by
   generation-stamped passes (build only from a current-generation pass, apply by Entry id under
   modality). NVDA checkbox proof → 16; strings/keys → 15; no settings field.
+- [Drag & Drop reorder — with the right to die](issues/10-dnd-reorder-right-to-die.md) — **it
+  dies**: mouse-only and NVDA-invisible by construction (no UIA Drag pattern short of a custom
+  provider), redundant beside the shipped Move Up/Down, all-bespoke in wxdragon, never promised in
+  the README, and absent from Windows' own PATH editor; the delta-spec records the cut as a
+  decision, not an omission.
 
 In scope, but not yet sharp enough to ticket. Graduates as the frontier advances.
 
@@ -151,7 +157,8 @@ In scope, but not yet sharp enough to ticket. Graduates as the frontier advances
   buttons, four column headers and two action strings as Catalogue entries, and Announcement 12
   ("Fixed {n} entries" pair, plural by {n}).
 - **Release Checklist delta** — which steps the new surfaces add (search, filter, tree, Fix Issues
-  dialog, D&D if it lives), and whether any v0.1.0 steps change. Sharpens with the feature contracts.
+  dialog; D&D died in ticket 10), and whether any v0.1.0
+  steps change. Sharpens with the feature contracts.
 - **`settings.json` additions** — mostly landed. Ticket 05: Expansion Mode does **not** persist, no
   field. Ticket 06 named ticket 04's three members, fixed their domains and defaults
   (`speakFilteredCount`, `filteredCountDelayMs` 0–5000, `searchEscapeReturnsFocus`), gave each a
@@ -168,6 +175,11 @@ In scope, but not yet sharp enough to ticket. Graduates as the frontier advances
 Ruled beyond this destination. Does not graduate.
 
 - **Building v0.2.0.** This map produces the delta-spec; implementation is a separate effort.
+- **FR-reorder-dnd (drag & drop reorder)** — killed by
+  [its ticket](issues/10-dnd-reorder-right-to-die.md) (2026-08-26): a mouse-only gesture NVDA
+  cannot hear (native list, no UIA Drag pattern), duplicating the shipped Move Up/Down at real
+  bespoke cost. The delta-spec records the cut as a decision, not an omission; returns only as a
+  fresh effort if the destination is ever redrawn.
 - **In-app deaf-state detection** — parked by v0.1.0's ticket 24; revisit only if the state recurs in
   the field. Nothing has changed since.
 - **The network-path deadline prober** — same ground as v0.1.0: a dead UNC blocks uncancellably, and
