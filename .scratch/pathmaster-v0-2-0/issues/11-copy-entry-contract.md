@@ -27,3 +27,10 @@ copy-as-shown stays this ticket's call. Finding to weigh, from
 [research/05](../research/05-var-expansion-best-practices.md) (cross-cutting): every strong
 analogue binds extraction and mutation to the raw text — Excel copies the formula and its Replace
 operates on formulas only, while display stays a read-only projection.
+
+## Input from ticket 06 (2026-08-26)
+
+Ticket 06 put a permanent, focusable `TextCtrl` in every Scope tab — so the Ctrl+C scoping bullet is
+no longer hypothetical: there is now a text field one Tab stop above the list whose own Ctrl+C must
+keep copying the query. The accelerator has to be scoped to the list rather than to the frame, and
+the Backups tab (which has no Search field and no Filtered View) is a third state to answer for.

@@ -92,8 +92,18 @@ reverse, surprising, and a genuine trade-off earns an ADR under `docs/adr/`.
   NVDA-reads-checked **verification obligation attached to the next NVDA prototype session**;
   search-over-what and copy-what handed to 06/11 as input.
 - [Filtered view semantics](issues/03-filtered-view-semantics.md) — a **Filtered View** (now in `CONTEXT.md`) is derived, per-Scope view state, like Issues: outside the Undo history, changed only by the user's own typing; Edit/Delete/Copy act on the focused visible Entry while all reorder (D&D included, if it lives) and Add are disabled; membership recomputes live after every Working-Copy change; focus falls concerned-Entry → same-position → last-visible → empty list, with no new Announcements; `#` keeps original positions and Search+Filter compose with AND, both confirmed.
-
-## Not yet specified
+- [Search bar contract](issues/06-search-bar-contract.md) — a **permanent** native `TextCtrl` per
+  Scope tab (never `SearchCtrl`), label + field above the list, Tab order tabs → field → list →
+  buttons; matches the **currently displayed** rendering, case- and slash-folded (Unicode, not
+  ASCII) and nothing else — so the Expansion toggle now *does* change membership and ticket 05's
+  item 6 is amended; Ctrl+F focuses-and-selects (View menu, disabled on Backups), Enter is swallowed,
+  Down/Tab enter the list, ESC always returns to the list (clearing first if there is text). The
+  catalogue reaches ten items / six msgids: a short count for typing pauses and a Scope-named one
+  for tab activation and Refresh, plural selected by **{m}**; with no Filtered View, Announcement 1
+  speaks. StatusBar field 0 is the on-demand home of "N of M" (its issues count keeps its old
+  meaning); nothing persists; three flat `settings.json` fields with dialog controls
+  (`speakFilteredCount`, `filteredCountDelayMs` 0–5000, `searchEscapeReturnsFocus`) and no new
+  failure layer.
 
 In scope, but not yet sharp enough to ticket. Graduates as the frontier advances.
 
@@ -101,13 +111,15 @@ In scope, but not yet sharp enough to ticket. Graduates as the frontier advances
   final accelerator table (Ctrl+F, Alt+T, Ctrl+C, F1 and whatever the tickets add), and the final
   closed Announcement set with exact wording in both languages. Sharpens only once each feature's
   command surface is decided; lands in the locked-spec assembly ticket unless it grows into its own.
+  Fixed so far: 05's pair (item 8) and 06's six msgids (items 9 and 10), Search's home in View.
 - **Release Checklist delta** — which steps the new surfaces add (search, filter, tree, Fix Issues
   dialog, D&D if it lives), and whether any v0.1.0 steps change. Sharpens with the feature contracts.
-- **`settings.json` additions** — whether filter state or search text persist across runs, and what
-  that does to the settings failure taxonomy. Sharpens per feature. Ticket 04 already fixed three
-  members with defaults (speak result count: on; ESC-to-list: on; debounce: 250 ms); their names,
-  ranges and taxonomy consequences land with ticket 06 and assembly. Ticket 05 settled expansion
-  mode: it does **not** persist — no field.
+- **`settings.json` additions** — mostly landed. Ticket 05: Expansion Mode does **not** persist, no
+  field. Ticket 06 named ticket 04's three members, fixed their domains and defaults
+  (`speakFilteredCount`, `filteredCountDelayMs` 0–5000, `searchEscapeReturnsFocus`), gave each a
+  dialog control, established that they are ordinary field-layer members needing **no new failure
+  layer**, and settled that the Search text dies with the Run. What is left is folding all of it
+  into §13 at assembly.
 - **Whether v0.2.0's release mechanics need any decision at all** — scoop autoupdate and the release
   pipeline exist; possibly nothing to decide beyond version numbers. Check at assembly time.
 

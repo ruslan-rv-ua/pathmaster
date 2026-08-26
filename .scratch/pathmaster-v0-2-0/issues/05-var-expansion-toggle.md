@@ -81,6 +81,15 @@ per-Scope.** Term recorded in `CONTEXT.md`.
   cross-cutting finding (every strong analogue binds extraction and mutation to raw — Excel's
   Replace operates on formulas only) is handed over as input.
 
+**Amended by ticket [06](06-search-bar-contract.md) (2026-08-26).** Item 6's "the count is not
+included — the toggle never changes it" holds only while **no Filtered View is active**. Ticket 06
+decided that Search matches the currently displayed rendering, so with a Filtered View active the
+toggle *does* change membership (`%JAVA_HOME%\bin` and `C:\jdk21\bin` are different haystacks). In
+that state the toggle speaks its mode message and then the filtered count, separated by the tuned
+debounce — two Announcements, not a new combined msgid. Item 7's verification obligation now has a
+home: ticket [16](16-nvda-verification-round-2.md), which also carries the measurement this
+amendment creates.
+
 **Evidence**: [research/05-var-expansion-best-practices.md](../research/05-var-expansion-best-practices.md)
 (gathered 2026-08-26, before grilling, per the standing directive). Notable: no
 environment-variable editor (PowerToys, RapidEE) has such a toggle at all — the precedent base is
