@@ -114,6 +114,15 @@ the Undo history, and every Run starts raw. Editing always works on the raw text
 shows.
 _Avoid_: Display mode, Expanded view, Resolved paths, Toggle (that is the command, not the state)
 
+**Tree View**:
+A modal, per-Scope comprehension surface: the Scope's Filtered View, snapshotted when the dialog
+opens and shaped as the filesystem — Entries merged by their expanded reading into a prefix tree,
+one leaf per Entry, with Entries no drive can hold grouped apart. Derived view state like the
+Filtered View and Expansion Mode, and doubly inert: it reads and never changes, and nothing that
+changes after it opens reaches it — reopening is the refresh. Activating a leaf only selects that
+Entry's row in the main list and closes.
+_Avoid_: Tree browser (it is a dialog, not a browser), Folder tree, Tree dialog
+
 ### Diagnosis and recovery
 
 **Issue**:

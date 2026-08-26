@@ -37,6 +37,21 @@ reason before then, these items ride along with it and this ticket closes early.
    items in both an `All` and a narrowed state — does NVDA distinguish the selected item from the
    rest? Then switch Scope tabs with different Filters and re-open the menu: does the checked item
    follow the active Scope?
+4. **A compressed tree node speaks its whole joined label** — from
+   [08](08-tree-browser-contract.md), decision 6. Single-child chains render as one node whose label
+   is the joined text ("Program Files\Java\jdk-21"). VS Code's compact rows once made NVDA skip
+   folder names, but that defect lived in their custom web tree — in a native `SysTreeView32` the
+   joined text IS the item label. Argument, not measurement. Probe: arrow onto a compressed node —
+   does NVDA speak the full joined label, its level, and "N of M"?
+5. **A three-part leaf label speaks in full** — from [08](08-tree-browser-contract.md), decision 7.
+   A leaf like `bin (%JAVA_HOME%\bin) — Missing path` carries segment + raw parenthetical + Issue
+   suffix in one label, the item's only audible channel. Probe: arrow onto such a leaf — does NVDA
+   deliver all three parts, including the `%VAR%` text, without truncation?
+6. **Focus lands and speaks after "Go to entry"** — from [08](08-tree-browser-contract.md),
+   decisions 1 and 10. Activating a leaf (Enter in the tree, and the button separately) closes the
+   modal and selects the Entry's row in the main list. Probe: does NVDA speak the landed row (all
+   columns, as v0.1.0 proved for focus changes) with no dead silence and no dialog-title residue —
+   and after Cancel/Esc, does it speak the restored focus position?
 
 <!-- Later tickets append their obligations here. Do not run the session until they are in. -->
 

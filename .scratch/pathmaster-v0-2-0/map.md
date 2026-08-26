@@ -112,6 +112,16 @@ reverse, surprising, and a genuine trade-off earns an ADR under `docs/adr/`.
   (final key → 15), starting at All every Run with no `settings.json` field; the Catalogue grows
   one item ("{filter}: {n} of {m} entries" pair), Announcement 1's condition becomes two-part
   (empty query AND Filter at All), and StatusBar field 0 names the state when narrowed.
+- [Tree View browser contract](issues/08-tree-browser-contract.md) — a **Tree View** (now in
+  `CONTEXT.md`) is a modal, per-Scope comprehension surface: the Scope's Filtered View snapshotted
+  at open, merged by the expanded reading into a prefix tree (chains compressed, siblings
+  alphabetical, misfits under top-level "Unresolved variables"/"Relative entries" groups, one leaf
+  per Entry); Enter on a leaf selects that Entry's row and closes, Enter on an inner node
+  expands/collapses — the PRD's fill-the-Search-bar coupling and Alt+T are recorded deviations
+  (proposed Ctrl+T on a View → "PATH tree…" item, disabled on Backups); leaf labels carry raw form
+  and Issue suffix only-when-present; "Go to entry" (default, leaf-only) + Cancel; no live
+  diagnostics, no new Announcements, no settings, fallback branch closed (native SysTreeView32
+  confirmed); three NVDA obligations → 16.
 
 In scope, but not yet sharp enough to ticket. Graduates as the frontier advances.
 
@@ -122,7 +132,9 @@ In scope, but not yet sharp enough to ticket. Graduates as the frontier advances
   Fixed so far: 05's pair (item 8) and 06's six msgids (items 9 and 10), Search's home in View;
   07 adds the View → Filter submenu (seven radio items, disabled on Backups), a proposed Ctrl+I
   coarse toggle, one more count pair ("{filter}: …"), and makes Announcement 1's condition
-  two-part (empty query AND Filter at All).
+  two-part (empty query AND Filter at All); 08 adds a View → "PATH tree…" item (disabled on
+  Backups), a proposed Ctrl+T, and the dialog's title, two buttons and two group names as
+  Catalogue strings — the Announcement set itself is unchanged by 08.
 - **Release Checklist delta** — which steps the new surfaces add (search, filter, tree, Fix Issues
   dialog, D&D if it lives), and whether any v0.1.0 steps change. Sharpens with the feature contracts.
 - **`settings.json` additions** — mostly landed. Ticket 05: Expansion Mode does **not** persist, no
@@ -130,8 +142,8 @@ In scope, but not yet sharp enough to ticket. Graduates as the frontier advances
   (`speakFilteredCount`, `filteredCountDelayMs` 0–5000, `searchEscapeReturnsFocus`), gave each a
   dialog control, established that they are ordinary field-layer members needing **no new failure
   layer**, and settled that the Search text dies with the Run. Ticket 07 answered its own
-  question — the Filter does not persist, so no field. What is left is folding all of it into
-  §13 at assembly.
+  question — the Filter does not persist, so no field. Ticket 08 adds none — the Tree View remembers
+  nothing. What is left is folding all of it into §13 at assembly.
 - **Whether v0.2.0's release mechanics need any decision at all** — scoop autoupdate and the release
   pipeline exist; possibly nothing to decide beyond version numbers. Check at assembly time.
 
