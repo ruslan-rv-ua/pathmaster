@@ -30,6 +30,13 @@ reason before then, these items ride along with it and this ticket closes early.
    or does the second cut the first off mid-word? Try it at 250 ms and at a longer delay, and record
    the shortest separation that reliably delivers both — the answer may become the delay's floor
    rather than a new setting.
+3. **A menu radio item reads its selected state** — from [07](07-filter-bar-contract.md),
+   decision 3. The Filter's seven states live as `wxITEM_RADIO` items in View → Filter, and the
+   checked item is the only place the state can be re-read. Same native-MSAA argument as item 1's
+   check items, same caveat: argument, not measurement. Probe: open View → Filter, arrow across the
+   items in both an `All` and a narrowed state — does NVDA distinguish the selected item from the
+   rest? Then switch Scope tabs with different Filters and re-open the menu: does the checked item
+   follow the active Scope?
 
 <!-- Later tickets append their obligations here. Do not run the session until they are in. -->
 

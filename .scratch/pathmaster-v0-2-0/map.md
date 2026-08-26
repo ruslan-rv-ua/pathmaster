@@ -104,6 +104,14 @@ reverse, surprising, and a genuine trade-off earns an ADR under `docs/adr/`.
   meaning); nothing persists; three flat `settings.json` fields with dialog controls
   (`speakFilteredCount`, `filteredCountDelayMs` 0–5000, `searchEscapeReturnsFocus`) and no new
   failure layer.
+- [Filter bar contract](issues/07-filter-bar-contract.md) — no severity (the PRD's Errors/Warnings
+  buttons are a recorded deviation): a **Filter** (now in `CONTEXT.md`) is an exclusive per-Scope
+  choice of seven states — All / With issues / the five Entry-level Issue types (Over-length is
+  Scope-level and takes no part) — living as a View → Filter submenu of `wxITEM_RADIO` items with
+  no on-window control (NVDA menu-radio proof → 16), toggled on the coarse axis by proposed Ctrl+I
+  (final key → 15), starting at All every Run with no `settings.json` field; the Catalogue grows
+  one item ("{filter}: {n} of {m} entries" pair), Announcement 1's condition becomes two-part
+  (empty query AND Filter at All), and StatusBar field 0 names the state when narrowed.
 
 In scope, but not yet sharp enough to ticket. Graduates as the frontier advances.
 
@@ -111,15 +119,19 @@ In scope, but not yet sharp enough to ticket. Graduates as the frontier advances
   final accelerator table (Ctrl+F, Alt+T, Ctrl+C, F1 and whatever the tickets add), and the final
   closed Announcement set with exact wording in both languages. Sharpens only once each feature's
   command surface is decided; lands in the locked-spec assembly ticket unless it grows into its own.
-  Fixed so far: 05's pair (item 8) and 06's six msgids (items 9 and 10), Search's home in View.
+  Fixed so far: 05's pair (item 8) and 06's six msgids (items 9 and 10), Search's home in View;
+  07 adds the View → Filter submenu (seven radio items, disabled on Backups), a proposed Ctrl+I
+  coarse toggle, one more count pair ("{filter}: …"), and makes Announcement 1's condition
+  two-part (empty query AND Filter at All).
 - **Release Checklist delta** — which steps the new surfaces add (search, filter, tree, Fix Issues
   dialog, D&D if it lives), and whether any v0.1.0 steps change. Sharpens with the feature contracts.
 - **`settings.json` additions** — mostly landed. Ticket 05: Expansion Mode does **not** persist, no
   field. Ticket 06 named ticket 04's three members, fixed their domains and defaults
   (`speakFilteredCount`, `filteredCountDelayMs` 0–5000, `searchEscapeReturnsFocus`), gave each a
   dialog control, established that they are ordinary field-layer members needing **no new failure
-  layer**, and settled that the Search text dies with the Run. What is left is folding all of it
-  into §13 at assembly.
+  layer**, and settled that the Search text dies with the Run. Ticket 07 answered its own
+  question — the Filter does not persist, so no field. What is left is folding all of it into
+  §13 at assembly.
 - **Whether v0.2.0's release mechanics need any decision at all** — scoop autoupdate and the release
   pipeline exist; possibly nothing to decide beyond version numbers. Check at assembly time.
 

@@ -93,9 +93,17 @@ _Avoid_: Save, Batch, Transaction, Apply-all
 An Editing Session's view of its Working Copy, narrowed to the Entries matching that Scope's Search text and
 Filter, composed with AND. Derived view state, like Issues: it reads the Working Copy and is never part of
 it — membership is recomputed whenever the Working Copy changes, it has no place in the Undo history, and
-nothing but the user's own typing in the Search and Filter controls changes the criteria. Displayed `#`
-positions are the Entries' original positions in the Working Copy.
-_Avoid_: Filter (that is the control and its criteria, not the view), Search results, Subset, Hidden rows
+nothing but the user's own narrowing actions — typing in the Search field, choosing a Filter state —
+changes the criteria. Displayed `#` positions are the Entries' original positions in the Working Copy.
+_Avoid_: Filter (that is the criteria, not the view), Search results, Subset, Hidden rows
+
+**Filter**:
+A Scope's choice of which diagnostic statuses its list shows — one of seven exclusive states:
+everything, only Entries with Issues, or only Entries flagged with one of the five Entry-level Issue
+types. Over-length flags a Scope, not an Entry, so no state selects it. One Filter per Scope, changed
+only by its View-menu commands, and every Run starts unnarrowed. Together with the Scope's Search text
+it defines the Filtered View.
+_Avoid_: Filter bar (there is no bar), Severity filter (there are no severities), Status filter
 
 **Expansion Mode**:
 Whether the list renders each Entry as stored (`%JAVA_HOME%\bin`) or with its `%VAR%` references
