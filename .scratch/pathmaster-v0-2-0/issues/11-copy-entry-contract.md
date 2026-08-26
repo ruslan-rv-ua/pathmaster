@@ -19,3 +19,11 @@ edges. With the clipboard facts from 01:
   languages; and what (if anything) is announced when there is no selection.
 - Clipboard failure (locked by another app) is real but rare: announced, or silently retried, or
   ignored? The v0.1.0 failure-taxonomy style says name it or rule it out loud.
+
+## Input from ticket 05 (2026-08-26)
+
+Expansion Mode (app-wide raw/expanded rendering, `CONTEXT.md`) is decided; copy-raw vs
+copy-as-shown stays this ticket's call. Finding to weigh, from
+[research/05](../research/05-var-expansion-best-practices.md) (cross-cutting): every strong
+analogue binds extraction and mutation to the raw text — Excel copies the formula and its Replace
+operates on formulas only, while display stays a read-only projection.

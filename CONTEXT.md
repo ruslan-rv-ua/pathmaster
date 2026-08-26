@@ -97,6 +97,15 @@ nothing but the user's own typing in the Search and Filter controls changes the 
 positions are the Entries' original positions in the Working Copy.
 _Avoid_: Filter (that is the control and its criteria, not the view), Search results, Subset, Hidden rows
 
+**Expansion Mode**:
+Whether the list renders each Entry as stored (`%JAVA_HOME%\bin`) or with its `%VAR%` references
+expanded (`C:\jdk21\bin`) through the same reading Normalisation uses — unknown names stay literal,
+and the Value Type never conditions it. One mode for the whole application, never per Scope, and
+derived view state like a Filtered View: it reads the Working Copy and never changes it, sits outside
+the Undo history, and every Run starts raw. Editing always works on the raw text whatever the mode
+shows.
+_Avoid_: Display mode, Expanded view, Resolved paths, Toggle (that is the command, not the state)
+
 ### Diagnosis and recovery
 
 **Issue**:

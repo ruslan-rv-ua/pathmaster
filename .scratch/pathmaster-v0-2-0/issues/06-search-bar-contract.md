@@ -26,3 +26,13 @@ return. The filtered-view semantics (03), the NVDA mechanism verdict (04) and th
 - Per-Scope or shared: does switching tabs keep, share, or clear the search text (03 sets the frame;
   this ticket sets the value).
 - Does search state survive Refresh, Restore, Apply?
+
+## Input from ticket 05 (2026-08-26)
+
+Expansion Mode is decided: app-wide, per-Run, display expands via Normalisation's own reading.
+On search-over-which-text, [research/05](../research/05-var-expansion-best-practices.md) Q5
+recommends matching the **currently displayed** rendering, so the spoken count equals the rows the
+user will hear (raw-matching in expanded mode produces audibly inexplicable hits); Excel's
+dual-mode Find is an explicit user choice defaulting to raw, and its Replace binds to raw only.
+Consequence to weigh here: if search matches displayed text, toggling the mode recomputes Filtered
+View membership.

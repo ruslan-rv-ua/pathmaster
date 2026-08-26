@@ -82,6 +82,15 @@ reverse, surprising, and a genuine trade-off earns an ADR under `docs/adr/`.
   reads, ESC clear-and-return works; speak-count (default on), ESC-to-list (default on) and debounce
   delay (default minimal, 250 ms) become `settings.json` settings — names, wording and taxonomy to
   tickets 06/15.
+- [%VAR% expansion display toggle](issues/05-var-expansion-toggle.md) — **Expansion Mode** (now in
+  `CONTEXT.md`): app-wide, per-Run (every Run starts raw; no settings field), view state outside
+  dirty/Checkpoint/Undo; undefined `%VAR%` stays literal via Normalisation's own reading (no new
+  Issue type — the PRD's "Warning" marker is a recorded deviation); Edit/Add always carry raw, list
+  unchanged mid-dialog; expansion unconditional regardless of Value Type; the Announcement catalogue
+  grows to eight ("Showing expanded values"/"Showing raw values" — «Показано розгорнуті значення»/
+  «Показано збережені значення»); state carried by a checked View menu item, with the
+  NVDA-reads-checked **verification obligation attached to the next NVDA prototype session**;
+  search-over-what and copy-what handed to 06/11 as input.
 - [Filtered view semantics](issues/03-filtered-view-semantics.md) — a **Filtered View** (now in `CONTEXT.md`) is derived, per-Scope view state, like Issues: outside the Undo history, changed only by the user's own typing; Edit/Delete/Copy act on the focused visible Entry while all reorder (D&D included, if it lives) and Add are disabled; membership recomputes live after every Working-Copy change; focus falls concerned-Entry → same-position → last-visible → empty list, with no new Announcements; `#` keeps original positions and Search+Filter compose with AND, both confirmed.
 
 ## Not yet specified
@@ -94,10 +103,11 @@ In scope, but not yet sharp enough to ticket. Graduates as the frontier advances
   command surface is decided; lands in the locked-spec assembly ticket unless it grows into its own.
 - **Release Checklist delta** — which steps the new surfaces add (search, filter, tree, Fix Issues
   dialog, D&D if it lives), and whether any v0.1.0 steps change. Sharpens with the feature contracts.
-- **`settings.json` additions** — whether filter state, expansion mode or search text persist across
-  runs, and what that does to the settings failure taxonomy. Sharpens per feature. Ticket 04 already
-  fixed three members with defaults (speak result count: on; ESC-to-list: on; debounce: 250 ms);
-  their names, ranges and taxonomy consequences land with ticket 06 and assembly.
+- **`settings.json` additions** — whether filter state or search text persist across runs, and what
+  that does to the settings failure taxonomy. Sharpens per feature. Ticket 04 already fixed three
+  members with defaults (speak result count: on; ESC-to-list: on; debounce: 250 ms); their names,
+  ranges and taxonomy consequences land with ticket 06 and assembly. Ticket 05 settled expansion
+  mode: it does **not** persist — no field.
 - **Whether v0.2.0's release mechanics need any decision at all** — scoop autoupdate and the release
   pipeline exist; possibly nothing to decide beyond version numbers. Check at assembly time.
 
