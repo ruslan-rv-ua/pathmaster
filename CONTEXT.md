@@ -213,8 +213,10 @@ _Avoid_: Smoke test, Health check, Precondition (too generic — this is one spe
 **Data Directory**:
 The single place the application writes: a directory beside the executable, holding the settings, the
 Snapshots and the log. It is located from the executable itself rather than from the path the process was
-launched through, so it follows the binary wherever a launcher, shim or package manager points at it. Nothing
-the application writes lives anywhere else, and there is no setting that moves it.
+launched through, so it follows the binary wherever a launcher, shim or package manager points at it — unless
+a single Run was pointed elsewhere by the `--data-dir` command-line switch, which carries the location for
+that Run only and remembers nothing. Nothing the application writes lives anywhere else, and there is no
+setting that moves it.
 _Avoid_: Data folder, App data, Working directory, Install directory
 
 **Read-only Data**:
