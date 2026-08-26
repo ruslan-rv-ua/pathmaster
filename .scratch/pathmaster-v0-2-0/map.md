@@ -140,6 +140,16 @@ reverse, surprising, and a genuine trade-off earns an ADR under `docs/adr/`.
   provider), redundant beside the shipped Move Up/Down, all-bespoke in wxdragon, never promised in
   the README, and absent from Windows' own PATH editor; the delta-spec records the cut as a
   decision, not an omission.
+- [Ctrl+C copy entry contract](issues/11-copy-entry-contract.md) — **copy-what-is-shown**: the
+  focused visible Entry's currently displayed rendering (raw in raw mode, expanded in expanded —
+  the PRD's "raw" amended the same way 06 amended Search), exact fidelity, no added quotes, always
+  exactly one Entry (single-select reaffirmed); Edit → Copy with `\tCtrl+C`, disabled on Backups
+  via `session: None`, frame-wide — wxMSW text entries claim Ctrl+C before accelerators (pinned
+  3.3.3 source), so the Search field needs no app-side scoping; Announcement 13 "Copied to
+  clipboard" / «Скопійовано до буфера обміну», Announcement 14 "Could not copy to clipboard" /
+  «Не вдалося скопіювати до буфера обміну» spoken immediately on a failed `set_text` (no retry),
+  silent no-op with no selection (Edit/Delete precedent), `flush()` best-effort after success so
+  the copy outlives the Run; no settings field, no new NVDA obligation.
 
 In scope, but not yet sharp enough to ticket. Graduates as the frontier advances.
 
@@ -155,9 +165,11 @@ In scope, but not yet sharp enough to ticket. Graduates as the frontier advances
   Catalogue strings — the Announcement set itself is unchanged by 08; 09 adds an Edit →
   "Fix issues…" item (disabled on Backups; accelerator open), the dialog's Scope-naming title, two
   buttons, four column headers and two action strings as Catalogue entries, and Announcement 12
-  ("Fixed {n} entries" pair, plural by {n}).
+  ("Fixed {n} entries" pair, plural by {n}); 11 adds an Edit → Copy item carrying Ctrl+C (disabled
+  on Backups; no Ctrl+Insert twin) and Announcements 13/14 ("Copied to clipboard" / "Could not
+  copy to clipboard" pairs, no placeholders) — the set reaches fourteen.
 - **Release Checklist delta** — which steps the new surfaces add (search, filter, tree, Fix Issues
-  dialog; D&D died in ticket 10), and whether any v0.1.0
+  dialog, Ctrl+C copy with its two Announcements; D&D died in ticket 10), and whether any v0.1.0
   steps change. Sharpens with the feature contracts.
 - **`settings.json` additions** — mostly landed. Ticket 05: Expansion Mode does **not** persist, no
   field. Ticket 06 named ticket 04's three members, fixed their domains and defaults
@@ -165,8 +177,9 @@ In scope, but not yet sharp enough to ticket. Graduates as the frontier advances
   dialog control, established that they are ordinary field-layer members needing **no new failure
   layer**, and settled that the Search text dies with the Run. Ticket 07 answered its own
   question — the Filter does not persist, so no field. Ticket 08 adds none — the Tree View remembers
-  nothing. Ticket 09 adds none — nothing about the Fix Issues dialog persists. What is left is
-  folding all of it into §13 at assembly.
+  nothing. Ticket 09 adds none — nothing about the Fix Issues dialog persists. Ticket 11 adds
+  none — nothing about Copy persists or configures. What is left is folding all of it into §13 at
+  assembly.
 - **Whether v0.2.0's release mechanics need any decision at all** — scoop autoupdate and the release
   pipeline exist; possibly nothing to decide beyond version numbers. Check at assembly time.
 
