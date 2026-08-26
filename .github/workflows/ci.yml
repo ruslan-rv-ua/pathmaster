@@ -21,7 +21,10 @@ jobs:
       # libclang.dll is not discoverable without this (research/04).
       LIBCLANG_PATH: C:\Program Files\LLVM\bin
     steps:
-      - uses: actions/checkout@v4
+      # Pinned by commit, with the tag in the comment, the way release.yml pins: a moving
+      # major tag is a third party's write access to this workflow. It also stops the
+      # silent drift that put this file two majors behind release.yml on the same action.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Load-bearing: wxdragon-sys hardcodes the Ninja CMake generator on x64 MSVC.
       - name: Install Ninja
@@ -39,7 +42,7 @@ jobs:
       # The wxWidgets static libs (~450 MB) sit at the profile root of the target dir
       # and dominate cold-build time — cache the whole build tree.
       - name: Cache build tree
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: C:\t
           key: build-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
