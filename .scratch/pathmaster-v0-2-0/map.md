@@ -75,6 +75,7 @@ reverse, surprising, and a genuine trade-off earns an ADR under `docs/adr/`.
 <!-- one line per resolved ticket: gist + link. Charting-time constraints live in Notes, not here. -->
 
 - [wxdragon widget surface for v0.2.0](issues/01-wxdragon-widget-surface-v0-2-0.md) — TreeCtrl (native SysTreeView32), SearchCtrl (generic composite on MSW), Clipboard, RadioButton/ToggleButton, Freeze/Thaw, DropSource/Text-FileDropTarget and LIST_BEGIN_DRAG are all bound in the pinned 0.9.18; ListCtrl checkboxes are NOT (raw `LVM_*` via `get_handle()` is the hatch, check *events* unreceivable through wxdragon), no row-hiding exists (rebuild or bound Virtual mode), no reorder-drag helper exists anywhere; 0.9.20 fixes a `get_item_text` UTF-8 truncation bug present in 0.9.18.
+- [Command surface: does v0.2.0 grow a toolbar?](issues/02-command-surface-no-toolbar-question.md) — No toolbar (spec §12 stands; the PRD's three toolbar placements are recorded deviations); the menu bar becomes File / Edit / **View** / Tools / Help, with view-state commands in View and Working-Copy commands in Edit; exact items, accelerators and mnemonics stay fogged until the feature contracts and assembly (15).
 
 ## Not yet specified
 
