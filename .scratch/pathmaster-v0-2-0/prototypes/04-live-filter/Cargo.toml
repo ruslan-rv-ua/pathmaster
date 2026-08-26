@@ -1,0 +1,25 @@
+# THROWAWAY PROTOTYPE — wayfinder v0.2.0 ticket 04 (live-filtered list under NVDA).
+# Exists only to be listened to with NVDA. Delete once ticket 04 is resolved.
+[package]
+name = "nvda-live-filter-prototype"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+# Same pin as the app (>= 0.9.17 per v0.1.0 ticket 01; 0.9.18 is what the app resolves).
+wxdragon = "0.9.18"
+# The announcement voice: NotifyWinEvent(EVENT_OBJECT_LIVEREGIONCHANGED), same route
+# and same crate/features as the app's announce.rs.
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_UI_Accessibility",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[[bin]]
+name = "nvda-live-filter"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = 2

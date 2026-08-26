@@ -76,6 +76,12 @@ reverse, surprising, and a genuine trade-off earns an ADR under `docs/adr/`.
 
 - [wxdragon widget surface for v0.2.0](issues/01-wxdragon-widget-surface-v0-2-0.md) — TreeCtrl (native SysTreeView32), SearchCtrl (generic composite on MSW), Clipboard, RadioButton/ToggleButton, Freeze/Thaw, DropSource/Text-FileDropTarget and LIST_BEGIN_DRAG are all bound in the pinned 0.9.18; ListCtrl checkboxes are NOT (raw `LVM_*` via `get_handle()` is the hatch, check *events* unreceivable through wxdragon), no row-hiding exists (rebuild or bound Virtual mode), no reorder-drag helper exists anywhere; 0.9.20 fixes a `get_item_text` UTF-8 truncation bug present in 0.9.18.
 - [Command surface: does v0.2.0 grow a toolbar?](issues/02-command-surface-no-toolbar-question.md) — No toolbar (spec §12 stands; the PRD's three toolbar placements are recorded deviations); the menu bar becomes File / Edit / **View** / Tools / Help, with view-state commands in View and Working-Copy commands in Edit; exact items, accelerators and mnemonics stay fogged until the feature contracts and assembly (15).
+- [Live-filtered list under NVDA](issues/04-live-filter-nvda-prototype.md) — proven against real
+  NVDA: rebuilding rows under an unfocused list is silent (plain DeleteAllItems+reinsert; Freeze/Thaw
+  dropped), the debounced count speaks reliably through the v0.1.0 mechanism, Tab/Down lands and
+  reads, ESC clear-and-return works; speak-count (default on), ESC-to-list (default on) and debounce
+  delay (default minimal, 250 ms) become `settings.json` settings — names, wording and taxonomy to
+  tickets 06/15.
 
 ## Not yet specified
 
@@ -88,7 +94,9 @@ In scope, but not yet sharp enough to ticket. Graduates as the frontier advances
 - **Release Checklist delta** — which steps the new surfaces add (search, filter, tree, Fix Issues
   dialog, D&D if it lives), and whether any v0.1.0 steps change. Sharpens with the feature contracts.
 - **`settings.json` additions** — whether filter state, expansion mode or search text persist across
-  runs, and what that does to the settings failure taxonomy. Sharpens per feature.
+  runs, and what that does to the settings failure taxonomy. Sharpens per feature. Ticket 04 already
+  fixed three members with defaults (speak result count: on; ESC-to-list: on; debounce: 250 ms);
+  their names, ranges and taxonomy consequences land with ticket 06 and assembly.
 - **Whether v0.2.0's release mechanics need any decision at all** — scoop autoupdate and the release
   pipeline exist; possibly nothing to decide beyond version numbers. Check at assembly time.
 
