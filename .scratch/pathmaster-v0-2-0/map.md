@@ -122,6 +122,18 @@ reverse, surprising, and a genuine trade-off earns an ADR under `docs/adr/`.
   and Issue suffix only-when-present; "Go to entry" (default, leaf-only) + Cancel; no live
   diagnostics, no new Announcements, no settings, fallback branch closed (native SysTreeView32
   confirmed); three NVDA obligations → 16.
+- [Fix Issues dialog contract](issues/09-fix-issues-dialog-contract.md) — **Fix Issues** (now in
+  `CONTEXT.md`) is a modal, per-Scope repair surface over the active Scope's fixable Entry-level
+  Issues: one row per flagged Entry (# / raw Path / Issue / Action, native `LVS_EX_CHECKBOXES` via
+  01's hatch, state read at apply time), delete for Missing/Duplicate/Empty, one safe repair —
+  remove every `"` — for Quoted; Relative-only and Over-length excluded by name. Disk-Cleanup
+  defaults (safe rows on; Missing off when the raw text carries `%VAR%` or the root is non-Fixed;
+  the PRD's network row reconciles to nothing — never probed). One Checkpoint in the active
+  Session ("Fixing issues"); [Fix selected]/[Cancel] — "Apply" banned from the label; Announcement
+  12 "Fixed {n} entries" (zero checked = Cancel, focus then Announcement, Delete's focus law);
+  Edit → "Fix issues…" enabled iff ≥ 1 fixable row ∧ writable Session; staleness by
+  generation-stamped passes (build only from a current-generation pass, apply by Entry id under
+  modality). NVDA checkbox proof → 16; strings/keys → 15; no settings field.
 
 In scope, but not yet sharp enough to ticket. Graduates as the frontier advances.
 
@@ -134,7 +146,10 @@ In scope, but not yet sharp enough to ticket. Graduates as the frontier advances
   coarse toggle, one more count pair ("{filter}: …"), and makes Announcement 1's condition
   two-part (empty query AND Filter at All); 08 adds a View → "PATH tree…" item (disabled on
   Backups), a proposed Ctrl+T, and the dialog's title, two buttons and two group names as
-  Catalogue strings — the Announcement set itself is unchanged by 08.
+  Catalogue strings — the Announcement set itself is unchanged by 08; 09 adds an Edit →
+  "Fix issues…" item (disabled on Backups; accelerator open), the dialog's Scope-naming title, two
+  buttons, four column headers and two action strings as Catalogue entries, and Announcement 12
+  ("Fixed {n} entries" pair, plural by {n}).
 - **Release Checklist delta** — which steps the new surfaces add (search, filter, tree, Fix Issues
   dialog, D&D if it lives), and whether any v0.1.0 steps change. Sharpens with the feature contracts.
 - **`settings.json` additions** — mostly landed. Ticket 05: Expansion Mode does **not** persist, no
@@ -143,7 +158,8 @@ In scope, but not yet sharp enough to ticket. Graduates as the frontier advances
   dialog control, established that they are ordinary field-layer members needing **no new failure
   layer**, and settled that the Search text dies with the Run. Ticket 07 answered its own
   question — the Filter does not persist, so no field. Ticket 08 adds none — the Tree View remembers
-  nothing. What is left is folding all of it into §13 at assembly.
+  nothing. Ticket 09 adds none — nothing about the Fix Issues dialog persists. What is left is
+  folding all of it into §13 at assembly.
 - **Whether v0.2.0's release mechanics need any decision at all** — scoop autoupdate and the release
   pipeline exist; possibly nothing to decide beyond version numbers. Check at assembly time.
 

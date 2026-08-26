@@ -131,6 +131,16 @@ exist, and so on. Issues are derived from a Working Copy and recomputed whenever
 part of it.
 _Avoid_: Error, Warning, Problem (those name severity, not the finding), Diagnostic
 
+**Fix Issues**:
+A modal, per-Scope repair surface: one row for each of the active Scope's Entries whose Issues it
+can act on, each carrying one proposed action — deleting the Entry, or removing its quotes — chosen
+by what the Entry is flagged with. Applying the checked rows changes only the Working Copy, as one
+operation and one Checkpoint; nothing reaches the registry. Entries flagged only Relative and the
+Scope-level Over-length take no part — the first has no repair a tool may guess at, the second has
+its own surface.
+_Avoid_: Auto-fix (the user chooses every row), Cleanup, Repair wizard, Apply Selected (Apply is
+the registry write)
+
 **Snapshot**:
 One saved copy of a single Scope's value, written to a file before that Scope is applied and restorable
 later — a JSON file recording the Scope and either its Entries with the Value Type they were stored under,

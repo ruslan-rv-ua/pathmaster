@@ -53,6 +53,16 @@ reason before then, these items ride along with it and this ticket closes early.
    columns, as v0.1.0 proved for focus changes) with no dead silence and no dialog-title residue —
    and after Cancel/Esc, does it speak the restored focus position?
 
+7. **A listview checkbox row reads its state, and Space announces the toggle** — from
+   [09](09-fix-issues-dialog-contract.md), decision 6. The Fix Issues dialog's checkboxes are
+   native `LVS_EX_CHECKBOXES` state images enabled through the raw-`LVM_*` hatch; comctl32 exposes
+   the check state via MSAA, and both NVDA failures research found are non-native controls
+   (CCleaner's DirectUI list, a web date-picker) — argument, not measurement. Probe: arrow across
+   checked and unchecked rows — does NVDA speak "checked"/"not checked" along with the row's
+   columns? Press Space on a row — is the new state announced without leaving the row? And since
+   no check events reach the app through wxdragon, confirm Space still toggles the native state
+   image at all with the wx event layer silent.
+
 <!-- Later tickets append their obligations here. Do not run the session until they are in. -->
 
 Ends in a real verdict from the user. The prototype is thrown away; findings are recorded in the
