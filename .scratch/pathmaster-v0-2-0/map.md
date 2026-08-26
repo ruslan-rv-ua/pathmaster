@@ -82,6 +82,7 @@ reverse, surprising, and a genuine trade-off earns an ADR under `docs/adr/`.
   reads, ESC clear-and-return works; speak-count (default on), ESC-to-list (default on) and debounce
   delay (default minimal, 250 ms) become `settings.json` settings — names, wording and taxonomy to
   tickets 06/15.
+- [Filtered view semantics](issues/03-filtered-view-semantics.md) — a **Filtered View** (now in `CONTEXT.md`) is derived, per-Scope view state, like Issues: outside the Undo history, changed only by the user's own typing; Edit/Delete/Copy act on the focused visible Entry while all reorder (D&D included, if it lives) and Add are disabled; membership recomputes live after every Working-Copy change; focus falls concerned-Entry → same-position → last-visible → empty list, with no new Announcements; `#` keeps original positions and Search+Filter compose with AND, both confirmed.
 
 ## Not yet specified
 

@@ -89,6 +89,14 @@ it applied: the external-change dialog's middle answer adopts the value that was
 ([ADR-0008](docs/adr/0008-apply-sequence-lives-in-platform.md)).
 _Avoid_: Save, Batch, Transaction, Apply-all
 
+**Filtered View**:
+An Editing Session's view of its Working Copy, narrowed to the Entries matching that Scope's Search text and
+Filter, composed with AND. Derived view state, like Issues: it reads the Working Copy and is never part of
+it — membership is recomputed whenever the Working Copy changes, it has no place in the Undo history, and
+nothing but the user's own typing in the Search and Filter controls changes the criteria. Displayed `#`
+positions are the Entries' original positions in the Working Copy.
+_Avoid_: Filter (that is the control and its criteria, not the view), Search results, Subset, Hidden rows
+
 ### Diagnosis and recovery
 
 **Issue**:
