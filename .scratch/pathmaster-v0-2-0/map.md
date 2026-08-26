@@ -150,6 +150,47 @@ reverse, surprising, and a genuine trade-off earns an ADR under `docs/adr/`.
   «Не вдалося скопіювати до буфера обміну» spoken immediately on a failed `set_text` (no retry),
   silent no-op with no selection (Edit/Delete precedent), `flush()` best-effort after success so
   the copy outlives the Run; no settings field, no new NVDA obligation.
+- [F1 and Help → Documentation](issues/12-f1-help-documentation.md) — a **User Guide** (now in
+  `CONTEXT.md`): one page per Interface Language, written as two purpose-written user-facing
+  Markdown documents (`docs/help/en.md`, `docs/help/uk.md` — **not** the README, whose badges would
+  make a local help page phone `img.shields.io`), converted at build time by `pulldown-cmark` the
+  way `polib` already makes `.mo`, embedded, and **overwritten unconditionally** into
+  `data\help.html` on every open before the shell hands it to the browser — so staleness is
+  structurally impossible, which "write only if missing" is not (scoop persists `data\`). Write
+  failure → the version-pinned GitHub URL plus a `WARN` line; no network → the browser's own
+  offline page; **no Announcement on any rung**, because every rung opens the browser. Menu home
+  Help → "&User Guide" / «Посібник користувача(&U)» carrying `\tF1`, first with About last, no
+  `…`, no separator, enabled in every state; the Help menu reaches two items (mnemonics U, A).
+  **F1 in dialogs does nothing**, decided rather than defaulted. The page sets **no colours** —
+  `color-scheme: light dark` and layout only — plus `lang` and a version-carrying `<title>`.
+  Drift gated twice: a Checklist step against the product, a heading-parity `#[test]` between the
+  languages; generating the keyboard table from the menus' own source is recorded as not bought.
+  CHM, eWriter/MSHC, `wxHtmlWindow`, `%TEMP%`, shell-opening `.md` and F1 → About are ruled out by
+  name. No settings field, no ADR.
+- [--data-dir switch](issues/13-data-dir-switch.md) — the switch substitutes **only the locate step**
+  of the v0.1.0 startup tree: both `--data-dir <path>` and `=` spellings (space form canonical;
+  trailing quote/separator artifacts stripped first), relative paths resolved against the **CWD**
+  once at startup into the absolute path every surface then uses, a missing directory created like
+  the default one, and any unusable target → **Read-only Data via a fourth reason naming the
+  switch** — never a fallback to the default `data\`. Elevation (and any future self-relaunch)
+  re-serializes `--tab <active> --data-dir <resolved>` through one ArgvQuote writer/reader type in
+  `pathmaster-platform`, unknown arguments dying at the boundary. Whole-app argument posture decided
+  incidentally: unknown switch → dialog-and-continue with a shared usage line + one `WARN`;
+  valueless `--data-dir` → the fourth reason; `--tab` leniency untouched; `--help`/`-?` → the same
+  usage line in a dialog, then exit. Documented in the README and a User Guide "Command line"
+  subsection; the startup log line gains `dataDir:` on override Runs; one sentence amends
+  CONTEXT.md's Data Directory (no new term); no ADR, no settings field, no new Announcement.
+- [Making the UI's borrow discipline structural](issues/14-structural-borrow-discipline.md) —
+  **scoped access + one modal door**, decided in ADR-0011 (written): every cell reached by more
+  than one kind of call (command / tick / synchronous callback) goes behind a `with`/`with_mut`
+  wrapper whose guard cannot escape; one Drop-guarded modal-depth door that every `show_modal`
+  passes through (source-scan `#[test]` enforces it), with the Timer's tick handler inert while
+  depth > 0 — the Timer itself keeps firing, preserving `Pump`'s self-healing. Full retrofit of
+  all ~47 existing sites lands as the **first implementation ticket**, before any new surface;
+  the `App` doc comment is deleted. Full Elm dispatch, copy-out and GhostCell rejected by name.
+  Hands 15/impl one hard constraint: the Search debounce timer must own a non-Frame widget
+  (wxdragon binds `on_tick` on the owner, no id filter). No menu item, no Announcement, no
+  settings field, no CONTEXT.md term.
 
 In scope, but not yet sharp enough to ticket. Graduates as the frontier advances.
 
@@ -167,10 +208,29 @@ In scope, but not yet sharp enough to ticket. Graduates as the frontier advances
   buttons, four column headers and two action strings as Catalogue entries, and Announcement 12
   ("Fixed {n} entries" pair, plural by {n}); 11 adds an Edit → Copy item carrying Ctrl+C (disabled
   on Backups; no Ctrl+Insert twin) and Announcements 13/14 ("Copied to clipboard" / "Could not
-  copy to clipboard" pairs, no placeholders) — the set reaches fourteen.
+  copy to clipboard" pairs, no placeholders) — the set reaches fourteen; 12 adds a Help →
+  "&User Guide" / «Посібник користувача(&U)» item carrying F1, first in its menu with About last
+  (mnemonics U and A, no separator, no `…`, enabled in every state), and **no** Announcement — the
+  set stays at fourteen; 13 adds no menu item and no Announcement either (the set holds at
+  fourteen), but grows the Catalogue by the fourth Read-only reason pair, the unknown-argument
+  dialog title, the shared usage line and the `--help` dialog title; 14 adds nothing to menus,
+  Announcements or the Catalogue — its contribution to 15 is a sequencing constraint (the
+  mechanism retrofit is the first implementation ticket) and the debounce-timer-owner rule. Steps
+  31, B12 and the mnemonic gate are voided by the menu growth and are 15's to re-run once, for
+  all of it together.
 - **Release Checklist delta** — which steps the new surfaces add (search, filter, tree, Fix Issues
   dialog, Ctrl+C copy with its two Announcements; D&D died in ticket 10), and whether any v0.1.0
-  steps change. Sharpens with the feature contracts.
+  steps change. Sharpens with the feature contracts. Ticket 12 has named its eight: the two-item
+  Help menu, F1 opening the browser onto a title NVDA speaks, `data\help.html` present and in the
+  Interface Language, rewritten after a language change with no orphan, restored after deletion,
+  the unwritable-`data\` run falling to the online URL with one `WARN` line, F1 silent in a dialog,
+  and the item available on Backups and in Read-only Data. Ticket 13 names its seven: a fresh-path
+  `--data-dir` launch creates the directory there with `data\` beside the exe untouched, a relative
+  path resolves against the shell's CWD, an unusable target speaks the fourth Read-only reason and
+  writes nothing anywhere, "Restart as Administrator" during an override Run with a spaced path
+  lands the elevated instance in the same directory, an unknown argument shows the dialog and the
+  app continues with one `WARN` line, `--help` shows the usage dialog and exits, and the startup
+  log line carries `dataDir:` on override Runs.
 - **`settings.json` additions** — mostly landed. Ticket 05: Expansion Mode does **not** persist, no
   field. Ticket 06 named ticket 04's three members, fixed their domains and defaults
   (`speakFilteredCount`, `filteredCountDelayMs` 0–5000, `searchEscapeReturnsFocus`), gave each a
@@ -178,8 +238,11 @@ In scope, but not yet sharp enough to ticket. Graduates as the frontier advances
   layer**, and settled that the Search text dies with the Run. Ticket 07 answered its own
   question — the Filter does not persist, so no field. Ticket 08 adds none — the Tree View remembers
   nothing. Ticket 09 adds none — nothing about the Fix Issues dialog persists. Ticket 11 adds
-  none — nothing about Copy persists or configures. What is left is folding all of it into §13 at
-  assembly.
+  none — nothing about Copy persists or configures. Ticket 12 adds none either — the User Guide is
+  neither configurable nor remembered, though it does add a **fourth file to `data\`**
+  (`help.html`), so §3's and the README's by-name inventory of that directory grow by one. Ticket 13
+  adds none by construction — the switch is per-launch and remembers nothing (ADR-0002). What is
+  left is folding all of it into §13 at assembly.
 - **Whether v0.2.0's release mechanics need any decision at all** — scoop autoupdate and the release
   pipeline exist; possibly nothing to decide beyond version numbers. Check at assembly time.
 
