@@ -185,6 +185,14 @@ or from the system when they have made none. Like Read-only Data it is a propert
 Scope, and it never changes while the application is running.
 _Avoid_: Locale (that is the system's, not ours), Language setting, Culture
 
+**User Guide**:
+The single-page document the application carries for the person **using** it — one per Interface
+Language, embedded in the executable and written fresh into the Data Directory each time it is opened,
+then handed to the browser, which is the only reading surface that offers navigation by heading. It is
+never the README (that is the front door for someone *choosing* the application) and never a set of
+topics: one page, so one list of headings and one search.
+_Avoid_: Help file, Documentation, Manual, Help topic, CHM
+
 ### Verification
 
 **Release Checklist**:
