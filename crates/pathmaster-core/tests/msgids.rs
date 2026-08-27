@@ -177,6 +177,10 @@ fn the_registry_holds_the_strings_the_shell_shows() {
         pathmaster_core::msgids::READONLY_REASON_OWN_LOCATION_UNKNOWN,
         pathmaster_core::msgids::READONLY_REASON_CANNOT_CREATE,
         pathmaster_core::msgids::READONLY_REASON_NOT_WRITABLE,
+        pathmaster_core::msgids::READONLY_REASON_OVERRIDE_UNUSABLE,
+        pathmaster_core::msgids::DIALOG_UNKNOWN_ARGUMENT,
+        pathmaster_core::msgids::DIALOG_COMMAND_LINE,
+        pathmaster_core::msgids::USAGE,
     ] {
         assert!(
             REGISTRY

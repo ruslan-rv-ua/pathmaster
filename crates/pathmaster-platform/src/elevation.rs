@@ -1,13 +1,22 @@
 //! Elevation: detection, and the whole-app relaunch that is the only way into
 //! it (spec §9, ADR-0005).
 //!
-//! The relaunch carries **one argument across the process boundary — the
-//! active tab, nothing else** (ticket 12 D5). Sessions are dead at the
-//! boundary and stay dead; [`StartTab`] is both the writer and the reader of
-//! that argument, so the two instances cannot drift apart about its spelling.
+//! The relaunch carries **the active tab and this Run's Data Directory
+//! override, and nothing else** (ticket 12 D5; v0.2.0 §10). Sessions are dead
+//! at the boundary and stay dead. The tab is where the user was; the override
+//! is where this Run writes, and it has to cross or the elevated instance
+//! silently writes somewhere else — which is the general rule, not a fact about
+//! elevation: **any future self-relaunch carries the override**.
+//!
+//! What crosses is built by [`CommandLine::relaunch`] out of *parsed state*,
+//! never out of this process's own command-line tail — see there for why the
+//! resolved absolute path is the only spelling that can make the trip.
 
 use std::mem;
 use std::os::windows::ffi::OsStrExt;
+
+use crate::args::{CommandLine, StartTab};
+use crate::datadir::Location;
 
 use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, ERROR_CANCELLED, HANDLE};
 use windows_sys::Win32::Security::{
@@ -44,48 +53,6 @@ pub fn is_elevated() -> bool {
     }
 }
 
-/// The tab the user left, named for the relaunch's one argument (ticket 12
-/// D5). It is a *tab* and not a Scope because the Backups tab is one of the
-/// places the user can be — `CONTEXT.md` keeps "Tab" off **Scope** for
-/// exactly this reason.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StartTab {
-    User,
-    System,
-    Backups,
-}
-
-impl StartTab {
-    /// Every tab, for the callers that search rather than match — the reader
-    /// below, and the window's inverse lookup.
-    pub const ALL: [StartTab; 3] = [StartTab::User, StartTab::System, StartTab::Backups];
-
-    /// The value the spawner writes after `--tab`. [`from_args`](Self::from_args)
-    /// reads by searching this same function over [`ALL`](Self::ALL), so the
-    /// pair round-trips by construction — there is no second spelling to
-    /// drift.
-    pub fn argument(self) -> &'static str {
-        match self {
-            StartTab::User => "user",
-            StartTab::System => "system",
-            StartTab::Backups => "backups",
-        }
-    }
-
-    /// The tab a command line asks to open on: the value after the first
-    /// `--tab`, if it is one this application's own spawner writes.
-    ///
-    /// Anything else — no `--tab`, a bare one, a value nothing writes — is
-    /// `None`, never a guess: the caller's default (the User tab, the same
-    /// one a plain launch opens on) is a better answer than a misreading.
-    pub fn from_args(args: impl IntoIterator<Item = String>) -> Option<StartTab> {
-        let mut args = args.into_iter();
-        args.find(|arg| arg == "--tab")?;
-        let value = args.next()?;
-        Self::ALL.into_iter().find(|tab| tab.argument() == value)
-    }
-}
-
 /// Why the elevated instance did not start. The first variant is the one the
 /// spec names (§9): the user answered the UAC prompt with No, and silence
 /// after a security prompt is treated as a defect — the caller owes a dialog.
@@ -104,15 +71,16 @@ pub enum RelaunchFailure {
 }
 
 /// Relaunches this executable elevated — `ShellExecuteEx("runas")` on the
-/// current exe with `--tab <active>`, the one argument that crosses the
-/// boundary (ADR-0005). On `Ok` the elevated instance is up and the caller's
-/// contract is to exit; on `Err` nothing was spawned and this instance keeps
-/// running.
+/// current exe with the line [`CommandLine::relaunch`] builds (ADR-0005;
+/// v0.2.0 §10). On `Ok` the elevated instance is up and the caller's contract
+/// is to exit; on `Err` nothing was spawned and this instance keeps running.
 ///
 /// The exe path is asked for here, not taken from the caller: the relaunch
 /// must aim at the binary this process is actually running, the same answer
-/// `main` located the Data Directory from.
-pub fn relaunch_elevated(tab: StartTab) -> Result<(), RelaunchFailure> {
+/// `main` located the Data Directory from. `location` is the opposite — it is
+/// this Run's own decision and cannot be re-derived here, because re-deriving
+/// it is exactly what would lose a relative path's meaning.
+pub fn relaunch_elevated(tab: StartTab, location: &Location) -> Result<(), RelaunchFailure> {
     let exe = std::env::current_exe().map_err(|error| RelaunchFailure::Failed {
         os_error: error.raw_os_error(),
     })?;
@@ -120,8 +88,9 @@ pub fn relaunch_elevated(tab: StartTab) -> Result<(), RelaunchFailure> {
     // UTF-16, NUL-terminated, and alive until the call returns.
     let verb: Vec<u16> = "runas".encode_utf16().chain([0]).collect();
     let file: Vec<u16> = exe.as_os_str().encode_wide().chain([0]).collect();
-    let parameters: Vec<u16> = format!("--tab {}", tab.argument())
-        .encode_utf16()
+    let parameters: Vec<u16> = CommandLine::relaunch(tab, location)
+        .into_os_string()
+        .encode_wide()
         .chain([0])
         .collect();
 

@@ -9,7 +9,8 @@
 //! would stay English in a Ukrainian run. [`warn`] and [`inform`] are the one
 //! place a stock button survives: a lone OK carries no meaning of its own to
 //! lose. Those two are named for the only thing that differs between them —
-//! whether what they say is a warning — since their shape is identical.
+//! whether what they say is a warning — since their shape is identical, and
+//! their `_with_body` cousins differ again in one thing only.
 
 use wxdragon::prelude::*;
 
@@ -96,7 +97,18 @@ pub fn ask(parent: &dyn WxWidget, title: &str, affirmative: &str, negative: &str
 /// would have to own. The body repeats the title so the message is visible as
 /// well as spoken.
 pub fn warn(parent: &dyn WxWidget, title: &str) {
-    single_ok(parent, title, MessageDialogStyle::IconWarning);
+    single_ok(parent, title, title, MessageDialogStyle::IconWarning);
+}
+
+/// The same, with a body that is **not** a repetition of the title: the two
+/// command-line dialogs, whose body carries the usage line (v0.2.0 §10).
+///
+/// It does not break this module's rule — everything the dialog has to *say* is
+/// still in the title, because NVDA speaks no more than that. The body is a
+/// reference table for the eyes, offered at the moment someone who types
+/// arguments has just got one wrong, and the title stands alone without it.
+pub fn warn_with_body(parent: &dyn WxWidget, title: &str, body: &str) {
+    single_ok(parent, title, body, MessageDialogStyle::IconWarning);
 }
 
 /// States something that is simply true, in the same shape.
@@ -106,11 +118,17 @@ pub fn warn(parent: &dyn WxWidget, title: &str) {
 /// anything. The two are named for that difference rather than for their
 /// shape, which is identical.
 pub fn inform(parent: &dyn WxWidget, title: &str) {
-    single_ok(parent, title, MessageDialogStyle::IconInformation);
+    single_ok(parent, title, title, MessageDialogStyle::IconInformation);
 }
 
-fn single_ok(parent: &dyn WxWidget, title: &str, icon: MessageDialogStyle) {
-    let dialog = MessageDialog::builder(parent, title, title)
+/// [`inform`] with its own body — the `--help` half of the pair
+/// [`warn_with_body`] documents.
+pub fn inform_with_body(parent: &dyn WxWidget, title: &str, body: &str) {
+    single_ok(parent, title, body, MessageDialogStyle::IconInformation);
+}
+
+fn single_ok(parent: &dyn WxWidget, title: &str, body: &str, icon: MessageDialogStyle) {
+    let dialog = MessageDialog::builder(parent, body, title)
         .with_style(MessageDialogStyle::OK | icon)
         .build();
     door::show(&dialog);

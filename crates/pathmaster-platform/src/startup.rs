@@ -29,15 +29,17 @@
 //!    Session, because nothing may be written over a value that was never read.
 //!
 //! **The seam is the OS call, not the crate boundary** (ADR-0010). [`decide`]
-//! takes the located directory, the elevation answer, the system language and
-//! the two [`ScopeKey`]s — the facts a test cannot make fail — and performs
-//! everything downstream of them, which is the same shape [`datadir::decide`]
-//! and [`crate::locale::from_langid`] already have. A test then aims the whole
-//! sequence at a temporary directory, a temporary registry key and both
-//! elevation answers, without needing a privilege or a real machine.
+//! takes the [`Location`] the locate step answered with, the elevation answer,
+//! the system language and the two [`ScopeKey`]s — the facts a test cannot make
+//! fail — and performs everything downstream of them, which is the same shape
+//! [`datadir::decide`] and [`crate::locale::from_langid`] already have. A test
+//! then aims the whole sequence at a temporary directory, a temporary registry
+//! key and both elevation answers, without needing a privilege or a real
+//! machine.
 //!
 //! **What stays in `main` is assembly, not decisions.** `main` is the
-//! composition root: it calls `current_exe()` and `locate`, installs the
+//! composition root: it reads the command line, calls `current_exe()`,
+//! `current_dir()` and `locate` to assemble one [`Location`], installs the
 //! Catalogue, wraps the Sessions, opens the window and returns the exit code.
 //! Moving that here would relocate code without making anything testable, since
 //! none of it decides anything.
@@ -55,7 +57,7 @@ use pathmaster_core::logfmt::Record;
 use pathmaster_core::session::{Scope, ScopeValue, Session};
 use pathmaster_core::settings::SettingsFile;
 
-use crate::datadir::{self, DataDirState, ReadOnlyReason};
+use crate::datadir::{self, DataDirState, Location, ReadOnlyReason};
 use crate::logwriter::Logger;
 use crate::panic_hook;
 use crate::registry::{RawValue, ScopeKey};
@@ -87,6 +89,12 @@ pub struct Run {
     /// with it. Never the path only obtainable by matching `Writable`: startup
     /// predicts, Apply verifies (ADR-0002).
     data_dir: Option<PathBuf>,
+    /// Where this Run's Data Directory came from, which is not the same
+    /// question as where it is (v0.2.0 §10). Held because a self-relaunch has
+    /// to re-serialize it: the elevated instance is a fresh process with no
+    /// guaranteed current directory, and dropping this is how it would end up
+    /// writing beside the executable instead.
+    location: Location,
     /// Where the log file is, for the one record that cannot ride an outcome:
     /// the broadcast's `WARN`, appended by a thread that may still be blocked
     /// when the Apply that started it has long since returned (spec §4).
@@ -100,11 +108,12 @@ pub struct Run {
 }
 
 impl Run {
-    fn new(logger: Logger, data_dir: Option<PathBuf>, elevated: bool) -> Run {
+    fn new(logger: Logger, data_dir: Option<PathBuf>, location: Location, elevated: bool) -> Run {
         Run {
             log_path: logger.path().map(Path::to_path_buf),
             logger: RefCell::new(logger),
             data_dir,
+            location,
             elevated,
         }
     }
@@ -121,6 +130,10 @@ impl Run {
 
     pub fn log_path(&self) -> Option<&Path> {
         self.log_path.as_deref()
+    }
+
+    pub fn location(&self) -> &Location {
+        &self.location
     }
 
     pub fn elevated(&self) -> bool {
@@ -189,18 +202,21 @@ pub struct Decisions {
 /// resolve the language, decide writability, load the Sessions — and the seven
 /// rules this module's own documentation lists are the joins between them.
 ///
-/// `located` is what [`datadir::locate`] answered for this executable, which is
-/// the one call a test cannot make fail; every parameter after it is the same
-/// kind of thing. Read-only Data, an unelevated process and an unreadable Scope
-/// are all reachable from here without a privilege.
+/// `location` is what the locate step answered for this Run — `data\` beside
+/// the executable, or wherever `--data-dir` pointed it (v0.2.0 §10). Assembling
+/// it needs the two calls a test cannot make fail, `current_exe()` and
+/// `current_dir()`, so it arrives already made; every parameter after it is the
+/// same kind of thing. Read-only Data, an unelevated process, an unreadable
+/// Scope and an unusable override are all reachable from here without a
+/// privilege.
 pub fn decide(
-    located: Option<PathBuf>,
+    location: Location,
     elevated: bool,
     system_language: SystemLanguage,
     user_key: &ScopeKey,
     system_key: &ScopeKey,
 ) -> Decisions {
-    let data = datadir::decide(located);
+    let data = datadir::decide(location.clone());
 
     // Rule one. The log lives in the Data Directory, so Read-only Data is a Run
     // without a log — and an unopenable log stays a Run without a log, never
@@ -229,11 +245,16 @@ pub fn decide(
     // the workspace pins one version for all three crates: this is the binary's.
     // Should `crates/pathmaster` ever take a version of its own, this has to
     // become a parameter — nothing else would notice.
+    // The line grows a `dataDir:` tail on an override Run, and only there: the
+    // log is the only diagnostic artifact this application has, and a Run that
+    // wrote somewhere other than beside the executable is otherwise
+    // unreconstructable after the fact (v0.2.0 §10).
     let mut records = vec![Record::startup(
         env!("CARGO_PKG_VERSION"),
         elevated,
         data.log_state(),
         language.code(),
+        location.override_path(),
     )];
     // Rule four.
     let settings_unreadable = match &loaded.source {
@@ -272,7 +293,12 @@ pub fn decide(
     };
 
     Decisions {
-        run: Run::new(logger, data.dir().map(Path::to_path_buf), elevated),
+        run: Run::new(
+            logger,
+            data.dir().map(Path::to_path_buf),
+            location,
+            elevated,
+        ),
         records,
         language,
         readonly,

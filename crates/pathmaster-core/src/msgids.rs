@@ -201,14 +201,41 @@ pub const APPLY_FAILED_ACCESS_DENIED: &str = "access denied";
 pub const APPLY_FAILED_REGISTRY: &str = "the registry could not be written";
 
 /// Announcement 7 (spec §10.1): a Read-only Data run names its reason once at
-/// startup. `{reason}` is itself Catalogue text — one of the three §3 reasons
+/// startup. `{reason}` is itself Catalogue text — one of the four reasons
 /// below — translated before it is filled in. The same assembled string is
 /// StatusBar field 0 in that state (spec §12): the mode and its reason, where
 /// the entry counts would otherwise stand.
+///
+/// The fourth reason is the `--data-dir` one (v0.2.0 §10). It names **the
+/// switch** rather than the directory, because that is the whole of what
+/// distinguishes it: the third reason would be equally true of it, and a Run
+/// pointed somewhere it cannot write needs to hear which of the two locations
+/// failed. One reason covers all its ways of failing — a target that could not
+/// be created, one that could not be written, and a switch that carried
+/// nothing to resolve — because there is one thing to say about all of them
+/// and one thing to do about it.
 pub const READONLY: &str = "Read-only: {reason}";
 pub const READONLY_REASON_OWN_LOCATION_UNKNOWN: &str = "the application's own location is unknown";
 pub const READONLY_REASON_CANNOT_CREATE: &str = "the data directory cannot be created";
 pub const READONLY_REASON_NOT_WRITABLE: &str = "the data directory is not writable";
+pub const READONLY_REASON_OVERRIDE_UNUSABLE: &str = "the --data-dir location cannot be used";
+
+/// The command line's three strings (v0.2.0 §10, §14).
+///
+/// The application has no console to print to, so a command-line answer is a
+/// dialog — Firefox's GUI-build help is literally a message box, and it is the
+/// convention here too. These two are the one shape whose **body is not a
+/// repetition of its title**: the title is the message, as everywhere else,
+/// and the body carries [`USAGE`] — help arriving exactly when someone who
+/// types arguments needs it.
+///
+/// [`USAGE`] is one string shared by both, so the two dialogs can never
+/// describe two different command lines. The switch spellings inside it are
+/// not translated, because they are what the user types.
+pub const DIALOG_UNKNOWN_ARGUMENT: &str = "Unknown argument {arg} was ignored";
+pub const DIALOG_COMMAND_LINE: &str = "PathMaster command line";
+pub const USAGE: &str =
+    "Usage: PathMaster.exe [--tab user|system|backups] [--data-dir <path>] [--help]";
 
 /// The startup dialog an unreadable `settings.json` earns (spec §13). All of
 /// it is the title: NVDA never speaks a `MessageDialog`'s body, so a dialog's
@@ -612,6 +639,10 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::text(READONLY_REASON_OWN_LOCATION_UNKNOWN),
     CatalogueEntry::text(READONLY_REASON_CANNOT_CREATE),
     CatalogueEntry::text(READONLY_REASON_NOT_WRITABLE),
+    CatalogueEntry::text(READONLY_REASON_OVERRIDE_UNUSABLE),
+    CatalogueEntry::text(DIALOG_UNKNOWN_ARGUMENT),
+    CatalogueEntry::text(DIALOG_COMMAND_LINE),
+    CatalogueEntry::text(USAGE),
     CatalogueEntry::text(DIALOG_SETTINGS_UNREADABLE),
     CatalogueEntry::text(DIALOG_SETTINGS_UNWRITABLE),
     CatalogueEntry::text(ISSUE_MISSING),

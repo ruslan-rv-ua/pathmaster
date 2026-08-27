@@ -239,6 +239,31 @@ msgstr "не вдалося створити папку даних"
 msgid "the data directory is not writable"
 msgstr "папка даних недоступна для запису"
 
+#. Read-only reason: the location `--data-dir` pointed this run at could not
+#. be created or written, or the switch carried nothing to resolve. Names the
+#. switch, not the directory — that is what tells it from the reason above.
+#. `--data-dir` is what the user types and is never translated.
+msgid "the --data-dir location cannot be used"
+msgstr "розташування, вказане в --data-dir, неможливо використати"
+
+#. Dialog title: an argument this application does not recognise was passed on
+#. the command line and skipped; the run started normally. {arg} is the
+#. argument, verbatim.
+msgid "Unknown argument {arg} was ignored"
+msgstr "Невідомий аргумент {arg} проігноровано"
+
+#. Dialog title: the answer to `--help` and `-?`, which show the usage line
+#. and exit without starting the application.
+msgid "PathMaster command line"
+msgstr "Командний рядок PathMaster"
+
+#. The usage line, shared by both command-line dialogs. Everything after
+#. "Usage:" is what the user types — switch names, tab values and the brackets
+#. that mark an argument optional — and none of it is translated. Only <path>
+#. stands for something the user supplies, so only that word is Ukrainian.
+msgid "Usage: PathMaster.exe [--tab user|system|backups] [--data-dir <path>] [--help]"
+msgstr "Використання: PathMaster.exe [--tab user|system|backups] [--data-dir <шлях>] [--help]"
+
 #. Startup dialog title: `settings.json` could not be parsed and has been
 #. set aside. The whole message is the title — a dialog body is never spoken.
 msgid "Settings could not be read — defaults are in use"

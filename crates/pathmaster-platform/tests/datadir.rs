@@ -1,17 +1,30 @@
-//! Data Directory integration tests (spec §3, ADR-0002): the locate rule's
-//! path mangling, the Writable / Read-only Data decision against real temp
-//! directories, and the atomic-replace write helper. No mocks — the measured
-//! hazards (junction-reporting `current_exe()`, verbatim canonicalize output)
-//! are real filesystem behaviour.
+//! Data Directory integration tests (spec §3, ADR-0002; v0.2.0 §10): the locate
+//! rule's path mangling, `--data-dir`'s substitution of that rule, the Writable
+//! / Read-only Data decision against real temp directories, and the
+//! atomic-replace write helper. No mocks — the measured hazards
+//! (junction-reporting `current_exe()`, verbatim canonicalize output) are real
+//! filesystem behaviour.
 
 #![cfg(windows)]
 
+use std::ffi::OsStr;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use pathmaster_platform::datadir::{
-    decide, establish, locate, strip_verbatim_prefix, write_replace, DataDirState, ReadOnlyReason,
+    decide, establish, locate, locate_override, strip_verbatim_prefix, write_replace, DataDirState,
+    Location, ReadOnlyReason,
 };
+
+/// The default road's locate answer, as `main` assembles it.
+fn beside_exe(dir: PathBuf) -> Location {
+    Location::BesideExe(dir)
+}
+
+/// One `--data-dir` value, resolved against a current directory the test picks.
+fn overridden(value: &str, cwd: &str) -> Location {
+    locate_override(OsStr::new(value), Path::new(cwd))
+}
 
 /// File-identity oracle: two paths name the same directory on disk. Used so
 /// expected values need not reproduce the locate rule's own canonicalize +
@@ -109,7 +122,7 @@ fn locate_has_no_answer_for_a_parentless_path() {
 #[test]
 fn no_locate_answer_is_readonly_data_with_the_own_location_unknown_reason() {
     assert_eq!(
-        decide(None),
+        decide(Location::OwnLocationUnknown),
         DataDirState::ReadOnly(ReadOnlyReason::OwnLocationUnknown),
     );
 }
@@ -126,13 +139,16 @@ fn every_state_but_an_unknown_own_location_names_a_directory_to_read_from() {
         DataDirState::Writable(data.to_path_buf()),
         DataDirState::ReadOnly(ReadOnlyReason::CannotCreate(data.to_path_buf())),
         DataDirState::ReadOnly(ReadOnlyReason::NotWritable(data.to_path_buf())),
+        DataDirState::ReadOnly(ReadOnlyReason::OverrideUnusable(Some(data.to_path_buf()))),
     ] {
         assert_eq!(state.dir(), Some(data), "{state:?}");
     }
-    assert_eq!(
-        DataDirState::ReadOnly(ReadOnlyReason::OwnLocationUnknown).dir(),
-        None,
-    );
+    for state in [
+        DataDirState::ReadOnly(ReadOnlyReason::OwnLocationUnknown),
+        DataDirState::ReadOnly(ReadOnlyReason::OverrideUnusable(None)),
+    ] {
+        assert_eq!(state.dir(), None, "{state:?}");
+    }
 }
 
 /// Read-only Data closes *every* write path, renames and rotations included —
@@ -146,6 +162,8 @@ fn only_writable_data_has_a_write_path() {
         ReadOnlyReason::OwnLocationUnknown,
         ReadOnlyReason::CannotCreate(data.to_path_buf()),
         ReadOnlyReason::NotWritable(data.to_path_buf()),
+        ReadOnlyReason::OverrideUnusable(Some(data.to_path_buf())),
+        ReadOnlyReason::OverrideUnusable(None),
     ] {
         assert!(
             !DataDirState::ReadOnly(reason.clone()).is_writable(),
@@ -226,6 +244,178 @@ fn an_unwritable_directory_is_readonly_data_with_the_not_writable_reason() {
     );
 }
 
+// ---------------------------------------------------------------------------
+// `--data-dir`: the locate step substituted, and nothing else (v0.2.0 §10).
+// ---------------------------------------------------------------------------
+
+/// An absolute value is taken as it stands — no canonicalisation, so no `\\?\`
+/// prefix rides onto the command line the elevated instance is handed.
+#[test]
+fn an_absolute_override_is_used_as_it_stands() {
+    assert_eq!(
+        overridden(r"D:\PathMaster data", r"C:\somewhere\else"),
+        Location::Override(PathBuf::from(r"D:\PathMaster data")),
+    );
+}
+
+/// A relative value resolves against the current directory, which is what a
+/// shell user means and what every verifiable precedent does.
+#[test]
+fn a_relative_override_resolves_against_the_current_directory() {
+    assert_eq!(
+        overridden("pm-data", r"C:\work"),
+        Location::Override(PathBuf::from(r"C:\work\pm-data")),
+    );
+    // A root-relative path keeps the current directory's drive, the way
+    // Windows reads it.
+    assert_eq!(
+        overridden(r"\pm-data", r"D:\work\deep"),
+        Location::Override(PathBuf::from(r"D:\pm-data")),
+    );
+}
+
+/// The two artifacts Windows' own parsing leaves on a quoted path —
+/// `--data-dir "C:\x\"` arrives as `C:\x"` — stripped before resolution, and in
+/// that order, so a value carrying both still comes out clean.
+#[test]
+fn the_quoting_artifacts_are_stripped_before_the_path_is_resolved() {
+    for value in [
+        r"C:\pm-data",
+        r#"C:\pm-data""#,
+        r"C:\pm-data\",
+        r"C:\pm-data//",
+        r#"C:\pm-data\""#,
+    ] {
+        assert_eq!(
+            overridden(value, r"C:\work"),
+            Location::Override(PathBuf::from(r"C:\pm-data")),
+            "value: {value:?}"
+        );
+    }
+}
+
+/// Never past the root: `C:\` is a directory, and `C:` is a drive-relative path
+/// that names a different one. Stripping that separator would point the Run
+/// somewhere the user did not.
+#[test]
+fn the_separator_strip_never_eats_a_root() {
+    assert_eq!(
+        overridden(r"C:\", r"D:\work"),
+        Location::Override(PathBuf::from(r"C:\")),
+    );
+}
+
+/// A switch with nothing that resolves is a **broken override**: Read-only Data
+/// through the fourth reason, never a fallback to the default `data\`.
+///
+/// The drive-relative `C:foo` is one of them. It names a current directory *per
+/// drive* that only the OS knows, and this application may not guess at where
+/// it writes — a guess is not a pointing.
+#[test]
+fn a_value_that_resolves_to_nothing_is_a_broken_override() {
+    for value in ["", r#"""#, r#""""#, "C:foo"] {
+        assert_eq!(
+            overridden(value, r"C:\work"),
+            Location::BrokenOverride,
+            "value: {value:?}"
+        );
+    }
+    assert_eq!(
+        decide(Location::BrokenOverride),
+        DataDirState::ReadOnly(ReadOnlyReason::OverrideUnusable(None)),
+    );
+}
+
+/// The substitution is of the locate step **only**: a missing directory is
+/// `create_dir_all`-created there exactly as `data\` would be beside the
+/// executable, transient probe and all.
+#[test]
+fn an_override_creates_its_directory_like_the_default_one() {
+    let dir = tempfile::tempdir().unwrap();
+    let target = dir.path().join("fresh").join("pm-data");
+
+    let state = decide(locate_override(target.as_os_str(), Path::new(r"C:\unused")));
+
+    assert_eq!(state, DataDirState::Writable(target.clone()));
+    assert_eq!(dir_names(&target), Vec::<std::ffi::OsString>::new());
+}
+
+/// A target that cannot be used lands the Run in Read-only Data through the
+/// **fourth reason**, which names the switch — and keeps the directory, because
+/// a `settings.json` may still be readable there. Never the default `data\`.
+#[test]
+fn an_unusable_override_names_the_switch_and_keeps_its_directory() {
+    let dir = tempfile::tempdir().unwrap();
+    // A file squatting on the path: `create_dir_all` fails, exactly as it does
+    // on the default road.
+    let target = dir.path().join("pm-data");
+    fs::write(&target, b"not a directory").unwrap();
+
+    let state = decide(Location::Override(target.clone()));
+
+    assert_eq!(
+        state,
+        DataDirState::ReadOnly(ReadOnlyReason::OverrideUnusable(Some(target.clone()))),
+    );
+    assert_eq!(state.dir(), Some(target.as_path()));
+    assert!(!state.is_writable());
+}
+
+/// An override whose directory exists but refuses a write is the same one
+/// reason — one thing to say, one thing to do — and still keeps its directory.
+#[test]
+fn an_unwritable_override_is_the_same_reason_as_an_uncreatable_one() {
+    let dir = tempfile::tempdir().unwrap();
+    let target = dir.path().join("pm-data");
+    fs::create_dir(&target).unwrap();
+    let _deny = DenyCreateFile::new(&target);
+
+    assert_eq!(
+        decide(Location::Override(target.clone())),
+        DataDirState::ReadOnly(ReadOnlyReason::OverrideUnusable(Some(target))),
+    );
+}
+
+/// The same failure on the default road keeps its own reason: the switch's
+/// reason exists to tell the two locations apart, so it may not leak onto a Run
+/// that was never pointed anywhere.
+#[test]
+fn the_default_road_keeps_its_own_reasons() {
+    let dir = tempfile::tempdir().unwrap();
+    let data = dir.path().join("data");
+    fs::write(&data, b"not a directory").unwrap();
+
+    assert_eq!(
+        decide(beside_exe(data.clone())),
+        DataDirState::ReadOnly(ReadOnlyReason::CannotCreate(data)),
+    );
+}
+
+/// Only a resolved override has a path to carry beyond the decision — which is
+/// what keeps the audited exception to the path prohibition narrow, and what
+/// tells a relaunch whether it has an override to re-serialize at all.
+#[test]
+fn only_a_resolved_override_names_a_path_beyond_the_decision() {
+    let dir = PathBuf::from(r"D:\pm-data");
+
+    assert_eq!(
+        Location::Override(dir.clone()).override_path(),
+        Some(dir.as_path())
+    );
+    for location in [
+        Location::BesideExe(dir.clone()),
+        Location::OwnLocationUnknown,
+        Location::BrokenOverride,
+    ] {
+        assert_eq!(location.override_path(), None, "{location:?}");
+    }
+
+    assert!(Location::Override(dir.clone()).is_override());
+    assert!(Location::BrokenOverride.is_override());
+    assert!(!Location::BesideExe(dir).is_override());
+    assert!(!Location::OwnLocationUnknown.is_override());
+}
+
 /// Both halves against a real executable, which is how `main` calls them: this
 /// test binary's own directory is writable, so locating `data\` beside it and
 /// deciding on the answer must give Writable Data.
@@ -233,7 +423,7 @@ fn an_unwritable_directory_is_readonly_data_with_the_not_writable_reason() {
 fn locate_and_decide_agree_on_a_writable_directory_beside_this_executable() {
     let exe = std::env::current_exe().unwrap();
 
-    let state = decide(locate(&exe));
+    let state = decide(locate(&exe).map(beside_exe).unwrap());
 
     match state {
         DataDirState::Writable(dir) => {
@@ -311,6 +501,14 @@ fn the_startup_log_state_names_the_reason_and_drops_the_location() {
             DataDirState::ReadOnly(ReadOnlyReason::NotWritable(dir.clone())),
             LogState::ReadOnlyNotWritable,
         ),
+        (
+            DataDirState::ReadOnly(ReadOnlyReason::OverrideUnusable(Some(dir.clone()))),
+            LogState::ReadOnlyOverrideUnusable,
+        ),
+        (
+            DataDirState::ReadOnly(ReadOnlyReason::OverrideUnusable(None)),
+            LogState::ReadOnlyOverrideUnusable,
+        ),
     ] {
         assert_eq!(state.log_state(), expected, "{state:?}");
     }
@@ -335,6 +533,14 @@ fn each_read_only_reason_names_a_registered_catalogue_string() {
         (
             ReadOnlyReason::NotWritable(dir.clone()),
             msgids::READONLY_REASON_NOT_WRITABLE,
+        ),
+        (
+            ReadOnlyReason::OverrideUnusable(Some(dir.clone())),
+            msgids::READONLY_REASON_OVERRIDE_UNUSABLE,
+        ),
+        (
+            ReadOnlyReason::OverrideUnusable(None),
+            msgids::READONLY_REASON_OVERRIDE_UNUSABLE,
         ),
     ] {
         assert_eq!(reason.catalogue_msgid(), expected, "{reason:?}");

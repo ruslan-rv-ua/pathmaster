@@ -26,7 +26,7 @@ use pathmaster_core::language::{Language, SystemLanguage};
 use pathmaster_core::logfmt::{DataState, FailureCause, Record};
 use pathmaster_core::session::{Scope, Session, ValueType};
 use pathmaster_core::settings::{Parsed, SettingsFile};
-use pathmaster_platform::datadir::ReadOnlyReason;
+use pathmaster_platform::datadir::{Location, ReadOnlyReason};
 use pathmaster_platform::logwriter::LOG_FILE_NAME;
 use pathmaster_platform::registry::{Hive, RawValue, ScopeKey};
 use pathmaster_platform::settings::{BAD_FILE_NAME, FILE_NAME};
@@ -121,15 +121,14 @@ impl World {
     }
 
     fn decide(&self, elevated: bool) -> Decisions {
-        self.decide_from(Some(self.located()), elevated, SystemLanguage::Other)
+        self.decide_from(
+            Location::BesideExe(self.located()),
+            elevated,
+            SystemLanguage::Other,
+        )
     }
 
-    fn decide_from(
-        &self,
-        located: Option<PathBuf>,
-        elevated: bool,
-        system: SystemLanguage,
-    ) -> Decisions {
+    fn decide_from(&self, location: Location, elevated: bool, system: SystemLanguage) -> Decisions {
         // `decide` installs the process-wide panic hook whenever the Run has a
         // log (rule two), and that hook writes to the log instead of printing —
         // left in place it would swallow libtest's own report for every test
@@ -140,7 +139,7 @@ impl World {
         let _serialised = HOOK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let harness_hook = panic::take_hook();
         let decided = startup::decide(
-            located,
+            location,
             elevated,
             system,
             &self.user.key(),
@@ -156,7 +155,25 @@ static HOOK: Mutex<()> = Mutex::new(());
 /// The `INFO startup:` line this build earns. The version is the workspace's,
 /// which is the binary's.
 fn startup_record(elevated: bool, data: DataState, language: Language) -> Record {
-    Record::startup(env!("CARGO_PKG_VERSION"), elevated, data, language.code())
+    Record::startup(
+        env!("CARGO_PKG_VERSION"),
+        elevated,
+        data,
+        language.code(),
+        None,
+    )
+}
+
+/// The same line as an override Run earns it: the `dataDir:` tail is the one
+/// audited exception to the log's path prohibition (v0.2.0 §10).
+fn override_startup_record(data: DataState, language: Language, dir: &Path) -> Record {
+    Record::startup(
+        env!("CARGO_PKG_VERSION"),
+        false,
+        data,
+        language.code(),
+        Some(dir),
+    )
 }
 
 fn raws(session: &Session) -> Vec<&str> {
@@ -235,7 +252,7 @@ fn read_only_data_is_a_run_without_a_log_and_writes_nothing() {
 fn an_unknown_own_location_is_a_run_with_neither_a_log_nor_a_directory() {
     let world = World::new("log-nowhere");
 
-    let decided = world.decide_from(None, false, SystemLanguage::Other);
+    let decided = world.decide_from(Location::OwnLocationUnknown, false, SystemLanguage::Other);
 
     assert_eq!(decided.run.log_path(), None);
     assert_eq!(decided.run.data_dir(), None);
@@ -358,7 +375,11 @@ fn the_stored_choice_beats_the_system_language_and_the_startup_line_says_so() {
     let world = World::new("language-stored");
     world.write_settings(r#"{"language": "uk"}"#);
 
-    let decided = world.decide_from(Some(world.located()), false, SystemLanguage::Other);
+    let decided = world.decide_from(
+        Location::BesideExe(world.located()),
+        false,
+        SystemLanguage::Other,
+    );
 
     assert_eq!(decided.language, Language::Ukrainian);
     assert_eq!(
@@ -376,7 +397,11 @@ fn auto_follows_the_system_language() {
     let world = World::new("language-auto");
     world.write_settings(r#"{"language": "auto"}"#);
 
-    let decided = world.decide_from(Some(world.located()), false, SystemLanguage::Ukrainian);
+    let decided = world.decide_from(
+        Location::BesideExe(world.located()),
+        false,
+        SystemLanguage::Ukrainian,
+    );
 
     assert_eq!(decided.language, Language::Ukrainian);
 }
@@ -397,8 +422,11 @@ fn user_writes_with_the_run_and_system_also_needs_elevation() {
         (false, false, false, false),
         (false, true, false, false),
     ] {
-        let located = data_writable.then(|| world.located());
-        let decided = world.decide_from(located, elevated, SystemLanguage::Other);
+        let location = match data_writable {
+            true => Location::BesideExe(world.located()),
+            false => Location::OwnLocationUnknown,
+        };
+        let decided = world.decide_from(location, elevated, SystemLanguage::Other);
 
         let row = format!("data_writable: {data_writable}, elevated: {elevated}");
         assert_eq!(decided.user.session.writable(), user_writable, "{row}");
@@ -536,7 +564,7 @@ fn panic_trigger() {
     // and reading never creates anything to clean up.
     let key = TestKey::new("panic-trigger").key();
     let _ = startup::decide(
-        Some(PathBuf::from(home).join("data")),
+        Location::BesideExe(PathBuf::from(home).join("data")),
         false,
         SystemLanguage::Other,
         &key,
@@ -574,6 +602,138 @@ impl Drop for DenyCreateFile {
             .args(["/remove:d", "*S-1-1-0"])
             .status();
     }
+}
+
+// ---------------------------------------------------------------------------
+// `--data-dir` substitutes the locate step, and everything downstream of it
+// runs unchanged (v0.2.0 §10).
+// ---------------------------------------------------------------------------
+
+/// An override Run is an ordinary Run in every respect but two: it says where
+/// it wrote, and it keeps the location so a relaunch can be pointed at the same
+/// place. Its log, its settings and its Sessions are the default road's.
+#[test]
+fn an_override_run_logs_where_it_wrote_and_keeps_the_location() {
+    let world = World::new("override-writable");
+    let elsewhere = world.home.path().join("pointed elsewhere");
+
+    let decided = world.decide_from(
+        Location::Override(elsewhere.clone()),
+        false,
+        SystemLanguage::Other,
+    );
+
+    assert_eq!(decided.run.data_dir(), Some(elsewhere.as_path()));
+    assert_eq!(
+        decided.run.log_path(),
+        Some(elsewhere.join(LOG_FILE_NAME).as_path()),
+    );
+    assert_eq!(decided.readonly, None);
+    assert_eq!(
+        decided.records,
+        vec![override_startup_record(
+            DataState::Writable,
+            Language::English,
+            &elsewhere
+        )],
+    );
+    // What a self-relaunch re-serializes: the resolved path, held for the
+    // length of the Run.
+    assert_eq!(
+        decided.run.location().override_path(),
+        Some(elsewhere.as_path())
+    );
+    // And `data\` beside the executable is untouched — the switch substitutes
+    // the locate step, it does not add a second directory.
+    assert!(!world.located().exists());
+}
+
+/// An unusable target is Read-only Data through the **fourth reason**, which
+/// names the switch — never a fallback to the default `data\`, which this
+/// asserts by its absence.
+#[test]
+fn an_unusable_override_is_read_only_data_and_never_falls_back() {
+    let world = World::new("override-unusable");
+    let elsewhere = world.home.path().join("pointed elsewhere");
+    fs::write(&elsewhere, b"not a directory").unwrap();
+
+    let decided = world.decide_from(
+        Location::Override(elsewhere.clone()),
+        false,
+        SystemLanguage::Other,
+    );
+
+    assert_eq!(
+        decided.readonly,
+        Some(ReadOnlyReason::OverrideUnusable(Some(elsewhere.clone()))),
+        "the reason survives to the UI, naming the switch",
+    );
+    assert_eq!(decided.run.log_path(), None, "a Run without a log");
+    assert!(
+        !world.located().exists(),
+        "no fallback to the default data\\"
+    );
+    assert_eq!(
+        fs::read(&elsewhere).unwrap(),
+        b"not a directory",
+        "nothing may be written in Read-only Data",
+    );
+    assert_eq!(
+        decided.records,
+        vec![override_startup_record(
+            DataState::ReadOnlyOverrideUnusable,
+            Language::English,
+            &elsewhere
+        )],
+    );
+    assert!(!decided.user.session.writable());
+    assert!(!decided.system.session.writable());
+}
+
+/// A broken override is the same reason with no directory to name, and it too
+/// leaves the default alone. The Run still remembers that it was a broken
+/// override, because that is what an elevated relaunch has to carry.
+#[test]
+fn a_broken_override_is_read_only_data_with_no_directory_at_all() {
+    let world = World::new("override-broken");
+
+    let decided = world.decide_from(Location::BrokenOverride, false, SystemLanguage::Other);
+
+    assert_eq!(
+        decided.readonly,
+        Some(ReadOnlyReason::OverrideUnusable(None)),
+    );
+    assert_eq!(decided.run.data_dir(), None);
+    assert!(!world.located().exists());
+    assert_eq!(
+        decided.records,
+        vec![startup_record(
+            false,
+            DataState::ReadOnlyOverrideUnusable,
+            Language::English
+        )],
+        "there is no resolved path, so the line carries none",
+    );
+    assert!(decided.run.location().is_override());
+}
+
+/// Everything downstream of the locate step runs unchanged, and the language is
+/// the sharpest case: a Run pointed elsewhere obeys the `settings.json` sitting
+/// *there*, not the one beside the executable.
+#[test]
+fn an_override_run_reads_the_settings_it_was_pointed_at() {
+    let world = World::new("override-settings");
+    let elsewhere = world.home.path().join("pointed elsewhere");
+    fs::create_dir_all(&elsewhere).unwrap();
+    fs::write(elsewhere.join(FILE_NAME), r#"{"language": "uk"}"#).unwrap();
+    // A different answer beside the executable, so a Run reading the wrong one
+    // would be caught rather than agreed with.
+    fs::create_dir_all(world.located()).unwrap();
+    fs::write(world.settings_file(), r#"{"language": "en"}"#).unwrap();
+
+    let decided = world.decide_from(Location::Override(elsewhere), false, SystemLanguage::Other);
+
+    assert_eq!(decided.language, Language::Ukrainian);
 }
 
 // ---------------------------------------------------------------------------

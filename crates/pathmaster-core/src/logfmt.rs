@@ -6,10 +6,20 @@
 //! no Entry/PATH text and no absolute filesystem paths appear in any record.
 //! There is no constructor taking a free-form message — every record is built
 //! from derived facts (counts, lengths, Value Type, Scope, data *state*), and
-//! the two unavoidable free-text inlets are bounded: rejected settings values
-//! are truncated, and the panic message is the panic's own payload.
+//! the three unavoidable free-text inlets are bounded: rejected settings values
+//! and unknown command-line arguments are truncated, and the panic message is
+//! the panic's own payload.
+//!
+//! **The path prohibition has exactly one audited exception** (v0.2.0 §10):
+//! the startup line carries `dataDir: <path>` on a Run that `--data-dir`
+//! pointed elsewhere. The log is this application's only diagnostic artifact,
+//! and a Run that wrote somewhere other than beside the executable is
+//! otherwise unreconstructable after the fact — so the one derived fact that
+//! rides is *where the application wrote*, never anything about PATH. A Run
+//! that was not pointed anywhere carries no path, exactly as before.
 
 use std::fmt::Write as _;
+use std::path::Path;
 
 use crate::session::{Scope, ValueType};
 
@@ -81,6 +91,10 @@ pub enum DataState {
     ReadOnlyOwnLocationUnknown,
     ReadOnlyCannotCreate,
     ReadOnlyNotWritable,
+    /// The `--data-dir` location could not be used (v0.2.0 §10). One state for
+    /// every way that switch fails, like the Catalogue reason it mirrors —
+    /// `dataDir:` on the same line says which location it was.
+    ReadOnlyOverrideUnusable,
 }
 
 impl DataState {
@@ -90,6 +104,7 @@ impl DataState {
             DataState::ReadOnlyOwnLocationUnknown => "read-only (own location unknown)",
             DataState::ReadOnlyCannotCreate => "read-only (cannot create data directory)",
             DataState::ReadOnlyNotWritable => "read-only (data directory not writable)",
+            DataState::ReadOnlyOverrideUnusable => "read-only (--data-dir location unusable)",
         }
     }
 }
@@ -165,15 +180,48 @@ pub struct Record {
 impl Record {
     /// The startup line — version, elevation, data *state*, Interface
     /// Language. The one way a pasted log identifies its build.
-    pub fn startup(version: &str, elevated: bool, data: DataState, language: &str) -> Self {
+    ///
+    /// `data_dir` is the resolved `--data-dir` location, and `None` on every
+    /// Run that was not pointed at one — the module doc's single audited
+    /// exception to the path prohibition. It is a *tail*: two logs read side
+    /// by side say the same thing up to `language:`, and then one of them says
+    /// where else it wrote.
+    pub fn startup(
+        version: &str,
+        elevated: bool,
+        data: DataState,
+        language: &str,
+        data_dir: Option<&Path>,
+    ) -> Self {
+        let mut message = format!(
+            "PathMaster {version}, elevated: {}, data: {}, language: {language}",
+            if elevated { "yes" } else { "no" },
+            data.describe(),
+        );
+        if let Some(dir) = data_dir {
+            let _ = write!(message, ", dataDir: {}", dir.display());
+        }
         Record {
             level: Level::Info,
             area: "startup",
-            message: format!(
-                "PathMaster {version}, elevated: {}, data: {}, language: {language}",
-                if elevated { "yes" } else { "no" },
-                data.describe(),
-            ),
+            message,
+        }
+    }
+
+    /// A command-line argument this Run did not recognise and skipped
+    /// (v0.2.0 §10). One line per unknown argument, where the dialog names
+    /// only the first: the dialog is a nudge towards the usage line, and the
+    /// log is the inventory.
+    ///
+    /// `WARN` because the Run survives it whole — a normal start follows, and
+    /// nothing the user asked for went wrong. The argument is the user's own
+    /// text and may be anything, a path included, so it is bounded exactly the
+    /// way a rejected settings value is: this is the module doc's third inlet.
+    pub fn unknown_argument(argument: &str) -> Self {
+        Record {
+            level: Level::Warn,
+            area: "startup",
+            message: format!("unknown argument {} was ignored", truncated(argument)),
         }
     }
 
@@ -315,10 +363,7 @@ impl Record {
     /// not put a megabyte on one line. This truncation is the only inlet for
     /// file-supplied text into any record.
     pub fn settings_field_invalid(field: &str, raw: &str, default: &str) -> Self {
-        let shown = match raw.char_indices().nth(TRUNCATE_AT_CHARS) {
-            Some((cut, _)) => format!("\"{}…\" [truncated]", &raw[..cut]),
-            None => format!("\"{raw}\""),
-        };
+        let shown = truncated(raw);
         Record {
             level: Level::Warn,
             area: "settings",
@@ -368,9 +413,19 @@ fn value_type_name(value_type: ValueType) -> &'static str {
     }
 }
 
-/// Rejected settings values are cut after this many characters (spec §14's
-/// "~100 chars").
+/// Caller-supplied text — from the settings file, from the command line — is
+/// cut after this many characters (spec §14's "~100 chars").
 const TRUNCATE_AT_CHARS: usize = 100;
+
+/// Quotes one such string for a record, cut at [`TRUNCATE_AT_CHARS`] with a
+/// marker: a pathological file or command line must not put a megabyte on one
+/// line. Both bounded inlets go through it, so they cannot bound differently.
+fn truncated(raw: &str) -> String {
+    match raw.char_indices().nth(TRUNCATE_AT_CHARS) {
+        Some((cut, _)) => format!("\"{}…\" [truncated]", &raw[..cut]),
+        None => format!("\"{raw}\""),
+    }
+}
 
 /// Formats one record as its complete line, newline included — the writer
 /// appends exactly this, so "one record per line" cannot drift. Any newline

@@ -148,6 +148,7 @@ fn failed_writes_are_dropped_counted_and_announced_once_on_recovery() {
         false,
         pathmaster_core::logfmt::DataState::Writable,
         "en",
+        None,
     ));
 
     let mut readonly = fs::metadata(&log).unwrap().permissions();

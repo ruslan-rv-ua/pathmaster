@@ -17,6 +17,7 @@
 
 mod backups_page;
 mod command;
+mod command_line;
 mod door;
 mod entry_dialog;
 mod list;
@@ -38,9 +39,10 @@ use pathmaster_core::normalize::has_variable_reference;
 use pathmaster_core::session::{EntryId, Operation, Scope, Session, ValueType};
 use pathmaster_core::settings::SettingsFile;
 use pathmaster_platform::apply::{self, ApplyRun, Ask, ExternalChange, ScopeInput, ScopeOutcome};
+use pathmaster_platform::args::StartTab;
 use pathmaster_platform::datadir::ReadOnlyReason;
 use pathmaster_platform::diagnostics::ProcessEnvironment;
-use pathmaster_platform::elevation::{self, RelaunchFailure, StartTab};
+use pathmaster_platform::elevation::{self, RelaunchFailure};
 use pathmaster_platform::geometry::{self, Placement};
 use pathmaster_platform::logwriter;
 use pathmaster_platform::registry::{RawValue, ScopeKey};
@@ -60,6 +62,11 @@ use crate::ui::command::{Availability, Command, Menus};
 use crate::ui::rendering::Rendering;
 use crate::ui::scope_page::{Row, ScopePage};
 use crate::SharedScope;
+
+/// The command line's two dialogs, which `main` reaches the way it reaches
+/// [`show_settings_unreadable`] — one of them before there is a window at all
+/// (v0.2.0 §10).
+pub use crate::ui::command_line::{show_unknown_argument, show_usage};
 
 /// The notebook's page order (spec §12): the two Scopes, then Backups —
 /// which is not a Scope, so activating it announces nothing and offers no
@@ -1176,9 +1183,12 @@ impl App {
         {
             return;
         }
-        // Only the active tab crosses the boundary (ticket 12 D5): Sessions
-        // are dead at a process boundary and stay dead.
-        match elevation::relaunch_elevated(self.active_start_tab()) {
+        // The active tab and this Run's Data Directory override cross the
+        // boundary, and nothing else (ticket 12 D5; v0.2.0 §10): Sessions are
+        // dead at a process boundary and stay dead, but a Run pointed
+        // elsewhere has to stay pointed there or the elevated instance writes
+        // beside the executable instead.
+        match elevation::relaunch_elevated(self.active_start_tab(), self.run.location()) {
             Ok(()) => {
                 // The elevated instance is up; on success the original
                 // instance exits (spec §9). Through `close`, not around it,

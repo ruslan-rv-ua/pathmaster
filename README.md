@@ -105,6 +105,17 @@ PathMaster is portable, and that is a claim worth being precise about.
 - The two `PATH` values, when you apply: `HKCU\Environment` → `Path` for your own, and
   `HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment` → `Path` for the machine's.
 
+**One launch at a time can point somewhere else.** `PathMaster.exe --data-dir <path>` puts that
+run's `data\` where you say, and remembers nothing — the next plain launch is back beside the
+executable. A relative path is read from the folder you ran the command in, the folder is created
+if it is not there yet, and if it cannot be created or written the application starts in read-only
+mode and says so: it never quietly falls back to the default `data\`. "Restart as Administrator"
+carries the same location across, so the elevated instance writes where the unelevated one did.
+
+`PathMaster.exe --help` (or `-?`) shows the command line in a dialog and exits. An argument
+PathMaster does not recognise gets a dialog naming it, a line in the log, and then a normal start —
+a mistyped switch never passes silently.
+
 **With one named exception.** The **Browse** button opens Windows' own folder picker, and Windows
 records the folders you visited in its own "recently used" registry keys
 (`HKCU\...\Explorer\ComDlg32`). That is the operating system writing, inside this process, and

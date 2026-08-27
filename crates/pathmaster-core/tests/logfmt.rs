@@ -3,6 +3,8 @@
 //! One record per line: `<RFC 3339 local+offset> <LEVEL> <area>: <message>`.
 //! Expected strings come from the spec's own examples, not recomputed.
 
+use std::path::Path;
+
 use pathmaster_core::logfmt::{line, DataState, FailureCause, Record, Timestamp};
 use pathmaster_core::session::{Scope, ValueType};
 
@@ -20,12 +22,78 @@ fn spec_timestamp() -> Timestamp {
 
 #[test]
 fn startup_line_matches_the_spec_example_byte_for_byte() {
-    let record = Record::startup("0.1.0", false, DataState::Writable, "uk");
+    let record = Record::startup("0.1.0", false, DataState::Writable, "uk", None);
     assert_eq!(
         line(&spec_timestamp(), &record),
         "2026-08-19T15:36:31+03:00 INFO  startup: \
          PathMaster 0.1.0, elevated: no, data: writable, language: uk\n",
     );
+}
+
+/// The one audited exception to the path prohibition (v0.2.0 §10): a Run that
+/// `--data-dir` pointed elsewhere says where it wrote, as a tail on the line
+/// every other Run already carries.
+#[test]
+fn an_override_run_names_where_it_wrote() {
+    let record = Record::startup(
+        "0.2.0",
+        false,
+        DataState::Writable,
+        "en",
+        Some(Path::new(r"D:\PathMaster data")),
+    );
+    assert_eq!(
+        line(&spec_timestamp(), &record),
+        "2026-08-19T15:36:31+03:00 INFO  startup: \
+         PathMaster 0.2.0, elevated: no, data: writable, language: en, \
+         dataDir: D:\\PathMaster data\n",
+    );
+}
+
+/// A Run pointed at a location it cannot use still says where that was: the
+/// state names the switch, and the tail names the directory — the pair a
+/// developer needs to reconstruct where the run went.
+#[test]
+fn an_unusable_override_names_the_switch_and_still_carries_the_location() {
+    let text = line(
+        &spec_timestamp(),
+        &Record::startup(
+            "0.2.0",
+            false,
+            DataState::ReadOnlyOverrideUnusable,
+            "en",
+            Some(Path::new(r"X:\nowhere")),
+        ),
+    );
+    assert!(
+        text.contains("data: read-only (--data-dir location unusable)"),
+        "{text:?}"
+    );
+    assert!(text.contains(r"dataDir: X:\nowhere"), "{text:?}");
+}
+
+/// The unknown-argument line (v0.2.0 §10): `WARN`, because a normal start
+/// follows it, and naming the argument, because a line that did not would say
+/// nothing a developer could act on.
+#[test]
+fn an_unknown_argument_is_named_and_only_warned_about() {
+    assert_eq!(
+        line(&spec_timestamp(), &Record::unknown_argument("--datadir")),
+        "2026-08-19T15:36:31+03:00 WARN  startup: \
+         unknown argument \"--datadir\" was ignored\n",
+    );
+}
+
+/// The third bounded inlet, bounded like the first: an argument is the user's
+/// own text, and a pathological command line must not put a megabyte on a line.
+#[test]
+fn a_vast_unknown_argument_is_truncated_like_a_rejected_settings_value() {
+    let text = line(
+        &spec_timestamp(),
+        &Record::unknown_argument(&"x".repeat(500)),
+    );
+    assert!(text.contains("[truncated]"), "{text:?}");
+    assert!(text.len() < 200, "{text:?}");
 }
 
 #[test]
@@ -231,7 +299,7 @@ fn read_only_startup_lines_name_the_reason_never_a_location() {
     ] {
         let text = line(
             &spec_timestamp(),
-            &Record::startup("0.1.0", true, state, "en"),
+            &Record::startup("0.1.0", true, state, "en", None),
         );
         assert!(text.contains(expected), "{text:?}");
         assert!(text.contains("elevated: yes"), "{text:?}");

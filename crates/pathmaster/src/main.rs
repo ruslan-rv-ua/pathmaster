@@ -19,8 +19,11 @@ mod ui;
 
 use std::rc::Rc;
 
+use pathmaster_core::language::{self, LanguageChoice, SystemLanguage};
+use pathmaster_core::logfmt::Record;
 use pathmaster_core::session::Session;
-use pathmaster_platform::datadir;
+use pathmaster_platform::args::Arguments;
+use pathmaster_platform::datadir::{self, Location};
 use pathmaster_platform::elevation;
 use pathmaster_platform::locale;
 use pathmaster_platform::registry::{RawValue, ScopeKey};
@@ -54,10 +57,23 @@ impl From<LoadedScope> for SharedScope {
 }
 
 fn main() -> std::process::ExitCode {
+    // The command line, read once and in full before anything else happens —
+    // it decides *whether* there is a Run at all, and where one would write
+    // (v0.2.0 §10). Read as `OsString`, because one of its arguments is a
+    // filesystem path and a lossy reading of that is a path to somewhere else.
+    let arguments = Arguments::parse(std::env::args_os().skip(1));
+
+    // A query, not a launch: answered and then over, with no Data Directory
+    // located, created or read.
+    if arguments.help {
+        return answer_the_query(locale::system_language());
+    }
+
     // Everything this Run is, decided in one place (ADR-0010). What cannot be
     // decided there is asked here, at the edge, because these are the calls no
-    // test can make fail: where this executable is, whether its process is
-    // elevated, and what language Windows shows its own interface in.
+    // test can make fail: where this executable is, what the current directory
+    // is, whether this process is elevated, and what language Windows shows its
+    // own interface in.
     let Decisions {
         run,
         records,
@@ -68,10 +84,7 @@ fn main() -> std::process::ExitCode {
         user,
         system,
     } = startup::decide(
-        std::env::current_exe()
-            .ok()
-            .as_deref()
-            .and_then(datadir::locate),
+        locate_this_run(&arguments),
         elevation::is_elevated(),
         locale::system_language(),
         &ScopeKey::user(),
@@ -80,6 +93,16 @@ fn main() -> std::process::ExitCode {
     // Decided there, written here — the shape an Apply Run's records already
     // have (ADR-0008). A Run without a log drops them.
     records.iter().for_each(|record| run.log(record));
+    // One `WARN` per unknown argument, under the startup line that says which
+    // build ignored them (v0.2.0 §10). The dialog below names only the first;
+    // this is the inventory.
+    for argument in &arguments.unknown {
+        run.log(&Record::unknown_argument(&argument.to_string_lossy()));
+    }
+    let unknown = arguments
+        .unknown
+        .first()
+        .map(|argument| argument.to_string_lossy().into_owned());
 
     // No console to print to (windows subsystem) — a failed toolkit init can
     // only surface as a nonzero exit code (and the panic line, if it panics).
@@ -91,20 +114,54 @@ fn main() -> std::process::ExitCode {
             readonly,
             run,
             settings,
-            // The one argument an elevation relaunch carries: the tab the
-            // user left (spec §9, ticket 12 D5). Read at the edge like every
-            // other fact only the running process can answer. Lossily,
-            // because `std::env::args` panics on non-Unicode arguments — a
-            // launcher's garbage must read as a plain launch, not a crash.
-            elevation::StartTab::from_args(
-                std::env::args_os()
-                    .skip(1)
-                    .map(|arg| arg.to_string_lossy().into_owned()),
-            ),
+            // The tab an elevation relaunch carries (spec §9, ticket 12 D5).
+            arguments.tab,
         );
+        // The command line's dialog before the Run's own: this one is about
+        // how the application was started, and that is the earlier fact.
+        if let Some(argument) = &unknown {
+            ui::show_unknown_argument(&frame, argument);
+        }
         if settings_unreadable {
             ui::show_settings_unreadable(&frame);
         }
+    }) {
+        Ok(()) => std::process::ExitCode::SUCCESS,
+        Err(_) => std::process::ExitCode::FAILURE,
+    }
+}
+
+/// The locate step, and the one thing `--data-dir` substitutes (v0.2.0 §10).
+///
+/// Assembly, not a decision: the two OS calls are here at the edge because no
+/// test can make them fail, and what each answer *means* is decided by
+/// [`datadir::locate`] and [`datadir::locate_override`], which are pure.
+///
+/// A current directory this process cannot name leaves an empty one, which is
+/// exactly right — an absolute `--data-dir` needs none, and a relative one
+/// cannot be resolved without it and is a broken override, which is what
+/// joining onto nothing produces.
+fn locate_this_run(arguments: &Arguments) -> Location {
+    if let Some(value) = &arguments.data_dir {
+        let cwd = std::env::current_dir().unwrap_or_default();
+        return datadir::locate_override(value, &cwd);
+    }
+    std::env::current_exe()
+        .ok()
+        .as_deref()
+        .and_then(datadir::locate)
+        .map_or(Location::OwnLocationUnknown, Location::BesideExe)
+}
+
+/// `--help` / `-?`: the usage dialog, and no Run at all (v0.2.0 §10).
+///
+/// wx is started because the Catalogue lives inside it and this answer is
+/// Catalogue text; nothing else about a Run is. The language is the system's,
+/// for the reason [`ui::show_usage`] gives.
+fn answer_the_query(system_language: SystemLanguage) -> std::process::ExitCode {
+    match wxdragon::main(move |_| {
+        catalog::install(language::resolve(LanguageChoice::Auto, system_language));
+        ui::show_usage();
     }) {
         Ok(()) => std::process::ExitCode::SUCCESS,
         Err(_) => std::process::ExitCode::FAILURE,

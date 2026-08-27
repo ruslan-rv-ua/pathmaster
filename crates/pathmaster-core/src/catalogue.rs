@@ -417,6 +417,20 @@ impl Catalogue {
         )
     }
 
+    /// The dialog an argument this application does not recognise earns
+    /// (v0.2.0 §10) — the title only; its body is the usage line, which is one
+    /// plain lookup and composes nothing.
+    ///
+    /// `argument` is the user's own text and is filled in verbatim, like every
+    /// other value [`fill`] substitutes: braces or a `%VAR%` inside it cannot
+    /// turn into a placeholder, because nothing rescans what was filled in.
+    pub fn unknown_argument_dialog(&self, argument: &str) -> String {
+        fill(
+            &self.lookup.translate(msgids::DIALOG_UNKNOWN_ARGUMENT),
+            &[("arg", argument)],
+        )
+    }
+
     /// The number both over-length titles name, filled into whichever of them
     /// is being spoken.
     fn overlength(&self, msgid: &str, length: usize) -> String {

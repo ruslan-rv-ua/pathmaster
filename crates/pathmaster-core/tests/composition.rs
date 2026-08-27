@@ -757,6 +757,32 @@ fn about_names_the_application_its_version_and_its_licence() {
     );
 }
 
+// ---- The command line's dialog (v0.2.0 §10) ----
+
+#[test]
+fn the_unknown_argument_dialog_names_the_argument_it_ignored() {
+    // The whole message is the title, as everywhere: the body carries the
+    // usage line, which is a plain lookup and composes nothing.
+    assert_eq!(
+        the_catalogue().unknown_argument_dialog("--datadir"),
+        "Unknown argument --datadir was ignored"
+    );
+}
+
+#[test]
+fn an_argument_carrying_braces_is_filled_in_and_never_rescanned() {
+    // The user's own text goes in verbatim, like every filled value: a path
+    // with braces or a `%VAR%` in it cannot turn into a second placeholder.
+    assert_eq!(
+        the_catalogue().unknown_argument_dialog("{arg}"),
+        "Unknown argument {arg} was ignored"
+    );
+    assert_eq!(
+        the_catalogue().unknown_argument_dialog("%PATH%"),
+        "Unknown argument %PATH% was ignored"
+    );
+}
+
 #[test]
 fn the_window_title_names_which_instance_the_user_is_in() {
     // Alt+Tab speaks the title first, which is the cheapest always-available
