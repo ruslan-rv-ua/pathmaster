@@ -16,6 +16,7 @@
 use pathmaster_core::backups::{self, SnapshotFile};
 use pathmaster_core::catalogue::{Announcement, Catalogue, Lookup, ScopeCounts, UndoDirection};
 use pathmaster_core::diagnostics::Issue;
+use pathmaster_core::expansion::Mode;
 use pathmaster_core::language::LanguageChoice;
 use pathmaster_core::logfmt::Timestamp;
 use pathmaster_core::msgids;
@@ -270,10 +271,10 @@ fn the_announcement_catalogue_is_the_specs_items_and_nothing_else() {
     // v0.2.0's items land here with the tickets that speak them (v0.2.0 §13,
     // closing at fourteen).
     let catalogue = every_announcement();
-    assert_eq!(catalogue.len(), 8);
+    assert_eq!(catalogue.len(), 9);
     assert_eq!(
         catalogue.iter().map(|(item, _)| *item).collect::<Vec<u8>>(),
-        [1, 2, 3, 4, 6, 7, 9, 10]
+        [1, 2, 3, 4, 6, 7, 8, 9, 10]
     );
     // Item 5 is the one with no variant of its own — and it is reachable, or
     // the count above would be hiding a message rather than sharing one.
@@ -328,6 +329,12 @@ fn every_announcement() -> Vec<(u8, Announcement)> {
                 reason: msgids::READONLY_REASON_CANNOT_CREATE,
             },
         ),
+        (
+            8,
+            Announcement::ExpansionMode {
+                mode: Mode::Expanded,
+            },
+        ),
         (9, Announcement::FilteredCount { shown: 1, total: 3 }),
         (
             10,
@@ -346,6 +353,7 @@ fn every_announcement() -> Vec<(u8, Announcement)> {
             | Announcement::UndoRedo { .. }
             | Announcement::ChangesDiscarded
             | Announcement::ReadOnly { .. }
+            | Announcement::ExpansionMode { .. }
             | Announcement::FilteredCount { .. }
             | Announcement::ScopeFilteredCount { .. } => {}
         }
@@ -758,6 +766,25 @@ fn the_product_name_is_not_looked_up_while_the_elevated_title_is() {
     assert_eq!(
         Catalogue::new(Marked).window_title(true),
         format!("[{}]", msgids::WINDOW_TITLE_ELEVATED)
+    );
+}
+
+// ---- Announcement 8: the Expansion Mode toggle (v0.2.0 spec §13 item 8) ----
+
+#[test]
+fn each_expansion_mode_speaks_its_own_sentence() {
+    // Two whole strings and no placeholder: the message says which rendering
+    // the lists now show, and the mode is core's own type, so choosing between
+    // them is the Catalogue's rule rather than the caller's (v0.2.0 §5).
+    assert_eq!(
+        the_catalogue().announcement(Announcement::ExpansionMode {
+            mode: Mode::Expanded,
+        }),
+        "Showing expanded values"
+    );
+    assert_eq!(
+        the_catalogue().announcement(Announcement::ExpansionMode { mode: Mode::Raw }),
+        "Showing raw values"
     );
 }
 

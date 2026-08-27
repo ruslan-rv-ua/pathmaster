@@ -19,6 +19,7 @@ use wxdragon::timer::Timer;
 use crate::catalog::translate;
 use crate::ui::command::{Availability, Command};
 use crate::ui::list;
+use crate::ui::rendering::Rendering;
 
 /// The `#` and Status column widths in DIP — the app's two deliberate pixel
 /// constants, and its only two explicit `FromDIP()` calls (spec §12 D2, D4;
@@ -47,14 +48,17 @@ pub struct Row {
     /// number rather than the digits the cell shows: nothing about it is
     /// language, and the Fix Issues dialog will want the same value.
     pub position: usize,
+    /// The Entry's **displayed rendering** — its raw text, or the expanded
+    /// reading of it under Expansion Mode (v0.2.0 §5). It is the same text
+    /// Search matches, because both come through the one [`Rendering`].
     pub path: String,
     pub status: String,
 }
 
 impl Row {
-    /// Composes every row of a Scope: each Entry's position and raw text, and
-    /// the Status column the last completed pass gives it — nothing, until one
-    /// has run (spec §7, FR-diag-async).
+    /// Composes every row of a Scope: each Entry's position, its rendering
+    /// under the mode now in force, and the Status column the last completed
+    /// pass gives it — nothing, until one has run (spec §7, FR-diag-async).
     ///
     /// The position is where the Entry stands **now**, counted off the Working
     /// Copy this call reads. Every operation that reorders or removes Entries
@@ -64,9 +68,10 @@ impl Row {
         session: &Session,
         findings: Option<&Findings>,
         catalogue: &Catalogue,
+        rendering: &Rendering,
     ) -> Vec<Row> {
         let all: Vec<usize> = (0..session.entries().len()).collect();
-        Self::compose_visible(session, findings, catalogue, &all)
+        Self::compose_visible(session, findings, catalogue, rendering, &all)
     }
 
     /// [`compose`](Self::compose) narrowed to a Filtered View's visible set —
@@ -77,6 +82,7 @@ impl Row {
         session: &Session,
         findings: Option<&Findings>,
         catalogue: &Catalogue,
+        rendering: &Rendering,
         visible: &[usize],
     ) -> Vec<Row> {
         visible
@@ -85,7 +91,7 @@ impl Row {
                 let entry = &session.entries()[index];
                 Row {
                     position: index + 1,
-                    path: entry.raw().to_string(),
+                    path: rendering.render(entry.raw()).into_owned(),
                     status: catalogue
                         .status_column(findings.map_or(&[][..], |findings| findings.issues(entry))),
                 }
@@ -287,6 +293,28 @@ impl ScopePage {
         for (index, data) in rows.iter().enumerate() {
             self.list
                 .set_item_text_by_column(index as i64, 2, &data.status);
+        }
+    }
+
+    /// Writes the Path column from the rendering now in force and touches
+    /// nothing else — the Expansion toggle's redraw when the mode changed how
+    /// the Entries read but not which of them the view shows (v0.2.0 §5).
+    ///
+    /// Separate from [`render`](Self::render) for
+    /// [`render_status`](Self::render_status)'s reason, and **measured** for
+    /// it: a rebuild has to re-mark the landing row, and NVDA re-reads a row
+    /// marked in a list that holds the keyboard focus — so a rebuilt list
+    /// would speak the row before the toggle's own message, where §5 says the
+    /// toggle speaks its message and an arrow key re-reads the row. Writing
+    /// the cells leaves every item state alone, which is silent.
+    ///
+    /// The `#` and Status cells it leaves alone are by construction already
+    /// right: the mode is not an edit, so no Entry moved, was renumbered or
+    /// was re-diagnosed.
+    pub fn render_paths(&self, rows: &[Row]) {
+        for (index, data) in rows.iter().enumerate() {
+            self.list
+                .set_item_text_by_column(index as i64, 1, &data.path);
         }
     }
 

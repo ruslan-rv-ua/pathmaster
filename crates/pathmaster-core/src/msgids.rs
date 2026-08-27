@@ -99,6 +99,16 @@ pub const ENTRIES_SYSTEM_NONE: &str = "System PATH: no entries";
 /// dead in v0.1.0.
 pub const SEARCH_LABEL: &str = "Search:";
 
+/// Announcement 8 (v0.2.0 spec §13 item 8): Expansion Mode was toggled — which
+/// rendering both Scope lists now show. Two whole sentences and no placeholder:
+/// the message is the mode, and the mode is the whole message.
+///
+/// The Ukrainian for the raw mode is «Показано збережені значення» — what the
+/// registry holds — because "raw" names a text's provenance, and that is the
+/// word Ukrainian has for it.
+pub const SHOWING_EXPANDED_VALUES: &str = "Showing expanded values";
+pub const SHOWING_RAW_VALUES: &str = "Showing raw values";
+
 /// Announcement 9 (v0.2.0 spec §13 item 9): the filtered count on a criteria
 /// change — a typing pause, ESC into a still-filtered view, an Expansion
 /// toggle, Filter → All with query text. `{n}` is the visible count, `{m}` the
@@ -238,6 +248,16 @@ pub const MENU_TITLE_VIEW: &str = "&View";
 /// the code, never typed here (ADR-0004). Its mnemonic is S, unique in the
 /// menu it opens.
 pub const MENU_SEARCH: &str = "&Search";
+
+/// The View menu's rendering item (v0.2.0 §5, §12): Ctrl+E's menu home, and the
+/// state carrier for Expansion Mode.
+///
+/// The label is **constant** in both directions — a `wxITEM_CHECK` item's mark
+/// is what NVDA reads to say which way it went, and a label that changed with
+/// the mode would be a `NAMECHANGE`, measured dead in v0.1.0. The accelerator
+/// is appended by the code (ADR-0004). Its mnemonic is E, unique in the menu it
+/// opens.
+pub const MENU_EXPANDED_VALUES: &str = "&Expanded Values";
 
 /// The File menu's items (spec §15). Apply is here because Ctrl+S can only
 /// live on a menu item's label — wxdragon binds no accelerator table at any
@@ -489,6 +509,8 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::plural(ENTRIES_SYSTEM, ENTRIES_SYSTEM_PLURAL),
     CatalogueEntry::text(ENTRIES_SYSTEM_NONE),
     CatalogueEntry::text(SEARCH_LABEL),
+    CatalogueEntry::text(SHOWING_EXPANDED_VALUES),
+    CatalogueEntry::text(SHOWING_RAW_VALUES),
     CatalogueEntry::plural(FILTERED_COUNT, FILTERED_COUNT_PLURAL),
     CatalogueEntry::text(FILTERED_COUNT_NONE),
     CatalogueEntry::plural(FILTERED_USER, FILTERED_USER_PLURAL),
@@ -521,6 +543,7 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::menu_item(MENU_TITLE_TOOLS, MENU_GROUP_BAR),
     CatalogueEntry::menu_item(MENU_TITLE_VIEW, MENU_GROUP_BAR),
     CatalogueEntry::menu_item(MENU_SEARCH, MENU_GROUP_VIEW),
+    CatalogueEntry::menu_item(MENU_EXPANDED_VALUES, MENU_GROUP_VIEW),
     CatalogueEntry::menu_item(MENU_APPLY, MENU_GROUP_FILE),
     CatalogueEntry::menu_item(MENU_EXIT, MENU_GROUP_FILE),
     CatalogueEntry::menu_item(MENU_ADD_ENTRY, MENU_GROUP_EDIT),

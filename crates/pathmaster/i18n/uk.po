@@ -98,6 +98,16 @@ msgstr "PATH системи: немає записів"
 msgid "Search:"
 msgstr "Пошук:"
 
+#. Announcement: spoken when Expanded Values is toggled on — the lists now show
+#. each entry with its %VAR% references resolved.
+msgid "Showing expanded values"
+msgstr "Показано розгорнуті значення"
+
+#. Announcement: spoken when Expanded Values is toggled off — the lists show
+#. each entry exactly as the registry stores it.
+msgid "Showing raw values"
+msgstr "Показано збережені значення"
+
 #. Announcement: the filtered count after a typing pause — {n} entries shown
 #. of the Scope's {m}. The plural form is selected by {m}, the total.
 msgid "{n} of {m} entry"
@@ -264,6 +274,12 @@ msgstr "Вигляд(&V)"
 #. The code appends its accelerator.
 msgid "&Search"
 msgstr "Пошук(&S)"
+
+#. View menu item: a check item toggling between raw and expanded rendering
+#. (Ctrl+E). The label never changes — the check mark is what says which way it
+#. went. The code appends its accelerator. Keep the mnemonic on the Latin "E".
+msgid "&Expanded Values"
+msgstr "Розгорнуті значення(&E)"
 
 #. File menu item: writes the active Scope's entries to the registry (Ctrl+S).
 #. The code appends its accelerator.

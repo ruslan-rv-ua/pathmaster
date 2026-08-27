@@ -33,14 +33,19 @@ pub fn matches(rendering: &str, query: &str) -> bool {
 /// renderings the query matches. Order is preserved — a Filtered View shows
 /// fewer rows, never reordered ones — and the positions are what keeps the
 /// `#` column honest under any narrowing.
-pub fn visible_indices<'a>(
-    renderings: impl IntoIterator<Item = &'a str>,
+///
+/// The renderings are whatever borrows or owns its text: raw mode hands over
+/// the Entries' own `&str`, and expanded mode the `String`s one expansion pass
+/// produced (v0.2.0 §5). The caller decides which — that is the mode — and
+/// what arrives here is only ever "the text the list is showing".
+pub fn visible_indices<S: AsRef<str>>(
+    renderings: impl IntoIterator<Item = S>,
     query: &str,
 ) -> Vec<usize> {
     renderings
         .into_iter()
         .enumerate()
-        .filter(|(_, rendering)| matches(rendering, query))
+        .filter(|(_, rendering)| matches(rendering.as_ref(), query))
         .map(|(index, _)| index)
         .collect()
 }

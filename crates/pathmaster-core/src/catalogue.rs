@@ -25,6 +25,7 @@
 
 use crate::backups::SnapshotFile;
 use crate::diagnostics::Issue;
+use crate::expansion::Mode;
 use crate::language::LanguageChoice;
 use crate::msgids::{self, fill};
 use crate::path::Rejection;
@@ -94,6 +95,12 @@ pub enum Announcement {
     /// the msgid `ReadOnlyReason::catalogue_msgid()` returns: the reason is a
     /// platform type, its name is Catalogue text.
     ReadOnly { reason: &'static str },
+    /// **8** (v0.2.0) — Expansion Mode was toggled: which rendering both Scope
+    /// lists now show. The toggle is not an edit and leaves no Checkpoint, so
+    /// this sentence and the re-rendered rows are the whole of what happened —
+    /// and which of its two strings is spoken is decided here, from the
+    /// [`Mode`] the Announcement carries, because the mode is core's own type.
+    ExpansionMode { mode: Mode },
     /// **9** (v0.2.0) — the filtered count on a view-criteria change: `shown`
     /// visible of `total` in the Scope. Spoken debounced on typing pauses and
     /// never on Working-Copy changes, which recompute membership silently.
@@ -185,6 +192,10 @@ impl Catalogue {
             Announcement::UndoRedo { direction, outcome } => self.undo_redo(direction, outcome),
             Announcement::ChangesDiscarded => self.lookup.translate(msgids::CHANGES_DISCARDED),
             Announcement::ReadOnly { reason } => self.read_only(reason),
+            Announcement::ExpansionMode { mode } => self.lookup.translate(match mode {
+                Mode::Expanded => msgids::SHOWING_EXPANDED_VALUES,
+                Mode::Raw => msgids::SHOWING_RAW_VALUES,
+            }),
             Announcement::FilteredCount { shown, total } => self.filtered_count(shown, total),
             Announcement::ScopeFilteredCount {
                 scope,

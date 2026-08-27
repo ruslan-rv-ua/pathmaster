@@ -1,4 +1,4 @@
-//! The sixteen commands the window carries, and the menus they live in
+//! The seventeen commands the window carries, and the menus they live in
 //! (spec §15, §5, §6; v0.2.0 §12).
 //!
 //! One enum is the whole map: it names the menu items, the menu each belongs
@@ -14,6 +14,7 @@
 //! a translated `"\tCtrl+Я"` would not misread, it would delete the shortcut
 //! (ADR-0004).
 
+use pathmaster_core::expansion::Mode;
 use pathmaster_core::msgids;
 use pathmaster_core::session::Session;
 use wxdragon::prelude::*;
@@ -22,7 +23,7 @@ use crate::catalog::translate;
 
 /// One user-visible command.
 ///
-/// Eleven of them are about a Scope; the last five are not, and are here for
+/// Twelve of them are about a Scope; the last five are not, and are here for
 /// the reason the enum exists at all: they are menu items, and a menu item's
 /// id, label and enabled state are answered in one place or in three.
 ///
@@ -44,6 +45,7 @@ pub enum Command {
     Cancel,
     Refresh,
     Search,
+    ExpandedValues,
     Settings,
     OpenBackupsFolder,
     RestartAsAdministrator,
@@ -80,13 +82,21 @@ pub struct Availability<'a> {
     /// Administrator is disabled where it could only restart into what the
     /// user already has.
     pub elevated: bool,
+    /// How the application is rendering Entries right now — app-wide, both
+    /// Scopes alike (v0.2.0 §5).
+    ///
+    /// It decides no command's *availability*: it is the state the one
+    /// `wxITEM_CHECK` item carries, and it rides here because an item's
+    /// enabled state and its check mark are written in one pass and must not
+    /// be answered in two places.
+    pub expansion: Mode,
 }
 
 impl Command {
     /// Every command, in **button** order — §15's Add, Edit, Delete, Move Up,
     /// Move Down, Apply, Cancel — which is also the order each menu takes its
     /// own items in, since [`menu`](Self::menu) preserves it.
-    pub const ALL: [Command; 16] = [
+    pub const ALL: [Command; 17] = [
         Command::Add,
         Command::Edit,
         Command::Delete,
@@ -98,6 +108,7 @@ impl Command {
         Command::Cancel,
         Command::Refresh,
         Command::Search,
+        Command::ExpandedValues,
         Command::Settings,
         Command::OpenBackupsFolder,
         Command::RestartAsAdministrator,
@@ -153,7 +164,7 @@ impl Command {
             | Command::Redo
             | Command::Cancel
             | Command::Refresh => msgids::MENU_GROUP_EDIT,
-            Command::Search => msgids::MENU_GROUP_VIEW,
+            Command::Search | Command::ExpandedValues => msgids::MENU_GROUP_VIEW,
             Command::Settings | Command::OpenBackupsFolder | Command::RestartAsAdministrator => {
                 msgids::MENU_GROUP_TOOLS
             }
@@ -176,6 +187,7 @@ impl Command {
             Command::Cancel => msgids::MENU_CANCEL,
             Command::Refresh => msgids::MENU_REFRESH,
             Command::Search => msgids::MENU_SEARCH,
+            Command::ExpandedValues => msgids::MENU_EXPANDED_VALUES,
             Command::Settings => msgids::MENU_SETTINGS,
             Command::OpenBackupsFolder => msgids::MENU_OPEN_BACKUPS_FOLDER,
             Command::RestartAsAdministrator => msgids::MENU_RESTART_AS_ADMIN,
@@ -209,6 +221,7 @@ impl Command {
             | Command::Redo
             | Command::Refresh
             | Command::Search
+            | Command::ExpandedValues
             | Command::Settings
             | Command::OpenBackupsFolder
             | Command::RestartAsAdministrator
@@ -241,6 +254,9 @@ impl Command {
             // wxMSW's text-entry preprocessing claims only Ctrl+C/X/V/A
             // (v0.2.0 §12), which is intended: one keystroke, one meaning.
             Command::Search => Some("Ctrl+F"),
+            // Ctrl+E, the key the ticket-16 prototype carried through the
+            // user's own NVDA verification (v0.2.0 §12).
+            Command::ExpandedValues => Some("Ctrl+E"),
             Command::Add
             | Command::Cancel
             | Command::Settings
@@ -303,7 +319,8 @@ impl Command {
             | Command::Apply
             | Command::Cancel
             | Command::Refresh
-            | Command::Search => available
+            | Command::Search
+            | Command::ExpandedValues => available
                 .session
                 .is_some_and(|session| self.over(session, available)),
         }
@@ -316,7 +333,13 @@ impl Command {
             Command::Refresh => true,
             // Read-only Data searches normally: a Run that cannot edit still
             // reads, diagnoses and lists (v0.2.0 §3).
-            Command::Search => true,
+            //
+            // Expanded Values is the same kind of command and the same answer:
+            // it changes how paths are read, not what they are, so a Session
+            // nobody may edit is one whose rendering may still be changed.
+            // What closes it is the Backups tab, where there is no Session at
+            // all — like every other View item (v0.2.0 §5, §12).
+            Command::Search | Command::ExpandedValues => true,
             _ if !session.writable() => false,
             // Add appends at the end — a position a narrowed view may be
             // hiding, so it closes with Move Up and Move Down (v0.2.0 §2).
@@ -344,6 +367,72 @@ impl Command {
             | Command::About => false,
         }
     }
+
+    /// Whether this command's menu item **carries state**: a `wxITEM_CHECK`
+    /// item, whose mark NVDA reads in both directions, rather than a plain
+    /// item that does something and says nothing (v0.2.0 §5, ticket 16
+    /// probe 1).
+    ///
+    /// Asked twice and answered here once — at build time, to append the right
+    /// kind of item, and at every sync, to write [`state`](Self::state) into
+    /// it. A plain item and a check item are not interchangeable: appending
+    /// the wrong kind is an item whose mark can never be set at all.
+    fn carries_state(self) -> bool {
+        // Exhaustive, like every other `match` over this enum: the next
+        // command someone adds has to say whether it carries a mark, because
+        // an item that silently carried none would read as a command in a menu
+        // where its state is the whole point.
+        match self {
+            Command::ExpandedValues => true,
+            Command::Add
+            | Command::Edit
+            | Command::Delete
+            | Command::MoveUp
+            | Command::MoveDown
+            | Command::Undo
+            | Command::Redo
+            | Command::Apply
+            | Command::Cancel
+            | Command::Refresh
+            | Command::Search
+            | Command::Settings
+            | Command::OpenBackupsFolder
+            | Command::RestartAsAdministrator
+            | Command::Exit
+            | Command::About => false,
+        }
+    }
+
+    /// The state that item's mark now shows.
+    ///
+    /// **It is written whether or not the item is enabled**: on the Backups
+    /// tab Expanded Values is disabled like every other View item, and its
+    /// check mark stays readable there — the mode is app-wide and a tab the
+    /// command cannot be given from is not a tab it is off in (v0.2.0 §5).
+    fn state(self, available: &Availability) -> bool {
+        match self {
+            Command::ExpandedValues => available.expansion.expanded(),
+            // Never asked — `carries_state` closes them — and answered rather
+            // than caught all the same, so the next state-carrying command has
+            // to say what its mark reads.
+            Command::Add
+            | Command::Edit
+            | Command::Delete
+            | Command::MoveUp
+            | Command::MoveDown
+            | Command::Undo
+            | Command::Redo
+            | Command::Apply
+            | Command::Cancel
+            | Command::Refresh
+            | Command::Search
+            | Command::Settings
+            | Command::OpenBackupsFolder
+            | Command::RestartAsAdministrator
+            | Command::Exit
+            | Command::About => false,
+        }
+    }
 }
 
 /// Builds the menu bar from [`Command::MENUS`] and [`Command::menu`], so a
@@ -358,7 +447,12 @@ pub fn build_menu_bar() -> MenuBar {
     for (title, group) in Command::MENUS {
         let mut menu = Menu::builder();
         for command in Command::ALL.into_iter().filter(|c| c.menu() == group) {
-            menu = menu.append_item(command.id(), &command.menu_label(), "");
+            let (id, label) = (command.id(), command.menu_label());
+            menu = if command.carries_state() {
+                menu.append_check_item(id, &label, "")
+            } else {
+                menu.append_item(id, &label, "")
+            };
         }
         bar = bar.append(menu.build(), &translate(title));
     }
@@ -367,8 +461,16 @@ pub fn build_menu_bar() -> MenuBar {
 
 /// Points every menu item at the state that now holds. Called after every
 /// operation and every tab change, so what the menu reads is never stale.
+///
+/// The check items' marks are written in the same pass and from the same
+/// [`Availability`]: wx toggles a check item's mark itself before the command
+/// reaches the window, so the mark is only ever as true as the flag it is
+/// written back from (v0.2.0 §5).
 pub fn sync_menu_bar(bar: &MenuBar, available: &Availability) {
     for command in Command::ALL {
         bar.enable_item(command.id(), command.enabled(available));
+        if command.carries_state() {
+            bar.check_item(command.id(), command.state(available));
+        }
     }
 }

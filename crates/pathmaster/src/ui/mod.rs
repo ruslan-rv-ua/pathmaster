@@ -21,6 +21,7 @@ mod door;
 mod entry_dialog;
 mod list;
 mod question;
+mod rendering;
 mod scope_page;
 mod settings_dialog;
 
@@ -34,7 +35,7 @@ use pathmaster_core::filtered;
 use pathmaster_core::logfmt::{FailureCause, Record};
 use pathmaster_core::msgids;
 use pathmaster_core::normalize::has_variable_reference;
-use pathmaster_core::session::{Entry, EntryId, Operation, Scope, Session, ValueType};
+use pathmaster_core::session::{EntryId, Operation, Scope, Session, ValueType};
 use pathmaster_core::settings::SettingsFile;
 use pathmaster_platform::apply::{self, ApplyRun, Ask, ExternalChange, ScopeInput, ScopeOutcome};
 use pathmaster_platform::datadir::ReadOnlyReason;
@@ -56,6 +57,7 @@ use crate::pump::Pump;
 use crate::scoped::Scoped;
 use crate::ui::backups_page::BackupsPage;
 use crate::ui::command::{Availability, Command};
+use crate::ui::rendering::Rendering;
 use crate::ui::scope_page::{Row, ScopePage};
 use crate::SharedScope;
 
@@ -112,6 +114,16 @@ struct ScopeTab {
     /// captures it, and no command changes it — only the user's typing does.
     /// [`Scoped`] because commands and the debounce's tick both reach it.
     query: Scoped<String>,
+    /// Whether this Scope owes a **spoken count** at the next debounce tick.
+    ///
+    /// The Expansion toggle is what arms it: with a Filtered View active the
+    /// toggle changes membership, so it speaks twice — its own mode message,
+    /// then the count through this same debounced path one
+    /// `filteredCountDelayMs` later, never combined into one msgid (v0.2.0
+    /// §13 item 8). A tick answers one count however many reasons it has, so
+    /// a toggle landing inside a typing window is spoken by the tick the
+    /// typing already asked for.
+    count_due: Cell<bool>,
     /// What the last completed pass found here — the Status column's whole
     /// content, and the issue count StatusBar field 0 reports. A derived view,
     /// held beside the Session and never inside it (ADR-0001), and [`Scoped`]
@@ -130,6 +142,12 @@ struct ScopeTab {
     /// so the window holds it, and three paths keep it current: startup,
     /// Refresh, and whatever an Apply Run hands back (ADR-0008).
     last_read: RefCell<RawValue>,
+    /// The one app-wide Expansion Mode, shared with the window and the other
+    /// Scope (v0.2.0 §5). Held here rather than passed in because every
+    /// question this tab answers about its view — the visible set, the rows,
+    /// the counts — is asked under the mode now in force, and a mode handed in
+    /// per call is one two callers can disagree about.
+    rendering: Rc<Rendering>,
 }
 
 impl ScopeTab {
@@ -172,13 +190,24 @@ impl ScopeTab {
     /// The visible set: the Working-Copy indices of the Entries this Scope's
     /// Filtered View shows, in order — every index, while nothing narrows.
     /// Recomputed from the live Working Copy on each ask, so it can never
-    /// describe a list that has moved on; matching reads the currently
-    /// displayed rendering, which is the raw text until ticket 04's Expansion
-    /// Mode arrives (v0.2.0 §3).
+    /// describe a list that has moved on.
+    ///
+    /// **Matching reads the currently displayed rendering** (v0.2.0 §3): the
+    /// same text the rows carry, so what the spoken count counts is exactly
+    /// what the arrow keys will read. Its consequence is paid deliberately —
+    /// toggling Expansion Mode changes membership, because a raw
+    /// `%JAVA_HOME%` Entry and its expanded reading are different haystacks
+    /// (v0.2.0 §5).
     fn visible(&self) -> Vec<usize> {
         self.session.with(|session| {
             self.query.with(|query| {
-                filtered::visible_indices(session.entries().iter().map(Entry::raw), query)
+                filtered::visible_indices(
+                    session
+                        .entries()
+                        .iter()
+                        .map(|entry| self.rendering.render(entry.raw())),
+                    query,
+                )
             })
         })
     }
@@ -224,7 +253,13 @@ impl ScopeTab {
         let visible = self.visible();
         self.session.with(|session| {
             self.findings.with(|findings| {
-                Row::compose_visible(session, findings.as_ref(), catalogue, &visible)
+                Row::compose_visible(
+                    session,
+                    findings.as_ref(),
+                    catalogue,
+                    &self.rendering,
+                    &visible,
+                )
             })
         })
     }
@@ -290,6 +325,10 @@ struct App {
     announcer: Announcer,
     status: StatusBar,
     tabs: [ScopeTab; 2],
+    /// Expansion Mode: the one app-wide flag, shared with both Scope tabs so
+    /// they render alike (v0.2.0 §5). The window holds it because the window
+    /// is what flips it; the tabs hold it because they are what reads it.
+    rendering: Rc<Rendering>,
     readonly: Option<ReadOnlyReason>,
     /// The diagnostic pass: the worker thread and the Timer that drains it
     /// (spec §17, `pump`). Never called into off the UI thread, because
@@ -392,12 +431,15 @@ pub fn build_main_window(
     banner.set_min_size(Size::new(-1, banner.get_char_height()));
 
     let notebook = Notebook::builder(&root).build();
+    // Raw, like every Run: the mode is per-Run derived view state with no
+    // `settings.json` field to open expanded from (v0.2.0 §5).
+    let rendering = Rc::new(Rendering::new());
     // No pass has run yet, so the rows are composed under no findings — and
     // outside the Sessions' scoped access, because building a page renders it.
     let rows_at_start = |scope: &SharedScope| {
         scope
             .session
-            .with(|session| Row::compose(session, None, &catalogue))
+            .with(|session| Row::compose(session, None, &catalogue, &rendering))
     };
     let user_page = ScopePage::build(&notebook, &rows_at_start(&user));
     let system_page = ScopePage::build(&notebook, &rows_at_start(&system));
@@ -407,16 +449,20 @@ pub fn build_main_window(
             session: user.session,
             page: user_page,
             query: Scoped::new(String::new()),
+            count_due: Cell::new(false),
             findings: Scoped::new(None),
             last_read: RefCell::new(user.last_read),
+            rendering: Rc::clone(&rendering),
         },
         ScopeTab {
             scope: Scope::System,
             session: system.session,
             page: system_page,
             query: Scoped::new(String::new()),
+            count_due: Cell::new(false),
             findings: Scoped::new(None),
             last_read: RefCell::new(system.last_read),
+            rendering: Rc::clone(&rendering),
         },
     ];
     // The Backups tab is not a Scope: it lists files rather than Entries, and
@@ -460,6 +506,7 @@ pub fn build_main_window(
         catalogue,
         status,
         tabs,
+        rendering,
         readonly,
         pump: Pump::new(&frame),
         merged_length: Cell::new(None),
@@ -571,7 +618,7 @@ impl App {
                     tab.page.debounce.start(delay, true);
                     return;
                 }
-                app.apply_search(tab);
+                app.apply_criteria(tab);
             });
             // The field's keyboard contract (v0.2.0 §3): Enter is consumed
             // and does nothing — unhandled it would reach the default button —
@@ -742,7 +789,8 @@ impl App {
             | Command::Apply
             | Command::Cancel
             | Command::Refresh
-            | Command::Search => {}
+            | Command::Search
+            | Command::ExpandedValues => {}
         }
         let Some(tab) = active else { return };
         match command {
@@ -757,6 +805,10 @@ impl App {
             Command::Cancel => self.cancel(tab),
             Command::Refresh => self.refresh(tab),
             Command::Search => self.focus_search(tab),
+            // The mode is app-wide, so the active tab is not passed on — but
+            // the command is a Scope tab's all the same: reaching here is what
+            // "disabled on Backups, like every other View item" means.
+            Command::ExpandedValues => self.toggle_expansion(),
             // Answered above, before there was a Scope to answer them over.
             Command::Settings
             | Command::OpenBackupsFolder
@@ -781,23 +833,32 @@ impl App {
     /// A tick whose text equals the applied criteria is not a change — typing
     /// `a` then Backspace inside one debounce window lands here with nothing
     /// to do, and §2's "speaks only when the criteria change" says to do
-    /// nothing, loudly included.
-    fn apply_search(&self, tab: &ScopeTab) {
+    /// nothing, loudly included. It still speaks when the tick was armed by
+    /// the Expansion toggle, which changed the view without touching the
+    /// field: that count is what the toggle owes, and it arrives here so that
+    /// **one tick speaks one count** however many reasons it had (v0.2.0 §13
+    /// item 8). Only the speaking is debounced — the toggle re-rendered its
+    /// rows the moment it was given.
+    fn apply_criteria(&self, tab: &ScopeTab) {
         let typed = tab.page.search.get_value();
-        if tab.query.with(|query| *query == typed) {
+        let retyped = tab.query.with(|query| *query != typed);
+        let owed = tab.count_due.replace(false);
+        if !retyped && !owed {
             return;
         }
-        let concerned = tab.focused_entry().map(|(_, id)| id);
-        tab.query.with_mut(|query| *query = typed);
-        // Quiet: focus stays in the field the user is typing in — the rebuild
-        // marks the landing row without taking the keyboard focus, which is
-        // the mechanism ticket 04 measured silent under NVDA. The first row
-        // stands in when the rule answers nothing (a Run whose first gesture
-        // is typing has no row to keep), so Down and Tab always land on a row
-        // NVDA reads.
-        let row = self.landing_row(tab, concerned).or(Some(0));
-        tab.page.render_quiet(&tab.rows(&self.catalogue), row);
-        self.sync();
+        if retyped {
+            let concerned = tab.focused_entry().map(|(_, id)| id);
+            tab.query.with_mut(|query| *query = typed);
+            // Quiet: focus stays in the field the user is typing in — the
+            // rebuild marks the landing row without taking the keyboard focus,
+            // which is the mechanism ticket 04 measured silent under NVDA. The
+            // first row stands in when the rule answers nothing (a Run whose
+            // first gesture is typing has no row to keep), so Down and Tab
+            // always land on a row NVDA reads.
+            let row = self.landing_row(tab, concerned).or(Some(0));
+            tab.page.render_quiet(&tab.rows(&self.catalogue), row);
+            self.sync();
+        }
         // Spoken only about the list the user is on: the debounce survives a
         // tab switch, and a count describing a hidden list would be noise —
         // the criteria still applied, and arrival speech covers the return.
@@ -812,16 +873,72 @@ impl App {
         }
     }
 
+    /// Ctrl+E, View → Expanded Values: flips the one app-wide rendering flag
+    /// (v0.2.0 §5).
+    ///
+    /// **Both Scope tabs re-render**, because the mode is not per Scope, and
+    /// **nothing about a Working Copy is touched**: no Checkpoint, invisible
+    /// to Undo and Redo both ways, so a Ctrl+Z under expanded mode shows the
+    /// rolled-back Working Copy, still expanded.
+    ///
+    /// The order is the whole of it. What each tab was showing — its visible
+    /// set, and the Entry it is on — is read **before** the flip: a list row
+    /// is a position in the visible set, and after the flip that set can be a
+    /// different one, so the old row read against the new membership would
+    /// name another Entry.
+    ///
+    /// **How each list is redrawn is decided by whether its membership moved**
+    /// (v0.2.0 §5). Where it did not, only the Path cells differ, and writing
+    /// them touches no item state — which is what keeps the toggle silent
+    /// under a list holding the keyboard focus, so its own message is what is
+    /// heard and an arrow key re-reads the row. Where it did — the Filtered
+    /// View case, where the two renderings are different haystacks — the list
+    /// is rebuilt and lands on §2's row, exactly as any other membership
+    /// change does. Focus is never *taken* either way.
+    fn toggle_expansion(&self) {
+        let showing = self
+            .tabs
+            .each_ref()
+            .map(|tab| (tab.visible(), tab.focused_entry().map(|(_, id)| id)));
+        let mode = self.rendering.toggle();
+        for (tab, (visible, concerned)) in self.tabs.iter().zip(showing) {
+            let rows = tab.rows(&self.catalogue);
+            if tab.visible() == visible {
+                tab.page.render_paths(&rows);
+            } else {
+                tab.page
+                    .render_quiet(&rows, self.landing_row(tab, concerned));
+            }
+        }
+        self.sync();
+        self.announcer
+            .announce(Announcement::ExpansionMode { mode });
+        // Under a Filtered View the toggle changed membership, so the count
+        // follows — through the same debounced path a typing pause uses, one
+        // `filteredCountDelayMs` later and never combined into one msgid
+        // (v0.2.0 §13 item 8). Only the visible Scope's: a count about a list
+        // the user is not on would be noise, and arrival speech covers the
+        // return.
+        let Some(tab) = self.active_tab().filter(|tab| tab.narrowed()) else {
+            return;
+        };
+        tab.count_due.set(true);
+        let delay = self.settings.with(SettingsFile::filtered_count_delay_ms) as i32;
+        tab.page.debounce.start(delay, true);
+    }
+
     /// ESC in the Search field: clears the text and returns focus to the list
     /// (v0.2.0 §3) — the second half honouring `searchEscapeReturnsFocus`,
     /// the first happening either way. One gesture, one meaning: on an
     /// already-idle field it still returns focus and says nothing.
     fn clear_search(&self, tab: &ScopeTab) {
-        // The pending debounce dies with the text it was about; the clear is
-        // applied here, discretely, not debounced. `change_value` — never
-        // `set_value` — because the programmatic clear must not fire the
-        // typing path on top of this one.
+        // The pending debounce dies with the text it was about — and so does
+        // any count it owed, since ESC speaks its own; the clear is applied
+        // here, discretely, not debounced. `change_value` — never `set_value`
+        // — because the programmatic clear must not fire the typing path on
+        // top of this one.
         tab.page.debounce.stop();
+        tab.count_due.set(false);
         tab.page.search.change_value("");
         if tab.narrowed() {
             let concerned = tab.focused_entry().map(|(_, id)| id);
@@ -1683,6 +1800,7 @@ impl App {
     ) -> R {
         let data_dir = self.run.data_dir().is_some();
         let elevated = self.run.elevated();
+        let expansion = self.rendering.mode();
         match tab {
             Some(tab) => {
                 let narrowed = tab.narrowed();
@@ -1694,15 +1812,20 @@ impl App {
                         visible_rows,
                         data_dir,
                         elevated,
+                        expansion,
                     })
                 })
             }
+            // The Backups tab, where every View item is disabled — and where
+            // the mode rides along all the same, because a disabled Expanded
+            // Values keeps a readable check mark (v0.2.0 §5).
             None => read(&Availability {
                 session: None,
                 narrowed: false,
                 visible_rows: 0,
                 data_dir,
                 elevated,
+                expansion,
             }),
         }
     }
