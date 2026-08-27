@@ -135,6 +135,45 @@ pub const FILTERED_SYSTEM: &str = "System PATH: {n} of {m} entry";
 pub const FILTERED_SYSTEM_PLURAL: &str = "System PATH: {n} of {m} entries";
 pub const FILTERED_SYSTEM_NONE: &str = "System PATH: no matching entries";
 
+/// The two Filter states that are not an Issue type (v0.2.0 spec §4, §12).
+///
+/// The other five reuse the Status column's own words — [`ISSUE_MISSING`] and
+/// its four siblings — so the Filter adds a name for exactly what the
+/// Catalogue did not already hold. **Neither carries a mnemonic**: these two
+/// strings are read in the Filter submenu, in Announcement 11 and in StatusBar
+/// field 0, and the two surfaces that are not a menu would print the `&`. The
+/// submenu is walked with the arrow keys, which is how a radio group is
+/// walked; Ctrl+I is the keystroke, and it rides its own item.
+pub const FILTER_ALL: &str = "All";
+pub const FILTER_WITH_ISSUES: &str = "With issues";
+
+/// Announcement 11 (v0.2.0 spec §13 item 11): the composed Search∧Filter count
+/// a change to a non-All Filter speaks — **one announcement, never two**, so
+/// the Filter's name and the count it produced are one sentence.
+///
+/// `{filter}` is the state's own name, translated before it is filled in, the
+/// way [`APPLY_FAILED`]'s cause is. Plural by `{m}` like every other count
+/// here; the zero case is worded and still names the state, because "which
+/// filter found nothing" is the whole of what the user needs back.
+pub const FILTER_COUNT: &str = "{filter}: {n} of {m} entry";
+pub const FILTER_COUNT_PLURAL: &str = "{filter}: {n} of {m} entries";
+pub const FILTER_COUNT_NONE: &str = "{filter}: no matching entries";
+
+/// StatusBar field 0's per-Scope fragment while that Scope's Filter is not
+/// `All` (v0.2.0 spec §16): the state named, then the count it produced.
+///
+/// Whole strings per Scope, like [`FILTERED_USER`] and for its reason — and
+/// separate from it rather than composed onto it, because the name lands
+/// *inside* the sentence and no suffix can put it there. The issue
+/// parenthetical is appended as ever and never changes meaning: it counts the
+/// Scope's Issues, not the view's.
+pub const FILTERED_USER_NAMED: &str = "User PATH: {filter} — {n} of {m} entry";
+pub const FILTERED_USER_NAMED_PLURAL: &str = "User PATH: {filter} — {n} of {m} entries";
+pub const FILTERED_USER_NAMED_NONE: &str = "User PATH: {filter} — no matching entries";
+pub const FILTERED_SYSTEM_NAMED: &str = "System PATH: {filter} — {n} of {m} entry";
+pub const FILTERED_SYSTEM_NAMED_PLURAL: &str = "System PATH: {filter} — {n} of {m} entries";
+pub const FILTERED_SYSTEM_NAMED_NONE: &str = "System PATH: {filter} — no matching entries";
+
 /// Announcement 2 (spec §10.1 item 2): a Scope's Working Copy reached the
 /// registry. Two whole strings rather than one frame with the Scope filled in:
 /// «PATH користувача застосовано» agrees with its subject, and a Scope name
@@ -258,6 +297,22 @@ pub const MENU_SEARCH: &str = "&Search";
 /// is appended by the code (ADR-0004). Its mnemonic is E, unique in the menu it
 /// opens.
 pub const MENU_EXPANDED_VALUES: &str = "&Expanded Values";
+
+/// The View menu's Filter submenu (v0.2.0 §4, §12): the title the seven
+/// `wxITEM_RADIO` states hang under, and the plain command item Ctrl+I rides.
+///
+/// **The toggle is its own item, not a mark on this one.** A radio item
+/// carrying Ctrl+I would fire that radio's selection rather than the toggle,
+/// and a check item would carry a mark that lies whenever a per-type state is
+/// active — so the coarse gesture gets a plain item with a constant label, and
+/// the submenu's radio marks are the state. The seven state names carry no
+/// mnemonic and are not menu entries here: they are shared with the Status
+/// column, and the submenu is walked with the arrow keys.
+///
+/// The mnemonics are F and I, unique in the View menu they open beside
+/// [`MENU_SEARCH`]'s S and [`MENU_EXPANDED_VALUES`]'s E.
+pub const MENU_FILTER: &str = "&Filter";
+pub const MENU_TOGGLE_ISSUES_FILTER: &str = "Toggle &Issues Filter";
 
 /// The File menu's items (spec §15). Apply is here because Ctrl+S can only
 /// live on a menu item's label — wxdragon binds no accelerator table at any
@@ -517,6 +572,14 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::text(FILTERED_USER_NONE),
     CatalogueEntry::plural(FILTERED_SYSTEM, FILTERED_SYSTEM_PLURAL),
     CatalogueEntry::text(FILTERED_SYSTEM_NONE),
+    CatalogueEntry::text(FILTER_ALL),
+    CatalogueEntry::text(FILTER_WITH_ISSUES),
+    CatalogueEntry::plural(FILTER_COUNT, FILTER_COUNT_PLURAL),
+    CatalogueEntry::text(FILTER_COUNT_NONE),
+    CatalogueEntry::plural(FILTERED_USER_NAMED, FILTERED_USER_NAMED_PLURAL),
+    CatalogueEntry::text(FILTERED_USER_NAMED_NONE),
+    CatalogueEntry::plural(FILTERED_SYSTEM_NAMED, FILTERED_SYSTEM_NAMED_PLURAL),
+    CatalogueEntry::text(FILTERED_SYSTEM_NAMED_NONE),
     CatalogueEntry::text(APPLIED_USER),
     CatalogueEntry::text(APPLIED_SYSTEM),
     CatalogueEntry::text(APPLY_FAILED),
@@ -543,6 +606,8 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::menu_item(MENU_TITLE_TOOLS, MENU_GROUP_BAR),
     CatalogueEntry::menu_item(MENU_TITLE_VIEW, MENU_GROUP_BAR),
     CatalogueEntry::menu_item(MENU_SEARCH, MENU_GROUP_VIEW),
+    CatalogueEntry::menu_item(MENU_FILTER, MENU_GROUP_VIEW),
+    CatalogueEntry::menu_item(MENU_TOGGLE_ISSUES_FILTER, MENU_GROUP_VIEW),
     CatalogueEntry::menu_item(MENU_EXPANDED_VALUES, MENU_GROUP_VIEW),
     CatalogueEntry::menu_item(MENU_APPLY, MENU_GROUP_FILE),
     CatalogueEntry::menu_item(MENU_EXIT, MENU_GROUP_FILE),

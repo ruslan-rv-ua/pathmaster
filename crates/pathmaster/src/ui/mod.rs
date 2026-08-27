@@ -31,7 +31,7 @@ use std::rc::Rc;
 
 use pathmaster_core::catalogue::{Announcement, Catalogue, ScopeCounts, UndoDirection};
 use pathmaster_core::diagnostics::{Diagnosis, Findings};
-use pathmaster_core::filtered;
+use pathmaster_core::filtered::{self, Criteria, Filter};
 use pathmaster_core::logfmt::{FailureCause, Record};
 use pathmaster_core::msgids;
 use pathmaster_core::normalize::has_variable_reference;
@@ -56,7 +56,7 @@ use crate::catalog::{self, translate};
 use crate::pump::Pump;
 use crate::scoped::Scoped;
 use crate::ui::backups_page::BackupsPage;
-use crate::ui::command::{Availability, Command};
+use crate::ui::command::{Availability, Command, Menus};
 use crate::ui::rendering::Rendering;
 use crate::ui::scope_page::{Row, ScopePage};
 use crate::SharedScope;
@@ -107,13 +107,15 @@ struct ScopeTab {
     /// the Timer's tick and by synchronous toolkit callbacks (ADR-0011).
     session: Rc<Scoped<Session>>,
     page: ScopePage,
-    /// The **applied** Search text — the criteria the list on screen was last
-    /// rebuilt under, which is not always what the field holds: typing sits in
-    /// the field until the debounce tick applies it. Per-Editing-Session
-    /// derived view state (v0.2.0 §2): it dies with the Run, no Checkpoint
-    /// captures it, and no command changes it — only the user's typing does.
-    /// [`Scoped`] because commands and the debounce's tick both reach it.
-    query: Scoped<String>,
+    /// The **applied** criteria — the Search text and Filter the list on
+    /// screen was last rebuilt under, which is not always what the field
+    /// holds: typing sits in the field until the debounce tick applies it.
+    /// Per-Editing-Session derived view state (v0.2.0 §2): both die with the
+    /// Run, no Checkpoint captures them, and no command changes them — only
+    /// the user's own narrowing actions do, typing in the field and choosing
+    /// a state in the submenu. [`Scoped`] because commands and the debounce's
+    /// tick both reach it.
+    criteria: Scoped<Criteria>,
     /// Whether this Scope owes a **spoken count** at the next debounce tick.
     ///
     /// The Expansion toggle is what arms it: with a Filtered View active the
@@ -175,16 +177,29 @@ impl ScopeTab {
             scope: self.scope,
             entries: self.session.with(|session| session.entries().len()),
             visible: self.narrowed().then(|| self.visible().len()),
+            filter: self.filter(),
             issues: self
                 .findings
                 .with(|findings| findings.as_ref().map(Findings::issue_count)),
         }
     }
 
-    /// Whether this Scope has a Filtered View: a non-empty applied Search text
-    /// (the Filter axis composes in with ticket 05, fixed at `All` until then).
+    /// Whether this Scope has a Filtered View — a non-empty applied Search
+    /// text **or** a narrowing Filter, composed by `Criteria` (v0.2.0 §2).
     fn narrowed(&self) -> bool {
-        self.query.with(|query| !query.is_empty())
+        self.criteria.with(Criteria::narrowing)
+    }
+
+    /// Whether the Search half alone is narrowing — what ESC answers to, since
+    /// it clears the text and leaves any Filter standing (v0.2.0 §3).
+    fn searching(&self) -> bool {
+        self.criteria.with(Criteria::searching)
+    }
+
+    /// This Scope's applied Filter: the state its submenu's radio mark reads,
+    /// and the one StatusBar field 0 names while it narrows (v0.2.0 §4, §16).
+    fn filter(&self) -> Filter {
+        self.criteria.with(|criteria| criteria.filter)
     }
 
     /// The visible set: the Working-Copy indices of the Entries this Scope's
@@ -198,16 +213,27 @@ impl ScopeTab {
     /// toggling Expansion Mode changes membership, because a raw
     /// `%JAVA_HOME%` Entry and its expanded reading are different haystacks
     /// (v0.2.0 §5).
+    ///
+    /// **The Filter reads the last completed pass** (v0.2.0 §4), which is the
+    /// same clock the Status column runs on: an Entry no pass has looked at
+    /// carries no Issues, so a narrowing state shows nothing until one lands
+    /// and then shows what it found (spec §7, FR-diag-async).
     fn visible(&self) -> Vec<usize> {
         self.session.with(|session| {
-            self.query.with(|query| {
-                filtered::visible_indices(
-                    session
-                        .entries()
-                        .iter()
-                        .map(|entry| self.rendering.render(entry.raw())),
-                    query,
-                )
+            self.findings.with(|findings| {
+                self.criteria.with(|criteria| {
+                    filtered::visible_indices(
+                        session.entries().iter().map(|entry| {
+                            (
+                                self.rendering.render(entry.raw()),
+                                findings
+                                    .as_ref()
+                                    .map_or(&[][..], |findings| findings.issues(entry)),
+                            )
+                        }),
+                        criteria,
+                    )
+                })
             })
         })
     }
@@ -318,7 +344,7 @@ struct App {
     /// back into a Working Copy (spec §8). Not a Scope, so it is not one of
     /// [`tabs`](App::tabs) and no editing command reaches it.
     backups: BackupsPage,
-    menu: MenuBar,
+    menus: Menus,
     /// The one Catalogue (ADR-0009): every string this window composes is
     /// composed here, and the Announcer holds the same one.
     catalogue: Rc<Catalogue>,
@@ -419,7 +445,10 @@ pub fn build_main_window(
         .build();
     frame.set_min_size(Size::new(800, 600));
     set_frame_icon(&frame);
-    frame.set_menu_bar(command::build_menu_bar());
+    // The bar is given to the frame here, before anything is laid out under
+    // it, and kept: the Filter submenu's own item carries no command id, so
+    // what disables it on the Backups tab is the item itself (v0.2.0 §4).
+    let menus = Menus::build(&frame);
 
     let root = Panel::builder(&frame).build();
 
@@ -448,7 +477,7 @@ pub fn build_main_window(
             scope: Scope::User,
             session: user.session,
             page: user_page,
-            query: Scoped::new(String::new()),
+            criteria: Scoped::new(Criteria::default()),
             count_due: Cell::new(false),
             findings: Scoped::new(None),
             last_read: RefCell::new(user.last_read),
@@ -458,7 +487,7 @@ pub fn build_main_window(
             scope: Scope::System,
             session: system.session,
             page: system_page,
-            query: Scoped::new(String::new()),
+            criteria: Scoped::new(Criteria::default()),
             count_due: Cell::new(false),
             findings: Scoped::new(None),
             last_read: RefCell::new(system.last_read),
@@ -501,7 +530,7 @@ pub fn build_main_window(
         frame,
         notebook,
         backups,
-        menu: frame.get_menu_bar().expect("the menu bar was just set"),
+        menus,
         announcer: Announcer::new(banner, Rc::clone(&catalogue)),
         catalogue,
         status,
@@ -732,20 +761,45 @@ impl App {
     /// Puts a completed pass on screen: both Status columns, then both
     /// StatusBar fields.
     ///
-    /// The lists are **not** rebuilt — only their Status column is written —
-    /// because a pass lands on its own schedule, and rebuilding would clear the
-    /// focused row out from under whoever is arrowing through it. Both tabs are
-    /// written, not just the active one: the tab the user is not looking at was
-    /// diagnosed by the same pass. The rows are the tab's own — the Filtered
-    /// View's visible set — so a narrowed list's cells line up with the rows
-    /// it actually shows.
+    /// The lists are **not** rebuilt where their membership held — only the
+    /// Status column is written — because a pass lands on its own schedule and
+    /// rebuilding would clear the focused row out from under whoever is
+    /// arrowing through it. Both tabs are written, not just the active one:
+    /// the tab the user is not looking at was diagnosed by the same pass.
+    ///
+    /// **A pass can move membership**, though, and only under a Filter: the
+    /// state selects on the Issue set, and the Issue set is exactly what a
+    /// pass replaces (v0.2.0 §4). Where it moved, the rows on screen are the
+    /// wrong rows and the Status cells would land on the wrong Entries, so the
+    /// list is rebuilt and lands on §2's row like any other membership change
+    /// — silently, which is what §2 says recomputation is.
     fn apply_pass(&self, diagnosis: &Diagnosis) {
         for tab in &self.tabs {
+            // Read before the findings land, for the reason the Expansion
+            // toggle reads its own: a list row is a position in the visible
+            // set, and a pass under a Filter can change which Entries that set
+            // holds (v0.2.0 §4).
+            let (showing, concerned) = (tab.visible(), tab.focused_entry().map(|(_, id)| id));
             let findings = tab
                 .session
                 .with(|session| Findings::of(session.entries(), diagnosis.scope(tab.scope)));
             tab.findings.with_mut(|held| *held = Some(findings));
-            tab.page.render_status(&tab.rows(&self.catalogue));
+            let rows = tab.rows(&self.catalogue);
+            if tab.visible() == showing {
+                tab.page.render_status(&rows);
+            } else {
+                // Membership moved, so the cells no longer line up with the
+                // rows on screen and only a rebuild can. Silent and quiet:
+                // §2's recomputation says nothing, and a pass lands on its own
+                // schedule — taking the keyboard focus for it would be the
+                // uninvited jump §2 forbids. The first row stands in where the
+                // rule answers nothing, as it does on the typing path: a Run
+                // that chose a Filter before its first pass landed was looking
+                // at an empty list, so there is no row to keep and §2's "if no
+                // rows remain" does not apply to the rows that just arrived.
+                tab.page
+                    .render_quiet(&rows, self.landing_row(tab, concerned).or(Some(0)));
+            }
         }
         self.merged_length.set(Some(diagnosis.merged_length()));
         self.sync();
@@ -790,6 +844,8 @@ impl App {
             | Command::Cancel
             | Command::Refresh
             | Command::Search
+            | Command::Filter(_)
+            | Command::ToggleIssuesFilter
             | Command::ExpandedValues => {}
         }
         let Some(tab) = active else { return };
@@ -805,6 +861,11 @@ impl App {
             Command::Cancel => self.cancel(tab),
             Command::Refresh => self.refresh(tab),
             Command::Search => self.focus_search(tab),
+            // The state is the command, so it travels as the command — and the
+            // toggle reads the state now in force rather than carrying one,
+            // which is what keeps Ctrl+I's two rules in one place (v0.2.0 §4).
+            Command::Filter(filter) => self.set_filter(tab, filter),
+            Command::ToggleIssuesFilter => self.set_filter(tab, tab.filter().toggled()),
             // The mode is app-wide, so the active tab is not passed on — but
             // the command is a Scope tab's all the same: reaching here is what
             // "disabled on Backups, like every other View item" means.
@@ -841,14 +902,14 @@ impl App {
     /// rows the moment it was given.
     fn apply_criteria(&self, tab: &ScopeTab) {
         let typed = tab.page.search.get_value();
-        let retyped = tab.query.with(|query| *query != typed);
+        let retyped = tab.criteria.with(|criteria| criteria.query != typed);
         let owed = tab.count_due.replace(false);
         if !retyped && !owed {
             return;
         }
         if retyped {
             let concerned = tab.focused_entry().map(|(_, id)| id);
-            tab.query.with_mut(|query| *query = typed);
+            tab.criteria.with_mut(|criteria| criteria.query = typed);
             // Quiet: focus stays in the field the user is typing in — the
             // rebuild marks the landing row without taking the keyboard focus,
             // which is the mechanism ticket 04 measured silent under NVDA. The
@@ -871,6 +932,77 @@ impl App {
                 total,
             });
         }
+    }
+
+    /// View → Filter, and Ctrl+I: applies a Scope's chosen Filter state
+    /// (v0.2.0 §4).
+    ///
+    /// A **discrete** gesture, unlike typing — so it applies and speaks at
+    /// once, and takes the pending Search text with it. The field is what the
+    /// query is: a keystroke inside the debounce window has not reached the
+    /// criteria yet, and narrowing by the Filter alone while the field holds
+    /// text would show a list neither axis describes. Flushing it here is also
+    /// what makes **one announcement, never two**: the debounce is stopped and
+    /// whatever count it owed is dropped, because this speaks the composed one.
+    ///
+    /// Re-choosing the state already in force changes no criteria and does
+    /// nothing, loudly included — the same rule a debounce tick whose text has
+    /// not moved answers to (§2: what is spoken is a *criteria* change).
+    ///
+    /// Focus is never taken: the command arrives from a menu, wx hands focus
+    /// back where it was, and a list that gains rows must not also gain the
+    /// keyboard (§2's uninvited-jump rule). The rebuild still marks §2's
+    /// landing row, so Down and Tab land on a row NVDA reads.
+    fn set_filter(&self, tab: &ScopeTab, filter: Filter) {
+        let applied = Criteria::new(tab.page.search.get_value(), filter);
+        if tab.criteria.with(|criteria| *criteria == applied) {
+            return;
+        }
+        // The composed Search∧Filter count, in the sentence the new state
+        // earns: item 11 while the Filter narrows, item 9 when only the query
+        // is left doing it, and Announcement 1 when neither is — the two-part
+        // condition, completed (v0.2.0 §13 items 1, 9 and 11).
+        self.narrow(tab, applied, |shown, total| match filter {
+            Filter::All => Announcement::FilteredCount { shown, total },
+            filter => Announcement::FilterCount {
+                filter,
+                shown,
+                total,
+            },
+        });
+    }
+
+    /// The one path a **discrete** narrowing gesture takes: adopt `criteria`
+    /// as what this Scope's list is showing, redraw under them, point every
+    /// control at the result, and say what changed (v0.2.0 §2, §13).
+    ///
+    /// Discrete, as against the debounced typing path: the gesture is complete
+    /// when it arrives, so the pending debounce dies with the criteria it was
+    /// about and **so does any count it owed** — this speaks one of its own,
+    /// and an owed count spoken beside it would be the second announcement §4
+    /// rules out. A gesture that changes nothing must therefore not come here
+    /// at all: its caller answers that first.
+    ///
+    /// Quiet, and never focus-taking: the rebuild marks §2's landing row
+    /// without giving the list the keyboard, which is the uninvited jump §2
+    /// forbids and the mechanism ticket 04 measured silent. The first row
+    /// stands in where the rule answers nothing — a Run whose first gesture is
+    /// this one has no row to keep — so Down and Tab always land on a row NVDA
+    /// reads.
+    fn narrow(
+        &self,
+        tab: &ScopeTab,
+        criteria: Criteria,
+        speaks: impl FnOnce(usize, usize) -> Announcement,
+    ) {
+        tab.page.debounce.stop();
+        tab.count_due.set(false);
+        let concerned = tab.focused_entry().map(|(_, id)| id);
+        tab.criteria.with_mut(|held| *held = criteria);
+        let row = self.landing_row(tab, concerned).or(Some(0));
+        tab.page.render_quiet(&tab.rows(&self.catalogue), row);
+        self.sync();
+        self.speak_view(tab, speaks);
     }
 
     /// Ctrl+E, View → Expanded Values: flips the one app-wide rendering flag
@@ -932,24 +1064,24 @@ impl App {
     /// the first happening either way. One gesture, one meaning: on an
     /// already-idle field it still returns focus and says nothing.
     fn clear_search(&self, tab: &ScopeTab) {
-        // The pending debounce dies with the text it was about — and so does
-        // any count it owed, since ESC speaks its own; the clear is applied
-        // here, discretely, not debounced. `change_value` — never `set_value`
-        // — because the programmatic clear must not fire the typing path on
-        // top of this one.
-        tab.page.debounce.stop();
-        tab.count_due.set(false);
+        // `change_value` — never `set_value` — because the programmatic clear
+        // must not fire the typing path on top of this one.
         tab.page.search.change_value("");
-        if tab.narrowed() {
-            let concerned = tab.focused_entry().map(|(_, id)| id);
-            tab.query.with_mut(String::clear);
-            let row = self.landing_row(tab, concerned).or(Some(0));
-            tab.page.render_quiet(&tab.rows(&self.catalogue), row);
-            self.sync();
-            // The criteria changed and no Filtered View remains: Announcement
-            // 1 speaks, the two-part condition's Search half (v0.2.0 §13
-            // item 1; the Filter half completes in ticket 05).
-            self.speak_view(tab, |shown, total| Announcement::FilteredCount {
+        // The Search half alone, never `narrowed`: ESC clears the text, so a
+        // Scope narrowed only by its Filter has nothing here to change — and
+        // "ESC on an already-empty field says nothing" is one rule, whether or
+        // not a Filter is standing (v0.2.0 §3). A gesture that says nothing
+        // also cancels nothing: an Expansion toggle's owed count is still owed,
+        // and `narrow` is what would have taken it (v0.2.0 §13 item 8).
+        if tab.searching() {
+            let cleared = tab
+                .criteria
+                .with(|criteria| Criteria::new("", criteria.filter));
+            // Announcement 1 where the clear left no Filtered View at all, and
+            // item 9's count where a Filter is still narrowing — "ESC into a
+            // still-filtered view" is one of that item's own occasions
+            // (v0.2.0 §13 items 1 and 9).
+            self.narrow(tab, cleared, |shown, total| Announcement::FilteredCount {
                 shown,
                 total,
             });
@@ -1805,6 +1937,7 @@ impl App {
             Some(tab) => {
                 let narrowed = tab.narrowed();
                 let visible_rows = tab.visible().len();
+                let filter = Some(tab.filter());
                 tab.session.with(|session| {
                     read(&Availability {
                         session: Some(session),
@@ -1813,12 +1946,15 @@ impl App {
                         data_dir,
                         elevated,
                         expansion,
+                        filter,
                     })
                 })
             }
             // The Backups tab, where every View item is disabled — and where
             // the mode rides along all the same, because a disabled Expanded
-            // Values keeps a readable check mark (v0.2.0 §5).
+            // Values keeps a readable check mark (v0.2.0 §5). The Filter does
+            // not: it is per Scope, and this tab is not one, so the radio
+            // marks are left showing the Scope the user came from.
             None => read(&Availability {
                 session: None,
                 narrowed: false,
@@ -1826,6 +1962,7 @@ impl App {
                 data_dir,
                 elevated,
                 expansion,
+                filter: None,
             }),
         }
     }
@@ -1838,9 +1975,7 @@ impl App {
     /// Taken as an argument rather than read back, because the notebook's own
     /// selection lags the page-changed event that carries it.
     fn sync_for(&self, active: Option<&ScopeTab>) {
-        self.with_availability(active, |availability| {
-            command::sync_menu_bar(&self.menu, availability)
-        });
+        self.with_availability(active, |availability| self.menus.sync(availability));
         for tab in &self.tabs {
             self.with_availability(Some(tab), |availability| {
                 tab.page.sync_buttons(availability)

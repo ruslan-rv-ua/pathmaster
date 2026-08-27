@@ -144,6 +144,52 @@ msgstr[2] "PATH системи: {n} з {m} записів"
 msgid "System PATH: no matching entries"
 msgstr "PATH системи: немає збігів"
 
+#. Filter state name, in the View submenu, in the filter announcement and in
+#. StatusBar field 0. No mnemonic: two of those three surfaces would print it.
+msgid "All"
+msgstr "Усі"
+
+#. Filter state name: every entry with a non-empty Status. The other five
+#. states reuse the Status column's own words below.
+msgid "With issues"
+msgstr "З проблемами"
+
+#. Announcement: spoken when the Filter is changed to a narrowing state — the
+#. composed search-and-filter count, named by the state that produced it.
+#. {filter} is one of the seven state names. Plural by {m}, the total.
+msgid "{filter}: {n} of {m} entry"
+msgid_plural "{filter}: {n} of {m} entries"
+msgstr[0] "{filter}: {n} з {m} запису"
+msgstr[1] "{filter}: {n} з {m} записів"
+msgstr[2] "{filter}: {n} з {m} записів"
+
+#. Announcement: the filter count's zero case, still naming the state.
+msgid "{filter}: no matching entries"
+msgstr "{filter}: збігів немає"
+
+#. StatusBar fragment for the User tab while its Filter is not "All": the
+#. state named between the scope and its count. Plural by {m}.
+msgid "User PATH: {filter} — {n} of {m} entry"
+msgid_plural "User PATH: {filter} — {n} of {m} entries"
+msgstr[0] "PATH користувача: {filter} — {n} з {m} запису"
+msgstr[1] "PATH користувача: {filter} — {n} з {m} записів"
+msgstr[2] "PATH користувача: {filter} — {n} з {m} записів"
+
+#. StatusBar fragment: the User tab's filtered zero case, still named.
+msgid "User PATH: {filter} — no matching entries"
+msgstr "PATH користувача: {filter} — немає збігів"
+
+#. StatusBar fragment for the System tab while its Filter is not "All".
+msgid "System PATH: {filter} — {n} of {m} entry"
+msgid_plural "System PATH: {filter} — {n} of {m} entries"
+msgstr[0] "PATH системи: {filter} — {n} з {m} запису"
+msgstr[1] "PATH системи: {filter} — {n} з {m} записів"
+msgstr[2] "PATH системи: {filter} — {n} з {m} записів"
+
+#. StatusBar fragment: the System tab's filtered zero case, still named.
+msgid "System PATH: {filter} — no matching entries"
+msgstr "PATH системи: {filter} — немає збігів"
+
 #. Announcement: spoken after this Scope's entries reached the registry. Two
 #. strings rather than one with the Scope filled in — the sentence agrees with
 #. its subject, and a name dropped into a shared frame would not.
@@ -280,6 +326,19 @@ msgstr "Пошук(&S)"
 #. went. The code appends its accelerator. Keep the mnemonic on the Latin "E".
 msgid "&Expanded Values"
 msgstr "Розгорнуті значення(&E)"
+
+#. View menu item: the submenu holding the seven exclusive filter states. The
+#. states themselves are the two names above and the five Status column words.
+#. Keep the mnemonic on the Latin "F".
+msgid "&Filter"
+msgstr "Фільтр(&F)"
+
+#. View menu item: the coarse filter toggle (Ctrl+I) — "All" becomes "With
+#. issues", any narrowing state becomes "All". A plain item with a constant
+#. label: the submenu's radio marks are the state, not this. The code appends
+#. its accelerator. Keep the mnemonic on the Latin "I".
+msgid "Toggle &Issues Filter"
+msgstr "Перемкнути фільтр проблем(&I)"
 
 #. File menu item: writes the active Scope's entries to the registry (Ctrl+S).
 #. The code appends its accelerator.

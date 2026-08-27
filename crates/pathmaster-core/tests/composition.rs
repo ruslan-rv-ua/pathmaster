@@ -17,6 +17,7 @@ use pathmaster_core::backups::{self, SnapshotFile};
 use pathmaster_core::catalogue::{Announcement, Catalogue, Lookup, ScopeCounts, UndoDirection};
 use pathmaster_core::diagnostics::Issue;
 use pathmaster_core::expansion::Mode;
+use pathmaster_core::filtered::Filter;
 use pathmaster_core::language::LanguageChoice;
 use pathmaster_core::logfmt::Timestamp;
 use pathmaster_core::msgids;
@@ -271,10 +272,10 @@ fn the_announcement_catalogue_is_the_specs_items_and_nothing_else() {
     // v0.2.0's items land here with the tickets that speak them (v0.2.0 §13,
     // closing at fourteen).
     let catalogue = every_announcement();
-    assert_eq!(catalogue.len(), 9);
+    assert_eq!(catalogue.len(), 10);
     assert_eq!(
         catalogue.iter().map(|(item, _)| *item).collect::<Vec<u8>>(),
-        [1, 2, 3, 4, 6, 7, 8, 9, 10]
+        [1, 2, 3, 4, 6, 7, 8, 9, 10, 11]
     );
     // Item 5 is the one with no variant of its own — and it is reachable, or
     // the count above would be hiding a message rather than sharing one.
@@ -344,6 +345,14 @@ fn every_announcement() -> Vec<(u8, Announcement)> {
                 total: 3,
             },
         ),
+        (
+            11,
+            Announcement::FilterCount {
+                filter: Filter::Missing,
+                shown: 1,
+                total: 3,
+            },
+        ),
     ];
     for (_, announcement) in &catalogue {
         match announcement {
@@ -355,7 +364,8 @@ fn every_announcement() -> Vec<(u8, Announcement)> {
             | Announcement::ReadOnly { .. }
             | Announcement::ExpansionMode { .. }
             | Announcement::FilteredCount { .. }
-            | Announcement::ScopeFilteredCount { .. } => {}
+            | Announcement::ScopeFilteredCount { .. }
+            | Announcement::FilterCount { .. } => {}
         }
     }
     catalogue
@@ -476,6 +486,7 @@ fn counts(scope: Scope, entries: usize, issues: Option<usize>) -> ScopeCounts {
         scope,
         entries,
         visible: None,
+        filter: Filter::All,
         issues,
     }
 }
@@ -885,12 +896,14 @@ fn a_narrowed_scope_reports_shown_of_total_and_keeps_counting_its_own_issues() {
                     scope: Scope::User,
                     entries: 50,
                     visible: Some(4),
+                    filter: Filter::All,
                     issues: Some(12),
                 },
                 ScopeCounts {
                     scope: Scope::System,
                     entries: 9,
                     visible: None,
+                    filter: Filter::All,
                     issues: Some(0),
                 },
             ],
@@ -909,17 +922,167 @@ fn a_narrowed_scope_with_no_matches_reads_the_worded_zero_case() {
                     scope: Scope::User,
                     entries: 50,
                     visible: Some(0),
+                    filter: Filter::All,
                     issues: Some(12),
                 },
                 ScopeCounts {
                     scope: Scope::System,
                     entries: 9,
                     visible: None,
+                    filter: Filter::All,
                     issues: None,
                 },
             ],
             None
         ),
         "User PATH: no matching entries (12 issues) | System PATH: 9 entries"
+    );
+}
+
+// ---- Announcement 11: the Filter's own count (v0.2.0 §13 item 11) ----
+
+#[test]
+fn a_filter_change_speaks_one_sentence_naming_the_state_and_its_count() {
+    // One announcement, never two (v0.2.0 §4): the Filter is a discrete
+    // gesture, so what it did and what it produced are one sentence.
+    assert_eq!(
+        the_catalogue().announcement(Announcement::FilterCount {
+            filter: Filter::Missing,
+            shown: 4,
+            total: 50,
+        }),
+        "Missing: 4 of 50 entries"
+    );
+    assert_eq!(
+        the_catalogue().announcement(Announcement::FilterCount {
+            filter: Filter::WithIssues,
+            shown: 1,
+            total: 1,
+        }),
+        "With issues: 1 of 1 entry"
+    );
+}
+
+#[test]
+fn the_filter_counts_plural_is_selected_by_the_total_like_every_other_count() {
+    assert_eq!(
+        the_catalogue().announcement(Announcement::FilterCount {
+            filter: Filter::Quoted,
+            shown: 1,
+            total: 9,
+        }),
+        "Quoted: 1 of 9 entries"
+    );
+}
+
+#[test]
+fn a_filter_that_matched_nothing_still_says_which_filter_it_was() {
+    // Worded, never a bare zero — and named, because "which filter found
+    // nothing" is the whole of what comes back from it.
+    assert_eq!(
+        the_catalogue().announcement(Announcement::FilterCount {
+            filter: Filter::Duplicate,
+            shown: 0,
+            total: 50,
+        }),
+        "Duplicate: no matching entries"
+    );
+}
+
+#[test]
+fn a_filter_state_is_named_exactly_as_the_status_column_names_its_issue() {
+    // No new msgids for names (v0.2.0 §4): one Issue has one word, and the
+    // menu, the announcement and the column all reach for it.
+    for issue in Issue::SEVERITY {
+        let column = the_catalogue().status_column(&[issue]);
+        let filter = Filter::ALL
+            .into_iter()
+            .find(|filter| filter.issue() == Some(issue))
+            .expect("every Issue type has a Filter state");
+        assert!(
+            the_catalogue()
+                .announcement(Announcement::FilterCount {
+                    filter,
+                    shown: 1,
+                    total: 2,
+                })
+                .starts_with(&format!("{column}:")),
+            "the {column} filter does not name itself as the column does"
+        );
+    }
+}
+
+// ---- StatusBar field 0 under a named Filter (v0.2.0 spec §16) ----
+
+#[test]
+fn a_filtered_scope_names_the_state_between_its_scope_and_its_count() {
+    // "User PATH: Missing — 4 of 50 entries (12 issues)" — and the
+    // parenthetical still counts the Scope's Issues, not the view's.
+    assert_eq!(
+        the_catalogue().general_status(
+            [
+                ScopeCounts {
+                    scope: Scope::User,
+                    entries: 50,
+                    visible: Some(4),
+                    filter: Filter::Missing,
+                    issues: Some(12),
+                },
+                ScopeCounts {
+                    scope: Scope::System,
+                    entries: 9,
+                    visible: Some(2),
+                    filter: Filter::WithIssues,
+                    issues: Some(3),
+                },
+            ],
+            None
+        ),
+        concat!(
+            "User PATH: Missing — 4 of 50 entries (12 issues) | ",
+            "System PATH: With issues — 2 of 9 entries (3 issues)"
+        )
+    );
+}
+
+#[test]
+fn a_named_filter_that_matched_nothing_keeps_its_name_and_its_issue_count() {
+    assert_eq!(
+        the_catalogue().general_status(
+            [
+                ScopeCounts {
+                    scope: Scope::User,
+                    entries: 50,
+                    visible: Some(0),
+                    filter: Filter::Quoted,
+                    issues: Some(12),
+                },
+                counts(Scope::System, 9, Some(0)),
+            ],
+            None
+        ),
+        "User PATH: Quoted — no matching entries (12 issues) | System PATH: 9 entries (0 issues)"
+    );
+}
+
+#[test]
+fn the_all_state_names_nothing_so_a_search_alone_reads_as_it_always_did() {
+    // Search contributes no name: its "why" is visible in the field itself,
+    // one Ctrl+F away (v0.2.0 §16).
+    assert_eq!(
+        the_catalogue().general_status(
+            [
+                ScopeCounts {
+                    scope: Scope::User,
+                    entries: 50,
+                    visible: Some(4),
+                    filter: Filter::All,
+                    issues: Some(12),
+                },
+                counts(Scope::System, 9, None),
+            ],
+            None
+        ),
+        "User PATH: 4 of 50 entries (12 issues) | System PATH: 9 entries"
     );
 }

@@ -1,4 +1,4 @@
-//! The seventeen commands the window carries, and the menus they live in
+//! The twenty-five commands the window carries, and the menus they live in
 //! (spec §15, §5, §6; v0.2.0 §12).
 //!
 //! One enum is the whole map: it names the menu items, the menu each belongs
@@ -15,6 +15,7 @@
 //! (ADR-0004).
 
 use pathmaster_core::expansion::Mode;
+use pathmaster_core::filtered::Filter;
 use pathmaster_core::msgids;
 use pathmaster_core::session::Session;
 use wxdragon::prelude::*;
@@ -23,7 +24,7 @@ use crate::catalog::translate;
 
 /// One user-visible command.
 ///
-/// Twelve of them are about a Scope; the last five are not, and are here for
+/// Twenty of them are about a Scope; the last five are not, and are here for
 /// the reason the enum exists at all: they are menu items, and a menu item's
 /// id, label and enabled state are answered in one place or in three.
 ///
@@ -45,6 +46,19 @@ pub enum Command {
     Cancel,
     Refresh,
     Search,
+    /// One of the seven exclusive Filter states, each a `wxITEM_RADIO` item in
+    /// the View → Filter submenu (v0.2.0 §4). The state it carries is both
+    /// what the item's mark reads and what choosing it sets, so a state can
+    /// neither be shown without being reachable nor set without being shown.
+    Filter(Filter),
+    /// Ctrl+I's own item: the coarse axis, `All` ⇄ `With issues`.
+    ///
+    /// A **plain** item with a constant label, deliberately (v0.2.0 §12): a
+    /// radio item carrying the accelerator would fire that radio's selection
+    /// rather than the toggle, and a check item would carry a mark that lies
+    /// whenever one of the five per-type states is active. The submenu's radio
+    /// marks are the state; this is only a gesture.
+    ToggleIssuesFilter,
     ExpandedValues,
     Settings,
     OpenBackupsFolder,
@@ -65,9 +79,12 @@ pub enum Command {
 pub struct Availability<'a> {
     pub session: Option<&'a Session>,
     /// Whether this Scope's Filtered View is active — a non-empty Search text
-    /// (the Filter axis composes in with ticket 05). A reorder's effect
-    /// concerns positions the user cannot see, and Add appends below them, so
-    /// a narrowed view closes Move Up, Move Down and Add (v0.2.0 §2).
+    /// **or** a narrowing Filter, which is [`Criteria::narrowing`]'s one
+    /// answer. A reorder's effect concerns positions the user cannot see, and
+    /// Add appends below them, so a narrowed view closes Move Up, Move Down
+    /// and Add (v0.2.0 §2).
+    ///
+    /// [`Criteria::narrowing`]: pathmaster_core::filtered::Criteria::narrowing
     pub narrowed: bool,
     /// How many Entries the view now shows — the Scope's whole count when
     /// nothing narrows it. Edit and Delete act on the focused **visible**
@@ -90,13 +107,39 @@ pub struct Availability<'a> {
     /// enabled state and its check mark are written in one pass and must not
     /// be answered in two places.
     pub expansion: Mode,
+    /// The active Scope's Filter — the state the submenu's radio mark reads
+    /// (v0.2.0 §4). Like [`expansion`](Self::expansion) it decides no
+    /// command's availability, and unlike it, it is per Scope.
+    ///
+    /// `None` is the Backups tab, which is not a Scope and has no Filter: the
+    /// marks are then **left exactly as they are**, still showing the last
+    /// Scope's state under items that read as disabled. Writing `All` there
+    /// would be a mark claiming a narrowed Scope is not.
+    pub filter: Option<Filter>,
+}
+
+/// What kind of menu item a command appends — which decides what its mark can
+/// say, and so is fixed at build time and never afterwards. Appending the
+/// wrong kind is an item whose mark can never be set at all.
+///
+/// Spelled out rather than reusing wx's own `ItemKind`, whose fourth variant is
+/// a separator — a thing no command is, and an arm every `match` here would
+/// have to answer with a lie.
+enum MenuItemKind {
+    /// A plain command item: it does something and carries no state.
+    Plain,
+    /// `wxITEM_CHECK`: a mark NVDA reads in both directions.
+    Check,
+    /// `wxITEM_RADIO`: one of a contiguous group of which exactly one is
+    /// selected, and whose selected state NVDA reads (ticket 16, probes 3).
+    Radio,
 }
 
 impl Command {
     /// Every command, in **button** order — §15's Add, Edit, Delete, Move Up,
     /// Move Down, Apply, Cancel — which is also the order each menu takes its
     /// own items in, since [`menu`](Self::menu) preserves it.
-    pub const ALL: [Command; 17] = [
+    pub const ALL: [Command; 25] = [
         Command::Add,
         Command::Edit,
         Command::Delete,
@@ -108,6 +151,20 @@ impl Command {
         Command::Cancel,
         Command::Refresh,
         Command::Search,
+        // The seven states, **read positionally off `Filter::ALL`** rather
+        // than named again here: the submenu's order is v0.2.0 §4's order, and
+        // indexing is what makes that a compile-time fact instead of two lists
+        // a reader has to compare. The binary is bin-only and the Release
+        // Checklist is its coverage (ADR-0007), so a rule worth keeping here
+        // has to be structural or it is not kept at all.
+        Command::Filter(Filter::ALL[0]), // All
+        Command::Filter(Filter::ALL[1]), // With issues
+        Command::Filter(Filter::ALL[2]), // Missing
+        Command::Filter(Filter::ALL[3]), // Relative
+        Command::Filter(Filter::ALL[4]), // Quoted
+        Command::Filter(Filter::ALL[5]), // Duplicate
+        Command::Filter(Filter::ALL[6]), // Empty
+        Command::ToggleIssuesFilter,
         Command::ExpandedValues,
         Command::Settings,
         Command::OpenBackupsFolder,
@@ -164,11 +221,48 @@ impl Command {
             | Command::Redo
             | Command::Cancel
             | Command::Refresh => msgids::MENU_GROUP_EDIT,
-            Command::Search | Command::ExpandedValues => msgids::MENU_GROUP_VIEW,
+            Command::Search
+            | Command::Filter(_)
+            | Command::ToggleIssuesFilter
+            | Command::ExpandedValues => msgids::MENU_GROUP_VIEW,
             Command::Settings | Command::OpenBackupsFolder | Command::RestartAsAdministrator => {
                 msgids::MENU_GROUP_TOOLS
             }
             Command::About => msgids::MENU_GROUP_HELP,
+        }
+    }
+
+    /// The submenu this command's item sits in, named by the title that
+    /// submenu is appended under — `None` for an item that sits directly in
+    /// the menu [`menu`](Self::menu) names.
+    ///
+    /// The seven Filter states are the only ones, and their submenu takes the
+    /// place of the **first** of them in [`ALL`](Self::ALL) — so §12's View
+    /// order is read off one list rather than stated twice.
+    fn submenu(self) -> Option<&'static str> {
+        // Exhaustive, like every other `match` over this enum: an item that
+        // silently defaulted to the menu bar would be one the user finds in a
+        // different place from the one this file describes.
+        match self {
+            Command::Filter(_) => Some(msgids::MENU_FILTER),
+            Command::Add
+            | Command::Edit
+            | Command::Delete
+            | Command::MoveUp
+            | Command::MoveDown
+            | Command::Undo
+            | Command::Redo
+            | Command::Apply
+            | Command::Cancel
+            | Command::Refresh
+            | Command::Search
+            | Command::ToggleIssuesFilter
+            | Command::ExpandedValues
+            | Command::Settings
+            | Command::OpenBackupsFolder
+            | Command::RestartAsAdministrator
+            | Command::Exit
+            | Command::About => None,
         }
     }
 
@@ -187,6 +281,10 @@ impl Command {
             Command::Cancel => msgids::MENU_CANCEL,
             Command::Refresh => msgids::MENU_REFRESH,
             Command::Search => msgids::MENU_SEARCH,
+            // The state's own name — the Status column's word, for the five
+            // type states — so no Issue is called two things (v0.2.0 §4).
+            Command::Filter(filter) => filter.catalogue_msgid(),
+            Command::ToggleIssuesFilter => msgids::MENU_TOGGLE_ISSUES_FILTER,
             Command::ExpandedValues => msgids::MENU_EXPANDED_VALUES,
             Command::Settings => msgids::MENU_SETTINGS,
             Command::OpenBackupsFolder => msgids::MENU_OPEN_BACKUPS_FOLDER,
@@ -217,10 +315,14 @@ impl Command {
             Command::MoveDown => msgids::BUTTON_MOVE_DOWN,
             Command::Apply => msgids::BUTTON_APPLY,
             Command::Cancel => msgids::BUTTON_CANCEL,
+            // Every View command is menu-only: the Filter has **no on-window
+            // control** at all (v0.2.0 §4), and neither does its toggle.
             Command::Undo
             | Command::Redo
             | Command::Refresh
             | Command::Search
+            | Command::Filter(_)
+            | Command::ToggleIssuesFilter
             | Command::ExpandedValues
             | Command::Settings
             | Command::OpenBackupsFolder
@@ -257,7 +359,14 @@ impl Command {
             // Ctrl+E, the key the ticket-16 prototype carried through the
             // user's own NVDA verification (v0.2.0 §12).
             Command::ExpandedValues => Some("Ctrl+E"),
-            Command::Add
+            // The coarse Filter axis (v0.2.0 §4, §12). Ctrl+I's "italic"
+            // convention belongs to rich-text editors, which this is not.
+            Command::ToggleIssuesFilter => Some("Ctrl+I"),
+            // The five per-type states are menu-only, and so are the two
+            // coarse ones: a radio item carrying a key would fire its own
+            // selection rather than the toggle it was meant to be.
+            Command::Filter(_)
+            | Command::Add
             | Command::Cancel
             | Command::Settings
             | Command::OpenBackupsFolder
@@ -320,6 +429,8 @@ impl Command {
             | Command::Cancel
             | Command::Refresh
             | Command::Search
+            | Command::Filter(_)
+            | Command::ToggleIssuesFilter
             | Command::ExpandedValues => available
                 .session
                 .is_some_and(|session| self.over(session, available)),
@@ -339,7 +450,10 @@ impl Command {
             // nobody may edit is one whose rendering may still be changed.
             // What closes it is the Backups tab, where there is no Session at
             // all — like every other View item (v0.2.0 §5, §12).
-            Command::Search | Command::ExpandedValues => true,
+            Command::Search
+            | Command::Filter(_)
+            | Command::ToggleIssuesFilter
+            | Command::ExpandedValues => true,
             _ if !session.writable() => false,
             // Add appends at the end — a position a narrowed view may be
             // hiding, so it closes with Move Up and Move Down (v0.2.0 §2).
@@ -368,22 +482,19 @@ impl Command {
         }
     }
 
-    /// Whether this command's menu item **carries state**: a `wxITEM_CHECK`
-    /// item, whose mark NVDA reads in both directions, rather than a plain
-    /// item that does something and says nothing (v0.2.0 §5, ticket 16
-    /// probe 1).
+    /// What kind of menu item this command appends (v0.2.0 §4, §5; ticket 16
+    /// probes 1 and 3).
     ///
-    /// Asked twice and answered here once — at build time, to append the right
-    /// kind of item, and at every sync, to write [`state`](Self::state) into
-    /// it. A plain item and a check item are not interchangeable: appending
-    /// the wrong kind is an item whose mark can never be set at all.
-    fn carries_state(self) -> bool {
+    /// Asked once, at build time — the kind is what an item's mark *can* say,
+    /// and [`state`](Self::state) is what it says now.
+    fn item(self) -> MenuItemKind {
         // Exhaustive, like every other `match` over this enum: the next
-        // command someone adds has to say whether it carries a mark, because
-        // an item that silently carried none would read as a command in a menu
+        // command someone adds has to say what kind of item it is, because an
+        // item that silently carried no mark would read as a command in a menu
         // where its state is the whole point.
         match self {
-            Command::ExpandedValues => true,
+            Command::ExpandedValues => MenuItemKind::Check,
+            Command::Filter(_) => MenuItemKind::Radio,
             Command::Add
             | Command::Edit
             | Command::Delete
@@ -395,26 +506,31 @@ impl Command {
             | Command::Cancel
             | Command::Refresh
             | Command::Search
+            | Command::ToggleIssuesFilter
             | Command::Settings
             | Command::OpenBackupsFolder
             | Command::RestartAsAdministrator
             | Command::Exit
-            | Command::About => false,
+            | Command::About => MenuItemKind::Plain,
         }
     }
 
-    /// The state that item's mark now shows.
+    /// The state this item's mark now shows, or `None` for an item that has no
+    /// mark — **and for one whose state nothing can answer**, whose mark is
+    /// then left exactly as it stands.
     ///
-    /// **It is written whether or not the item is enabled**: on the Backups
-    /// tab Expanded Values is disabled like every other View item, and its
-    /// check mark stays readable there — the mode is app-wide and a tab the
-    /// command cannot be given from is not a tab it is off in (v0.2.0 §5).
-    fn state(self, available: &Availability) -> bool {
+    /// A mark is written whether or not its item is enabled: on the Backups
+    /// tab every View item is disabled and Expanded Values' check mark stays
+    /// readable there, because the mode is app-wide and a tab the command
+    /// cannot be given from is not a tab it is off in (v0.2.0 §5). The Filter
+    /// is per Scope rather than app-wide, so that tab answers `None` for it
+    /// instead — the marks keep showing the Scope the user came from.
+    fn state(self, available: &Availability) -> Option<bool> {
         match self {
-            Command::ExpandedValues => available.expansion.expanded(),
-            // Never asked — `carries_state` closes them — and answered rather
-            // than caught all the same, so the next state-carrying command has
-            // to say what its mark reads.
+            Command::ExpandedValues => Some(available.expansion.expanded()),
+            Command::Filter(filter) => Some(available.filter? == filter),
+            // No mark to write — answered rather than caught, so the next
+            // state-carrying command has to say what its mark reads.
             Command::Add
             | Command::Edit
             | Command::Delete
@@ -426,51 +542,118 @@ impl Command {
             | Command::Cancel
             | Command::Refresh
             | Command::Search
+            | Command::ToggleIssuesFilter
             | Command::Settings
             | Command::OpenBackupsFolder
             | Command::RestartAsAdministrator
             | Command::Exit
-            | Command::About => false,
+            | Command::About => None,
         }
     }
 }
 
-/// Builds the menu bar from [`Command::MENUS`] and [`Command::menu`], so a
-/// command with no menu is a command with no shortcut — which for Ctrl+S would
-/// be a command with no way to reach it at all.
+/// The menu bar, and the items in it that carry no command id of their own.
 ///
-/// Every item's help string is deliberately empty: wx writes it to the status
-/// bar as the user moves through the menu, and the status bar is command-only
-/// — nothing must-hear goes there (spec §10, §12).
-pub fn build_menu_bar() -> MenuBar {
-    let mut bar = MenuBar::builder();
-    for (title, group) in Command::MENUS {
-        let mut menu = Menu::builder();
-        for command in Command::ALL.into_iter().filter(|c| c.menu() == group) {
-            let (id, label) = (command.id(), command.menu_label());
-            menu = if command.carries_state() {
-                menu.append_check_item(id, &label, "")
-            } else {
-                menu.append_item(id, &label, "")
-            };
-        }
-        bar = bar.append(menu.build(), &translate(title));
-    }
-    bar.build()
+/// One submenu exists — View → Filter (v0.2.0 §4) — and `AppendSubMenu` gives
+/// its title item no id, so [`MenuBar::enable_item`] cannot reach it. Keeping
+/// the item is what lets the submenu itself read as disabled on the Backups
+/// tab, rather than opening onto seven greyed states.
+pub struct Menus {
+    bar: MenuBar,
+    /// The one submenu the bar holds, and the title it was appended under.
+    /// `Option` and not a collection: v0.2.0 §12's bar has exactly one, and
+    /// room for a second would be a promise [`submenu_slot`] does not make.
+    submenu: Option<(&'static str, MenuItem)>,
 }
 
-/// Points every menu item at the state that now holds. Called after every
-/// operation and every tab change, so what the menu reads is never stale.
-///
-/// The check items' marks are written in the same pass and from the same
-/// [`Availability`]: wx toggles a check item's mark itself before the command
-/// reaches the window, so the mark is only ever as true as the flag it is
-/// written back from (v0.2.0 §5).
-pub fn sync_menu_bar(bar: &MenuBar, available: &Availability) {
-    for command in Command::ALL {
-        bar.enable_item(command.id(), command.enabled(available));
-        if command.carries_state() {
-            bar.check_item(command.id(), command.state(available));
+impl Menus {
+    /// Builds the bar from [`Command::MENUS`], [`Command::menu`] and
+    /// [`Command::submenu`], gives it to `frame`, and keeps what syncing it
+    /// needs. A command with no menu is a command with no shortcut — which
+    /// for Ctrl+S would be a command with no way to reach it at all.
+    ///
+    /// Every item's help string is deliberately empty: wx writes it to the
+    /// status bar as the user moves through the menu, and the status bar is
+    /// command-only — nothing must-hear goes there (spec §10, §12).
+    pub fn build(frame: &Frame) -> Menus {
+        let mut bar = MenuBar::builder();
+        let mut submenu = None;
+        for (title, group) in Command::MENUS {
+            let menu = build_menu(|command| command.menu() == group && command.submenu().is_none());
+            if let Some((position, held)) = submenu_slot(group) {
+                let items = build_menu(|command| command.submenu() == Some(held));
+                submenu = menu
+                    .insert_submenu(position, items, &translate(held), "")
+                    .map(|item| (held, item));
+            }
+            bar = bar.append(menu, &translate(title));
+        }
+        frame.set_menu_bar(bar.build());
+        Menus {
+            bar: frame.get_menu_bar().expect("the menu bar was just set"),
+            submenu,
         }
     }
+
+    /// Points every menu item at the state that now holds. Called after every
+    /// operation and every tab change, so what the menu reads is never stale.
+    ///
+    /// The marks are written in the same pass and from the same
+    /// [`Availability`]: wx toggles a check item's mark — and moves a radio
+    /// group's — itself before the command reaches the window, so a mark is
+    /// only ever as true as the state it is written back from (v0.2.0 §4, §5).
+    ///
+    /// A submenu reads as enabled when the commands it holds do; it has no
+    /// enablement rule of its own, so there is nothing here to keep in step
+    /// with [`Command::enabled`].
+    pub fn sync(&self, available: &Availability) {
+        for command in Command::ALL {
+            self.bar
+                .enable_item(command.id(), command.enabled(available));
+            if let Some(state) = command.state(available) {
+                self.bar.check_item(command.id(), state);
+            }
+        }
+        if let Some((title, item)) = &self.submenu {
+            item.enable(
+                Command::ALL
+                    .into_iter()
+                    .any(|command| command.submenu() == Some(*title) && command.enabled(available)),
+            );
+        }
+    }
+}
+
+/// One menu built from the commands `belongs` selects, in [`Command::ALL`]'s
+/// order — which is the order §15 and v0.2.0 §12 put them in.
+fn build_menu(belongs: impl Fn(Command) -> bool) -> Menu {
+    let mut menu = Menu::builder();
+    for command in Command::ALL.into_iter().filter(|command| belongs(*command)) {
+        let (id, label) = (command.id(), command.menu_label());
+        menu = match command.item() {
+            MenuItemKind::Plain => menu.append_item(id, &label, ""),
+            MenuItemKind::Check => menu.append_check_item(id, &label, ""),
+            MenuItemKind::Radio => menu.append_radio_item(id, &label, ""),
+        };
+    }
+    menu.build()
+}
+
+/// Where `group`'s submenu stands in it, if it has one: how many of the menu's
+/// own items come before it, and the title it is appended under.
+///
+/// A submenu takes the place of its **first** item in [`Command::ALL`], so the
+/// menu's order is read off that one list — a second table saying where the
+/// submenu goes could only promise an order `ALL` does not keep. The first is
+/// also the last: v0.2.0 §12 gives the bar one submenu, and this answers for
+/// it.
+fn submenu_slot(group: &'static str) -> Option<(usize, &'static str)> {
+    let mut position = 0;
+    for command in Command::ALL.into_iter().filter(|c| c.menu() == group) {
+        match command.submenu() {
+            Some(title) => return Some((position, title)),
+            None => position += 1,
+        }
+    }
+    None
 }

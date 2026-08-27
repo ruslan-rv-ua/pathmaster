@@ -26,6 +26,7 @@ use std::path::{Path, PathBuf};
 use polib::catalog::Catalog;
 use polib::message::MessageView;
 
+use pathmaster_core::filtered::Filter;
 use pathmaster_core::msgids::{
     duplicate_mnemonic, mnemonic, placeholders, CatalogueEntry, REGISTRY,
 };
@@ -222,6 +223,40 @@ fn no_translation_carries_an_accelerator() {
             );
         }
     });
+}
+
+#[test]
+fn no_filter_state_name_carries_a_mnemonic_in_any_language() {
+    // The seven Filter states name themselves in three places — the View
+    // submenu, Announcement 11 and StatusBar field 0 — and only one of the
+    // three swallows an `&` (v0.2.0 spec §4). A translator writing «Усі(&A)»
+    // in the shape every *other* menu label here takes would put a literal
+    // ampersand into the StatusBar and into what NVDA speaks, so the rule that
+    // these are not menu labels is gated rather than trusted.
+    //
+    // It is checked over the **translations**: the English side is a `const`
+    // a reviewer reads, while the `.po` is where this can go wrong unseen.
+    let names: BTreeSet<&str> = Filter::ALL
+        .into_iter()
+        .map(Filter::catalogue_msgid)
+        .collect();
+    let mut checked = 0;
+    each_message(|code, entry, message| {
+        if !names.contains(entry.msgid) {
+            return;
+        }
+        checked += 1;
+        for translation in translations_of(message) {
+            assert!(
+                mnemonic(translation).is_none(),
+                "{code}.po gives the Filter state {:?} a mnemonic: {translation:?}",
+                entry.msgid
+            );
+        }
+    });
+    // Self-sensitivity: seven names in each of the two shipped languages, or
+    // the loop above passed by proving nothing.
+    assert_eq!(checked, names.len() * 2);
 }
 
 #[test]

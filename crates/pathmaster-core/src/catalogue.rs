@@ -26,6 +26,7 @@
 use crate::backups::SnapshotFile;
 use crate::diagnostics::Issue;
 use crate::expansion::Mode;
+use crate::filtered::Filter;
 use crate::language::LanguageChoice;
 use crate::msgids::{self, fill};
 use crate::path::Rejection;
@@ -107,9 +108,22 @@ pub enum Announcement {
     FilteredCount { shown: usize, total: usize },
     /// **10** (v0.2.0) — the Scope-named filtered count, on tab activation and
     /// Refresh while that Scope has a Filtered View. The same composition is
-    /// StatusBar field 0's fragment for a narrowed Scope (v0.2.0 §16).
+    /// StatusBar field 0's fragment for a narrowed Scope whose Filter is `All`
+    /// (v0.2.0 §16). It does **not** name the Filter: an arrival says which
+    /// Scope and how much of it, and which state narrowed it is what the
+    /// submenu's own radio mark says.
     ScopeFilteredCount {
         scope: Scope,
+        shown: usize,
+        total: usize,
+    },
+    /// **11** (v0.2.0) — the Filter was changed to a narrowing state: the
+    /// **already-composed** Search∧Filter count, named by the state that
+    /// produced it. One announcement and never two — the Filter is a discrete
+    /// gesture, so it speaks the whole of what it did rather than a message
+    /// and then a debounced count the way the Expansion toggle does.
+    FilterCount {
+        filter: Filter,
         shown: usize,
         total: usize,
     },
@@ -146,6 +160,11 @@ pub struct ScopeCounts {
     /// `None` is no narrowing, which is not the same as `Some(entries)`: a
     /// view that happens to match everything still reads as a view.
     pub visible: Option<usize>,
+    /// The Scope's Filter, which the fragment **names** while it is not `All`
+    /// (v0.2.0 §16). Read only under a narrowing, and it cannot be otherwise:
+    /// a narrowing state is itself a Filtered View, so `All` is the only state
+    /// `visible: None` can arrive with.
+    pub filter: Filter,
     pub issues: Option<usize>,
 }
 
@@ -202,6 +221,11 @@ impl Catalogue {
                 shown,
                 total,
             } => self.scope_filtered_count(scope, shown, total),
+            Announcement::FilterCount {
+                filter,
+                shown,
+                total,
+            } => self.filter_count(filter, shown, total),
         }
     }
 
@@ -404,9 +428,12 @@ impl Catalogue {
     /// meaning — while the issue parenthetical never changes: it counts the
     /// Scope's Issues, not the view's (v0.2.0 §16).
     fn counts(&self, counts: &ScopeCounts) -> String {
-        let entries = match counts.visible {
-            Some(shown) => self.scope_filtered_count(counts.scope, shown, counts.entries),
-            None => self.entry_count(counts.scope, counts.entries),
+        let entries = match (counts.visible, counts.filter.narrows()) {
+            (Some(shown), true) => {
+                self.named_filtered_count(counts.scope, counts.filter, shown, counts.entries)
+            }
+            (Some(shown), false) => self.scope_filtered_count(counts.scope, shown, counts.entries),
+            (None, _) => self.entry_count(counts.scope, counts.entries),
         };
         match counts.issues {
             Some(issues) => entries + &self.issue_count(issues),
@@ -538,8 +565,87 @@ impl Catalogue {
         self.shown_of_total(singular, plural, shown, total)
     }
 
-    /// The "{n} of {m}" frame both filtered counts fill: one lookup whose
-    /// plural form `{m}` selects, then both numbers filled in.
+    /// Announcement 11 (v0.2.0 §13 item 11): the composed Search∧Filter count,
+    /// named by the state that produced it.
+    ///
+    /// The name is Catalogue text of its own — the Status column's word, for
+    /// the five type states — translated first and then filled in, the way an
+    /// Apply failure's cause is, so the Ukrainian composes.
+    fn filter_count(&self, filter: Filter, shown: usize, total: usize) -> String {
+        self.named_count(
+            (
+                msgids::FILTER_COUNT_NONE,
+                msgids::FILTER_COUNT,
+                msgids::FILTER_COUNT_PLURAL,
+            ),
+            filter,
+            shown,
+            total,
+        )
+    }
+
+    /// StatusBar field 0's fragment for a Scope whose Filter is not `All`
+    /// (v0.2.0 §16): the state named inside the Scope's own sentence.
+    ///
+    /// Whole strings per Scope like [`scope_filtered_count`], and a separate
+    /// set rather than a wrapper around it: the name lands **between** the
+    /// Scope and the count, where no prefix or suffix can put it.
+    ///
+    /// [`scope_filtered_count`]: Self::scope_filtered_count
+    fn named_filtered_count(
+        &self,
+        scope: Scope,
+        filter: Filter,
+        shown: usize,
+        total: usize,
+    ) -> String {
+        let forms = match scope {
+            Scope::User => (
+                msgids::FILTERED_USER_NAMED_NONE,
+                msgids::FILTERED_USER_NAMED,
+                msgids::FILTERED_USER_NAMED_PLURAL,
+            ),
+            Scope::System => (
+                msgids::FILTERED_SYSTEM_NAMED_NONE,
+                msgids::FILTERED_SYSTEM_NAMED,
+                msgids::FILTERED_SYSTEM_NAMED_PLURAL,
+            ),
+        };
+        self.named_count(forms, filter, shown, total)
+    }
+
+    /// The one composition every Filter-naming count shares: the state's name
+    /// filled into whichever of its `(none, singular, plural)` forms the count
+    /// earns.
+    ///
+    /// The name is Catalogue text of its own — the Status column's word, for
+    /// the five type states — translated first and then filled in, the way an
+    /// Apply failure's cause is, so the Ukrainian composes. The zero case has
+    /// no numbers to fill and still names the state: "which filter found
+    /// nothing" is the whole of what comes back from it.
+    fn named_count(
+        &self,
+        (none, singular, plural): (&str, &str, &str),
+        filter: Filter,
+        shown: usize,
+        total: usize,
+    ) -> String {
+        let name = self.lookup.translate(filter.catalogue_msgid());
+        if shown == 0 {
+            return fill(&self.lookup.translate(none), &[("filter", &name)]);
+        }
+        fill(
+            &self.lookup.translate_plural(singular, plural, total as u32),
+            &[
+                ("filter", &name),
+                ("n", &shown.to_string()),
+                ("m", &total.to_string()),
+            ],
+        )
+    }
+
+    /// The "{n} of {m}" frame both unnamed filtered counts fill: one lookup
+    /// whose plural form `{m}` selects, then both numbers filled in.
     fn shown_of_total(&self, singular: &str, plural: &str, shown: usize, total: usize) -> String {
         fill(
             &self.lookup.translate_plural(singular, plural, total as u32),
