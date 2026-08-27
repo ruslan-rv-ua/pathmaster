@@ -16,6 +16,7 @@
 
 mod backups_page;
 mod command;
+mod door;
 mod entry_dialog;
 mod list;
 mod question;
@@ -50,9 +51,10 @@ use wxdragon::prelude::*;
 use crate::announce::Announcer;
 use crate::catalog::{self, translate};
 use crate::pump::Pump;
+use crate::scoped::Scoped;
 use crate::ui::backups_page::BackupsPage;
 use crate::ui::command::{Availability, Command};
-use crate::ui::scope_page::ScopePage;
+use crate::ui::scope_page::{Row, ScopePage};
 use crate::SharedScope;
 
 /// The notebook's page order (spec §12): the two Scopes, then Backups —
@@ -88,16 +90,19 @@ fn start_tab_index(tab: StartTab) -> i32 {
 /// every command, so they are one thing rather than three arrays indexed alike.
 struct ScopeTab {
     scope: Scope,
-    session: Rc<RefCell<Session>>,
+    /// [`Scoped`], not a bare `RefCell`: a Session is reached by commands, by
+    /// the Timer's tick and by synchronous toolkit callbacks (ADR-0011).
+    session: Rc<Scoped<Session>>,
     page: ScopePage,
     /// What the last completed pass found here — the Status column's whole
     /// content, and the issue count StatusBar field 0 reports. A derived view,
-    /// held beside the Session and never inside it (ADR-0001).
+    /// held beside the Session and never inside it (ADR-0001), and [`Scoped`]
+    /// for the Session's own reason.
     ///
     /// `None` until the first pass lands, and that is not the same as a pass
     /// that found nothing: the column reads both as empty, but the StatusBar
     /// must not claim "0 issues" about a Scope no pass has yet looked at.
-    findings: RefCell<Option<Findings>>,
+    findings: Scoped<Option<Findings>>,
     /// What this Scope's registry value was the last time it was read.
     ///
     /// The comparison subject external-change detection needs (spec §4): it is
@@ -111,16 +116,18 @@ struct ScopeTab {
 
 impl ScopeTab {
     /// This Scope's Working Copy as the worker takes it: the Entries' raw text,
-    /// in list order. Cloned because the pass runs on another thread and a
-    /// Session is `Rc<RefCell<…>>` — the pass diagnoses the state it was handed,
-    /// not whatever the user has reached by the time it finishes.
+    /// in list order. Cloned because the pass runs on another thread and the
+    /// Session stays behind its scoped access — the pass diagnoses the state
+    /// it was handed, not whatever the user has reached by the time it
+    /// finishes.
     fn raw_entries(&self) -> Vec<String> {
-        self.session
-            .borrow()
-            .entries()
-            .iter()
-            .map(|entry| entry.raw().to_string())
-            .collect()
+        self.session.with(|session| {
+            session
+                .entries()
+                .iter()
+                .map(|entry| entry.raw().to_string())
+                .collect()
+        })
     }
 
     /// The two numbers StatusBar field 0 reports about this Scope: how many
@@ -129,8 +136,10 @@ impl ScopeTab {
     fn counts(&self) -> ScopeCounts {
         ScopeCounts {
             scope: self.scope,
-            entries: self.session.borrow().entries().len(),
-            issues: self.findings.borrow().as_ref().map(Findings::issue_count),
+            entries: self.session.with(|session| session.entries().len()),
+            issues: self
+                .findings
+                .with(|findings| findings.as_ref().map(Findings::issue_count)),
         }
     }
 
@@ -143,20 +152,28 @@ impl ScopeTab {
         }
     }
 
-    /// The Entry the user is on: its row and its id.
-    ///
-    /// The borrow is taken and dropped inside this one function on purpose.
-    /// Every command asks this question immediately before opening a modal
-    /// dialog, and a dialog runs its own event loop — a handler firing inside
-    /// it would find the Session still borrowed and panic. Having one place to
-    /// ask is what keeps that rule from being four places to remember.
+    /// The Entry the user is on: its row and its id — owned out of the scoped
+    /// access, because every command asks this question immediately before
+    /// opening a modal dialog.
     fn focused_entry(&self) -> Option<(usize, EntryId)> {
-        self.page.focused_entry(&self.session.borrow())
+        self.session
+            .with(|session| self.page.focused_entry(session))
     }
 
     /// The row `id` now stands at.
     fn row_of(&self, id: EntryId) -> Option<usize> {
-        ScopePage::row_of(&self.session.borrow(), id)
+        self.session.with(|session| ScopePage::row_of(session, id))
+    }
+
+    /// This Scope's rows as the list would show them now: the Working Copy's
+    /// Entries under the last completed pass's findings, composed inside the
+    /// scoped access and handed out owned — which is what lets the caller
+    /// rebuild the list with no closure open (ADR-0011).
+    fn rows(&self, catalogue: &Catalogue) -> Vec<Row> {
+        self.session.with(|session| {
+            self.findings
+                .with(|findings| Row::compose(session, findings.as_ref(), catalogue))
+        })
     }
 
     /// Takes a freshly read value as the truth: Working Copy and Baseline both
@@ -175,7 +192,9 @@ impl ScopeTab {
     fn adopt(&self, raw: RawValue) -> Option<usize> {
         let previous_row = self.page.focused_row();
         let focus = self.focused_entry().map(|(_, id)| id);
-        let landing = self.session.borrow_mut().refresh(raw.decode(), focus);
+        let landing = self
+            .session
+            .with_mut(|session| session.refresh(raw.decode(), focus));
         *self.last_read.borrow_mut() = raw;
         landing.and_then(|id| self.row_of(id)).or(previous_row)
     }
@@ -189,7 +208,7 @@ impl ScopeTab {
     /// Session, saying so as it goes (spec §5, §10.1 item 5).
     fn applied(&self, stored: RawValue) {
         *self.last_read.borrow_mut() = stored;
-        self.session.borrow_mut().mark_applied();
+        self.session.with_mut(Session::mark_applied);
     }
 }
 
@@ -198,32 +217,12 @@ impl ScopeTab {
 /// voice.
 ///
 /// It rides an `Rc` into every event handler, which is why every command takes
-/// `&self`: the Sessions' interior mutability is the `RefCell`'s, and **no
-/// borrow is ever held across a call that can run someone else's code**.
-///
-/// Four kinds of call can. A modal dialog runs its own event loop, and
-/// `ScopePage::render` fires the list's own events synchronously — of which
-/// only `on_item_activated` is bound, so `render` cannot re-enter. The second
-/// arrived with diagnostics and is the sharper one: **the Timer ticks inside a
-/// modal dialog's loop too**, so `collect_pass` can run — taking the Pump's
-/// borrow, the Sessions' and the findings' — while `ask_for_entry` or
-/// `question::ask` is open. Every dialog call site was checked against that
-/// and holds no borrow across it: `focused_entry` scopes its own, `edit` reads
-/// the raw text through a temporary that dies with its statement, and
-/// `convert_or_keep` drops the Session before it asks. What a pass landing
-/// under an open dialog does is write the Status column and re-sync controls
-/// the dialog has disabled anyway — invisible, and correct once it closes.
-///
-/// The Backups tab added the other two, and unlike `render`'s these **are**
-/// bound. `BackupsPage::show` rebuilds a list under a live `on_item_focused`,
-/// whose handler is `sync` — so it reads every Session *and* the page's own
-/// cell of Snapshot files; `show` therefore fills the widget first and replaces
-/// that cell last, holding no borrow of it across either. And
-/// `Notebook::set_selection`, which `restore` calls to activate the target
-/// Scope's tab, runs the page-changed handler synchronously, which borrows
-/// every Session — so `restore` copies what it needs out of the page before it
-/// touches one, and the `borrow_mut` that performs the Restore is a temporary
-/// that dies with the `if` that tests it.
+/// `&self`. The borrow discipline is structural, not a list kept here
+/// (ADR-0011): state more than one kind of call reaches lives behind
+/// [`Scoped`], whose closures nothing can escape and whose one rule is that a
+/// closure body must not dispatch; every dialog opens through [`door`], whose
+/// modal depth is what keeps the diagnostic Timer's tick inert while one is
+/// up.
 struct App {
     frame: Frame,
     notebook: Notebook,
@@ -335,21 +334,28 @@ pub fn build_main_window(
     banner.set_min_size(Size::new(-1, banner.get_char_height()));
 
     let notebook = Notebook::builder(&root).build();
-    let user_page = ScopePage::build(&notebook, &catalogue, &user.session.borrow());
-    let system_page = ScopePage::build(&notebook, &catalogue, &system.session.borrow());
+    // No pass has run yet, so the rows are composed under no findings — and
+    // outside the Sessions' scoped access, because building a page renders it.
+    let rows_at_start = |scope: &SharedScope| {
+        scope
+            .session
+            .with(|session| Row::compose(session, None, &catalogue))
+    };
+    let user_page = ScopePage::build(&notebook, &rows_at_start(&user));
+    let system_page = ScopePage::build(&notebook, &rows_at_start(&system));
     let tabs = [
         ScopeTab {
             scope: Scope::User,
             session: user.session,
             page: user_page,
-            findings: RefCell::new(None),
+            findings: Scoped::new(None),
             last_read: RefCell::new(user.last_read),
         },
         ScopeTab {
             scope: Scope::System,
             session: system.session,
             page: system_page,
-            findings: RefCell::new(None),
+            findings: Scoped::new(None),
             last_read: RefCell::new(system.last_read),
         },
     ];
@@ -502,7 +508,7 @@ impl App {
             let selection = event.get_selection();
             let active = app.tab_at(selection);
             if let Some(tab) = active {
-                let count = tab.session.borrow().entries().len();
+                let count = tab.session.with(|session| session.entries().len());
                 app.announcer.announce(Announcement::EntryCount {
                     scope: tab.scope,
                     count,
@@ -542,9 +548,16 @@ impl App {
         });
 
         // The one place a finished pass crosses onto the UI thread (spec §7,
-        // FR-diag-async).
+        // FR-diag-async). Inert while a dialog is up (ADR-0011): the Timer
+        // keeps firing inside the modal loop — which preserves `Pump`'s
+        // self-healing restart — and a pass landing mid-dialog is collected by
+        // the first tick after it closes, ≤ 100 ms later.
         let app = Rc::clone(self);
-        self.pump.on_tick(move |_| app.collect_pass());
+        self.pump.on_tick(move |_| {
+            if !door::modal_open() {
+                app.collect_pass();
+            }
+        });
     }
 
     /// Asks for a pass over both Working Copies.
@@ -578,10 +591,13 @@ impl App {
     /// diagnosed by the same pass.
     fn apply_pass(&self, diagnosis: &Diagnosis) {
         for tab in &self.tabs {
-            let session = tab.session.borrow();
-            let findings = Findings::of(session.entries(), diagnosis.scope(tab.scope));
-            tab.page.render_status(&session, Some(&findings));
-            *tab.findings.borrow_mut() = Some(findings);
+            let (findings, rows) = tab.session.with(|session| {
+                let findings = Findings::of(session.entries(), diagnosis.scope(tab.scope));
+                let rows = Row::compose(session, Some(&findings), &self.catalogue);
+                (findings, rows)
+            });
+            tab.page.render_status(&rows);
+            tab.findings.with_mut(|held| *held = Some(findings));
         }
         self.merged_length.set(Some(diagnosis.merged_length()));
         self.sync();
@@ -594,11 +610,10 @@ impl App {
     /// answer must be the same one the menu is showing.
     fn run(&self, command: Command) {
         let active = self.active_tab();
-        // The borrow dies here, before anything below can open a dialog.
-        let available = {
-            let session = active.map(|tab| tab.session.borrow());
-            command.enabled(&self.availability(session.as_deref()))
-        };
+        // Answered before anything below can open a dialog, and owned out of
+        // the scoped access.
+        let available =
+            self.with_availability(active, |availability| command.enabled(availability));
         if !available {
             return;
         }
@@ -745,10 +760,10 @@ impl App {
     /// application runs (spec §13, §11).
     ///
     /// The order is the whole of it. What the dialog opens on is read out
-    /// **before** it is shown — a `Ref` taken inside the call would live
-    /// across a modal loop, and the diagnostic Timer ticks inside one — and
-    /// what it answers is recorded and written afterwards, both under a
-    /// borrow that dies here.
+    /// **before** it is shown, and what it answers is recorded and written
+    /// afterwards — `settings` is one of the plain cells ADR-0011 leaves
+    /// outside the wrapper, and a plain cell's rule is local borrows: a `Ref`
+    /// taken inside the call would live across the dialog's modal loop.
     ///
     /// **`maxBackups` is in force the moment this returns**: the settings the
     /// window holds are what the next Apply Run reads its rotation budget from
@@ -852,14 +867,16 @@ impl App {
     /// like any other activation — this is one, and hiding it from the handler
     /// that answers them would be a second kind of tab switch.
     fn restore(&self) {
-        // Read out before the Session is touched: the page's own borrow must
-        // not still be open when the notebook fires its page-changed handler,
-        // which reads every Session in the window.
+        // Owned out of the page's cell before the Session is touched; the
+        // `activate` below — a dispatch — runs with every closure closed.
         let Some((scope, entries, value_type)) = self.backups.restore_payload() else {
             return;
         };
         let tab = self.tab_of(scope);
-        if !tab.session.borrow_mut().restore(entries, value_type) {
+        if !tab
+            .session
+            .with_mut(|session| session.restore(entries, value_type))
+        {
             return;
         }
         self.activate(scope);
@@ -894,19 +911,19 @@ impl App {
             return;
         };
         let convert = self.convert_or_keep(tab, &text);
-        let mut added = None;
-        {
-            let mut session = tab.session.borrow_mut();
+        let added = tab.session.with_mut(|session| {
             if convert {
+                let mut added = None;
                 session.batch(Operation::ChangeValueType, |working| {
                     working.set_value_type(ValueType::RegExpandSz);
                     added = working.add(&text);
                     added
                 });
+                added
             } else {
-                added = session.add(&text);
+                session.add(&text)
             }
-        }
+        });
         self.after_edit(tab, added.and_then(|id| tab.row_of(id)));
     }
 
@@ -915,15 +932,16 @@ impl App {
     fn edit(&self, tab: &ScopeTab) {
         let focused = tab.focused_entry();
         let Some((row, id)) = focused else { return };
-        let raw = tab.session.borrow().entries()[row].raw().to_string();
+        let raw = tab
+            .session
+            .with(|session| session.entries()[row].raw().to_string());
         let title = translate(msgids::DIALOG_EDIT_ENTRY);
         let Some(text) = entry_dialog::ask_for_entry(&self.frame, &self.catalogue, &title, &raw)
         else {
             return;
         };
         let convert = self.convert_or_keep(tab, &text);
-        {
-            let mut session = tab.session.borrow_mut();
+        tab.session.with_mut(|session| {
             if convert {
                 session.batch(Operation::ChangeValueType, |working| {
                     working.set_value_type(ValueType::RegExpandSz);
@@ -933,7 +951,7 @@ impl App {
             } else {
                 session.edit(id, &text);
             }
-        }
+        });
         self.after_edit(tab, tab.row_of(id));
     }
 
@@ -944,7 +962,7 @@ impl App {
         let Some((row, id)) = tab.focused_entry() else {
             return;
         };
-        if !tab.session.borrow_mut().delete(id) {
+        if !tab.session.with_mut(|session| session.delete(id)) {
             return;
         }
         self.after_edit(tab, Some(row));
@@ -956,13 +974,10 @@ impl App {
         let Some((_, id)) = tab.focused_entry() else {
             return;
         };
-        let moved = {
-            let mut session = tab.session.borrow_mut();
-            match command {
-                Command::MoveUp => session.move_up(id),
-                _ => session.move_down(id),
-            }
-        };
+        let moved = tab.session.with_mut(|session| match command {
+            Command::MoveUp => session.move_up(id),
+            _ => session.move_down(id),
+        });
         if !moved {
             return;
         }
@@ -978,13 +993,10 @@ impl App {
         // One match, because the command decides two things that must not be
         // allowed to disagree: which way the history is walked, and which of
         // Announcement 4's two sentences says so.
-        let (direction, outcome) = {
-            let mut session = tab.session.borrow_mut();
-            match command {
-                Command::Redo => (UndoDirection::Redo, session.redo()),
-                _ => (UndoDirection::Undo, session.undo()),
-            }
-        };
+        let (direction, outcome) = tab.session.with_mut(|session| match command {
+            Command::Redo => (UndoDirection::Redo, session.redo()),
+            _ => (UndoDirection::Undo, session.undo()),
+        });
         let Some(outcome) = outcome else { return };
         let row = outcome.focus.and_then(|id| tab.row_of(id)).or(previous_row);
         self.after_edit(tab, row);
@@ -1000,7 +1012,7 @@ impl App {
             return;
         }
         let previous_row = tab.page.focused_row();
-        if !tab.session.borrow_mut().cancel() {
+        if !tab.session.with_mut(Session::cancel) {
             return;
         }
         self.after_edit(tab, previous_row);
@@ -1018,14 +1030,14 @@ impl App {
     /// do. The Announcement catalogue is closed at seven, so nothing is
     /// spoken; the §9 taxonomy that will name it arrives with Apply.
     fn refresh(&self, tab: &ScopeTab) {
-        let dirty = tab.session.borrow().is_dirty();
+        let dirty = tab.session.with(Session::is_dirty);
         if dirty && !self.confirm(msgids::DIALOG_REFRESH_DISCARDS) {
             return;
         }
         let Ok(raw) = tab.key().read() else { return };
         let row = tab.adopt(raw);
         self.after_edit(tab, row);
-        let count = tab.session.borrow().entries().len();
+        let count = tab.session.with(|session| session.entries().len());
         self.announcer.announce(Announcement::EntryCount {
             scope: tab.scope,
             count,
@@ -1044,11 +1056,10 @@ impl App {
     /// of one; the close-confirm's Save is a run over every dirty Scope, User
     /// first.
     ///
-    /// Everything the run needs is copied out **before** it is called, and
-    /// nothing is borrowed across it: the run opens modal dialogs, a modal
-    /// dialog runs its own event loop, and the diagnostic Timer ticks inside
-    /// that loop — a Session borrow held across it would meet the pass's own
-    /// and panic (ADR-0008).
+    /// Everything the run needs is copied out **before** it is called — owned
+    /// values, because the run opens modal dialogs and nothing may still be
+    /// inside a scoped-access closure when one's nested event loop starts
+    /// (ADR-0008, ADR-0011).
     ///
     /// A run with no Data Directory has nowhere to put the backup that must
     /// precede any write, so there is no run to make. It is unreachable in
@@ -1091,15 +1102,15 @@ impl App {
     /// being applied: the merged length the over-length gate reads is a fact
     /// about the pair (spec §7).
     ///
-    /// Every borrow it takes dies inside it, which is what lets the caller
-    /// hand the result to a sequence that opens dialogs.
+    /// Everything in it is owned, which is what lets the caller hand the
+    /// result to a sequence that opens dialogs.
     fn scope_input(&self, scope: Scope) -> ScopeInput {
         let tab = self.tab_of(scope);
         ScopeInput {
             scope,
             key: tab.key(),
             entries: tab.raw_entries(),
-            value_type: tab.session.borrow().value_type(),
+            value_type: tab.session.with(Session::value_type),
             last_read: tab.last_read.borrow().clone(),
         }
     }
@@ -1122,9 +1133,14 @@ impl App {
                     // Focus stays on the current Entry (spec §10), so the list
                     // is not redrawn — nothing in it changed — and focus is
                     // moved only if the control holding it has just been
-                    // disabled out from under the user.
-                    tab.page
-                        .rescue_focus(&self.availability(Some(&tab.session.borrow())));
+                    // disabled out from under the user: asked under the scoped
+                    // access, moved after it has closed.
+                    let stranded = self.with_availability(Some(tab), |availability| {
+                        tab.page.focus_stranded(availability)
+                    });
+                    if stranded {
+                        tab.page.focus_list();
+                    }
                     self.announcer.announce(Announcement::Applied { scope });
                 }
                 ScopeOutcome::Refreshed { found } => {
@@ -1138,9 +1154,7 @@ impl App {
                     // run as a whole, and happen once below however many Scopes
                     // it reached.
                     let row = tab.adopt(found);
-                    let session = tab.session.borrow();
-                    tab.page
-                        .render(&session, tab.findings.borrow().as_ref(), row);
+                    tab.page.render(&tab.rows(&self.catalogue), row);
                 }
                 // Nothing happened, and the user is the one who decided so.
                 ScopeOutcome::Cancelled => {}
@@ -1188,8 +1202,7 @@ impl App {
     ///
     /// One list of dirty Scopes, read once: it is what the title names and
     /// what the Apply Run is handed, so the sentence cannot promise an order
-    /// the sequence does not keep. The borrows it takes die inside it, before
-    /// the dialog's own event loop starts.
+    /// the sequence does not keep.
     fn save_or_discard(&self) -> bool {
         let dirty = self.dirty_scopes();
         if dirty.is_empty() {
@@ -1259,7 +1272,7 @@ impl App {
         let mut dirty: Vec<Scope> = self
             .tabs
             .iter()
-            .filter(|tab| tab.session.borrow().is_dirty())
+            .filter(|tab| tab.session.with(Session::is_dirty))
             .map(|tab| tab.scope)
             .collect();
         dirty.sort_by_key(|scope| tab_index(*scope));
@@ -1343,10 +1356,9 @@ impl App {
     /// negative button is the one that leaves the Value Type alone, which is
     /// the only half of the outcome it can spare.
     fn convert_or_keep(&self, tab: &ScopeTab, text: &str) -> bool {
-        let asks = {
-            let session = tab.session.borrow();
+        let asks = tab.session.with(|session| {
             session.value_type() == ValueType::RegSz && has_variable_reference(text)
-        };
+        });
         asks && question::ask(
             &self.frame,
             &translate(msgids::DIALOG_VAR_IN_REG_SZ),
@@ -1373,11 +1385,7 @@ impl App {
     /// that only moved keeps its Status words, and the one whose text just
     /// changed shows none until the new pass lands (spec §7, FR-diag-async).
     fn after_edit(&self, tab: &ScopeTab, row: Option<usize>) {
-        {
-            let session = tab.session.borrow();
-            tab.page
-                .render(&session, tab.findings.borrow().as_ref(), row);
-        }
+        tab.page.render(&tab.rows(&self.catalogue), row);
         self.sync();
         self.request_pass();
     }
@@ -1386,8 +1394,8 @@ impl App {
     ///
     /// One line, with a cast and a hazard in it, and both belong in one place:
     /// `set_selection` runs the page-changed handler **synchronously**, and
-    /// that handler reads every Session in the window — so no caller may hold
-    /// a borrow across this.
+    /// that handler reads every Session in the window — a dispatch, which is
+    /// why no scoped-access closure may call this (ADR-0011).
     fn activate(&self, scope: Scope) {
         self.notebook.set_selection(tab_index(scope) as usize);
     }
@@ -1425,6 +1433,23 @@ impl App {
         }
     }
 
+    /// Reads `tab`'s availability through a closure — [`Availability`] borrows
+    /// the Session, so it lives inside the scoped access and the answer comes
+    /// out owned. `None` is a tab that is not a Scope, whose availability is
+    /// the Run's facts alone.
+    fn with_availability<R>(
+        &self,
+        tab: Option<&ScopeTab>,
+        read: impl FnOnce(&Availability) -> R,
+    ) -> R {
+        match tab {
+            Some(tab) => tab
+                .session
+                .with(|session| read(&self.availability(Some(session)))),
+            None => read(&self.availability(None)),
+        }
+    }
+
     fn sync(&self) {
         self.sync_for(self.active_tab());
     }
@@ -1433,12 +1458,13 @@ impl App {
     /// Taken as an argument rather than read back, because the notebook's own
     /// selection lags the page-changed event that carries it.
     fn sync_for(&self, active: Option<&ScopeTab>) {
-        let session = active.map(|tab| tab.session.borrow());
-        command::sync_menu_bar(&self.menu, &self.availability(session.as_deref()));
-        drop(session);
+        self.with_availability(active, |availability| {
+            command::sync_menu_bar(&self.menu, availability)
+        });
         for tab in &self.tabs {
-            tab.page
-                .sync_buttons(&self.availability(Some(&tab.session.borrow())));
+            self.with_availability(Some(tab), |availability| {
+                tab.page.sync_buttons(availability)
+            });
         }
         // Restore is worth something only over a row that can be loaded into a
         // Session that can be written: a Corrupted Snapshot has nothing to
@@ -1447,7 +1473,7 @@ impl App {
         let restorable = self
             .backups
             .restore_target()
-            .is_some_and(|scope| self.tab_of(scope).session.borrow().writable());
+            .is_some_and(|scope| self.tab_of(scope).session.with(Session::writable));
         self.backups.sync_button(restorable);
         // User first, then System: the order the tabs are in, not the runtime
         // order a pass evaluates them in (spec §12).

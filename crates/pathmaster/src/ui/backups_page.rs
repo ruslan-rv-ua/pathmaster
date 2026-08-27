@@ -13,7 +13,6 @@
 //! whose Scope cannot be written has nowhere to load it. Both read as a
 //! disabled button, which is how a screen reader is told (spec §5, §15).
 
-use std::cell::RefCell;
 use std::rc::Rc;
 
 use pathmaster_core::backups::SnapshotFile;
@@ -23,6 +22,7 @@ use pathmaster_core::session::{Scope, ValueType};
 use wxdragon::prelude::*;
 
 use crate::catalog::translate;
+use crate::scoped::Scoped;
 use crate::ui::list;
 
 /// `wxLIST_AUTOSIZE_USEHEADER`: fit the column to the wider of its content and
@@ -45,8 +45,10 @@ pub struct BackupsPage {
     /// Held rather than re-read at Restore time: the two-layer validation has
     /// already opened every file to build this list, so restoring from what
     /// was read is one fewer read that can fail — and it cannot disagree with
-    /// the row the user is looking at.
-    files: RefCell<Vec<SnapshotFile>>,
+    /// the row the user is looking at. [`Scoped`] because two kinds of call
+    /// reach it: commands, and the list's own synchronous `on_item_focused`
+    /// (ADR-0011).
+    files: Scoped<Vec<SnapshotFile>>,
     /// The one Catalogue, for the three columns this tab composes (ADR-0009).
     catalogue: Rc<Catalogue>,
 }
@@ -104,7 +106,7 @@ impl BackupsPage {
             panel,
             list,
             restore,
-            files: RefCell::new(Vec::new()),
+            files: Scoped::new(Vec::new()),
             catalogue: Rc::clone(catalogue),
         }
     }
@@ -116,12 +118,12 @@ impl BackupsPage {
     /// arrows through it, and a rebuild that moved them would be a rebuild they
     /// did not ask for.
     ///
-    /// The widget is filled first and [`files`](Self::files) replaced last, and
-    /// **no borrow of it is held across either**: a list fires its own events
-    /// synchronously, `on_item_focused` among them, and that handler reads this
-    /// cell. The window re-syncs the button immediately afterwards, so a row
-    /// focused mid-rebuild is a stale answer for the length of one call and not
-    /// a panic.
+    /// The widget is filled first and [`files`](Self::files) replaced last,
+    /// with the rebuild outside the cell's scoped access: a list fires its own
+    /// events synchronously, `on_item_focused` among them, and that handler
+    /// reads this cell. The window re-syncs the button immediately afterwards,
+    /// so a row focused mid-rebuild is a stale answer for the length of one
+    /// call and not a panic.
     pub fn show(&self, files: Vec<SnapshotFile>) {
         self.list.delete_all_items();
         for (index, file) in files.iter().enumerate() {
@@ -131,7 +133,7 @@ impl BackupsPage {
             self.list.set_item_text_by_column(index as i64, 2, &entries);
         }
         fit_columns(&self.list);
-        *self.files.borrow_mut() = files;
+        self.files.with_mut(|held| *held = files);
     }
 
     /// The Scope the focused row would be restored into, or `None` when there
@@ -166,12 +168,11 @@ impl BackupsPage {
     /// Reads the Snapshot file the list is on, if the user is on a row at all.
     ///
     /// A closure rather than a returned reference, and the only place this
-    /// page's cell is borrowed for reading: both callers run while a list event
-    /// could arrive, so the borrow must die with the answer rather than travel
-    /// out with it.
+    /// page's cell is read: the answer travels out owned, the way everything
+    /// leaves a [`Scoped`] cell.
     fn focused<T>(&self, read: impl FnOnce(&SnapshotFile) -> T) -> Option<T> {
-        let files = self.files.borrow();
-        Some(read(files.get(list::focused_row(&self.list)?)?))
+        let row = list::focused_row(&self.list)?;
+        self.files.with(|files| files.get(row).map(read))
     }
 }
 

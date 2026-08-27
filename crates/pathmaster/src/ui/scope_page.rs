@@ -9,8 +9,6 @@
 //! that is focused in a control that is not is silent, which for this
 //! application is the same as not having happened.
 
-use std::rc::Rc;
-
 use pathmaster_core::catalogue::Catalogue;
 use pathmaster_core::diagnostics::Findings;
 use pathmaster_core::msgids;
@@ -27,6 +25,37 @@ use crate::ui::list;
 /// all remaining width.
 const STATUS_COLUMN_DIP: i32 = 220;
 
+/// One row as the list shows it: the Path cell and the Status cell, owned.
+///
+/// Owned is the point (ADR-0011): rows are composed under the Session's and
+/// the findings' scoped access and rendered after both closures have died, so
+/// a rebuild — which runs the list's own events — is never inside one.
+pub struct Row {
+    pub path: String,
+    pub status: String,
+}
+
+impl Row {
+    /// Composes every row of a Scope: each Entry's raw text, and the Status
+    /// column the last completed pass gives it — nothing, until one has run
+    /// (spec §7, FR-diag-async).
+    pub fn compose(
+        session: &Session,
+        findings: Option<&Findings>,
+        catalogue: &Catalogue,
+    ) -> Vec<Row> {
+        session
+            .entries()
+            .iter()
+            .map(|entry| Row {
+                path: entry.raw().to_string(),
+                status: catalogue
+                    .status_column(findings.map_or(&[][..], |findings| findings.issues(entry))),
+            })
+            .collect()
+    }
+}
+
 /// One Scope's tab.
 pub struct ScopePage {
     pub panel: Panel,
@@ -34,21 +63,17 @@ pub struct ScopePage {
     /// The commands with a button, in Tab order — `Command::ALL` filtered by
     /// [`Command::button_label`], so the two can never disagree.
     buttons: Vec<(Command, Button)>,
-    /// The one Catalogue, for the one thing this tab composes: the Status
-    /// column. Held rather than passed in, because the first write happens in
-    /// [`build`](ScopePage::build), before there is anyone to pass it.
-    catalogue: Rc<Catalogue>,
 }
 
 impl ScopePage {
-    /// Builds the tab over a Session's current Entries.
+    /// Builds the tab over a Scope's rows as they stand at startup.
     ///
     /// The list is report mode with exactly two columns, Path and Status — no
     /// index column, no icons (spec §7, §10) — and `SingleSel`, which is the
     /// app's real shape: Delete, Move Up and Move Down act on one Entry.
     /// `ListCtrlStyle::EditLabels` is deliberately absent: editing is the
     /// modal dialog and nothing else (spec §6).
-    pub fn build(notebook: &Notebook, catalogue: &Rc<Catalogue>, session: &Session) -> ScopePage {
+    pub fn build(notebook: &Notebook, rows: &[Row]) -> ScopePage {
         let panel = Panel::builder(notebook).build();
         let list = ListCtrl::builder(&panel)
             .with_style(ListCtrlStyle::Report | ListCtrlStyle::SingleSel)
@@ -100,12 +125,11 @@ impl ScopePage {
             panel,
             list,
             buttons,
-            catalogue: Rc::clone(catalogue),
         };
         // No pass has run yet, so every Status column starts empty — which is
         // also what a healthy Scope looks like, and stays so for one Timer
         // tick (spec §7, FR-diag-async).
-        page.render(session, None, None);
+        page.render(rows, None);
         page
     }
 
@@ -123,12 +147,17 @@ impl ScopePage {
     /// The whole list is rebuilt rather than patched: one code path for every
     /// operation means the focus rules below are the only thing that decides
     /// where the user lands.
-    pub fn render(&self, session: &Session, findings: Option<&Findings>, row: Option<usize>) {
+    ///
+    /// It takes composed [`Row`]s rather than a Session on purpose: a rebuild
+    /// runs the list's own events, so it may not happen inside a scoped-access
+    /// closure — the caller copies the rows out first (ADR-0011).
+    pub fn render(&self, rows: &[Row], row: Option<usize>) {
         self.list.delete_all_items();
-        for (index, entry) in session.entries().iter().enumerate() {
-            self.list.insert_item(index as i64, entry.raw(), None);
+        for (index, data) in rows.iter().enumerate() {
+            self.list.insert_item(index as i64, &data.path, None);
+            self.list
+                .set_item_text_by_column(index as i64, 1, &data.status);
         }
-        self.render_status(session, findings);
         if let Some(row) = row {
             self.focus_row(row);
         }
@@ -142,17 +171,13 @@ impl ScopePage {
     /// someone arrowing through the list. It is also how a System edit reaches
     /// the User tab, whose rows did not change but whose duplicates did.
     ///
-    /// `None` is "no pass has run yet", which this column shows exactly as it
-    /// shows a healthy Scope — as nothing. The distinction matters only to the
-    /// StatusBar, which must not report a count nothing has measured.
-    pub fn render_status(&self, session: &Session, findings: Option<&Findings>) {
-        for (index, entry) in session.entries().iter().enumerate() {
-            let issues = findings.map_or(&[][..], |findings| findings.issues(entry));
-            self.list.set_item_text_by_column(
-                index as i64,
-                1,
-                &self.catalogue.status_column(issues),
-            );
+    /// It writes the same [`Row`]s a rebuild takes and reads only their Status
+    /// half — one composition path for the column, whichever way it reaches
+    /// the screen.
+    pub fn render_status(&self, rows: &[Row]) {
+        for (index, data) in rows.iter().enumerate() {
+            self.list
+                .set_item_text_by_column(index as i64, 1, &data.status);
         }
     }
 
@@ -176,8 +201,9 @@ impl ScopePage {
         self.list.ensure_visible(row);
     }
 
-    /// Moves the keyboard focus **only if the control holding it has just been
-    /// disabled**, and otherwise leaves it exactly where it is.
+    /// Whether the keyboard focus is stranded — held by a button the operation
+    /// just turned off. `true` asks the caller for a [`focus_list`] rescue;
+    /// `false` means focus stays exactly where it is.
     ///
     /// Both halves are spec §10. "After Apply — stays on the current Entry"
     /// means a Ctrl+S pressed from a list row leaves the user on that row —
@@ -190,16 +216,16 @@ impl ScopePage {
     ///
     /// It is asked before the buttons are re-synced, so the answer comes from
     /// two live facts: which button wx says has the focus, and what the
-    /// Session now says that button's command is worth.
-    pub fn rescue_focus(&self, available: &Availability) {
-        let stranded = self
-            .buttons
+    /// Session now says that button's command is worth. The question and the
+    /// rescue are deliberately two calls: [`Availability`] lives inside the
+    /// scoped access, while moving focus runs the toolkit's own events — a
+    /// dispatch, which no closure body may make (ADR-0011).
+    ///
+    /// [`focus_list`]: Self::focus_list
+    pub fn focus_stranded(&self, available: &Availability) -> bool {
+        self.buttons
             .iter()
-            .any(|(command, button)| button.has_focus() && !command.enabled(available));
-        if !stranded {
-            return;
-        }
-        self.focus_list();
+            .any(|(command, button)| button.has_focus() && !command.enabled(available))
     }
 
     /// Puts the keyboard focus into this tab's list, on the row the user was

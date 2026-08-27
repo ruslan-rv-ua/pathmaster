@@ -14,9 +14,9 @@
 mod announce;
 mod catalog;
 mod pump;
+mod scoped;
 mod ui;
 
-use std::cell::RefCell;
 use std::rc::Rc;
 
 use pathmaster_core::session::Session;
@@ -26,6 +26,8 @@ use pathmaster_platform::locale;
 use pathmaster_platform::registry::{RawValue, ScopeKey};
 use pathmaster_platform::startup::{self, Decisions, LoadedScope};
 
+use crate::scoped::Scoped;
+
 /// One Scope as the window holds it: the Session, shared, and the value the
 /// registry held when startup read it.
 ///
@@ -34,18 +36,18 @@ use pathmaster_platform::startup::{self, Decisions, LoadedScope};
 /// closure holding an `Rc<App>` — and `pathmaster-platform` has no reason to
 /// know that.
 pub struct SharedScope {
-    pub session: Rc<RefCell<Session>>,
+    pub session: Rc<Scoped<Session>>,
     pub last_read: RawValue,
 }
 
 impl From<LoadedScope> for SharedScope {
     /// Wrapping one Session for the window, which is the whole of what
     /// "assembly" means here: `Rc` because every command holds the window,
-    /// `RefCell` because editing needs `&mut` — under the standing rule that no
-    /// borrow is held across a call that can run someone else's code.
+    /// [`Scoped`] because editing needs `&mut` and a Session is state more
+    /// than one kind of call reaches (ADR-0011).
     fn from(loaded: LoadedScope) -> SharedScope {
         SharedScope {
-            session: Rc::new(RefCell::new(loaded.session)),
+            session: Rc::new(Scoped::new(loaded.session)),
             last_read: loaded.last_read,
         }
     }

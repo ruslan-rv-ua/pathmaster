@@ -21,9 +21,9 @@ use pathmaster_core::path::rejection;
 use wxdragon::prelude::*;
 
 use crate::catalog::translate;
-use crate::ui::question;
+use crate::ui::{door, question};
 
-/// The two ways out. Local to this module: `show_modal` hands one back and
+/// The two ways out. Local to this module: `door::show` hands one back and
 /// nothing else binds them.
 const ID_COMMIT: Id = ID_HIGHEST + 111;
 const ID_ABANDON: Id = ID_HIGHEST + 112;
@@ -108,7 +108,7 @@ pub fn ask_for_entry(
 
     field.set_focus();
     field.set_insertion_point_end();
-    let committed = dialog.show_modal() == ID_COMMIT;
+    let committed = door::show(&dialog) == ID_COMMIT;
     // Read before the window goes: a destroyed control answers with nothing.
     let text = field.get_value();
     dialog.destroy();
@@ -134,7 +134,7 @@ fn browse_for_folder(parent: &Dialog, field: &TextCtrl) {
     let picker = DirDialog::builder(parent, &translate(msgids::DIALOG_CHOOSE_FOLDER), &seed)
         .with_style((DirDialogStyle::Default | DirDialogStyle::MustExist).bits())
         .build();
-    if picker.show_modal() == ID_OK {
+    if door::show(&picker) == ID_OK {
         if let Some(chosen) = picker.get_path() {
             field.set_value(&chosen);
         }

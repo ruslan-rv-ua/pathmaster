@@ -13,8 +13,10 @@
 
 use wxdragon::prelude::*;
 
+use crate::ui::door;
+
 /// Where this module's button ids start. They matter only inside it:
-/// `show_modal` hands one of them straight back, and nothing else in the
+/// `door::show` hands one of them straight back, and nothing else in the
 /// application binds them.
 const ID_FIRST_BUTTON: Id = ID_HIGHEST + 101;
 
@@ -73,7 +75,7 @@ pub fn choose(parent: &dyn WxWidget, title: &str, labels: &[&str]) -> usize {
         safe.set_focus();
     }
 
-    let answer = dialog.show_modal();
+    let answer = door::show(&dialog);
     dialog.destroy();
     usize::try_from(answer - ID_FIRST_BUTTON)
         .ok()
@@ -108,8 +110,8 @@ pub fn inform(parent: &dyn WxWidget, title: &str) {
 }
 
 fn single_ok(parent: &dyn WxWidget, title: &str, icon: MessageDialogStyle) {
-    MessageDialog::builder(parent, title, title)
+    let dialog = MessageDialog::builder(parent, title, title)
         .with_style(MessageDialogStyle::OK | icon)
-        .build()
-        .show_modal();
+        .build();
+    door::show(&dialog);
 }

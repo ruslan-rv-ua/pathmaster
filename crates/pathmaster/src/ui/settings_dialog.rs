@@ -28,10 +28,10 @@ use pathmaster_core::settings::{parse_max_backups, Choices};
 use wxdragon::prelude::*;
 
 use crate::catalog::translate;
-use crate::ui::question;
+use crate::ui::{door, question};
 
 /// The two ways out. Local to this module, like the Add/Edit dialog's:
-/// `show_modal` hands one back and nothing else binds them.
+/// `door::show` hands one back and nothing else binds them.
 const ID_COMMIT: Id = ID_HIGHEST + 121;
 const ID_ABANDON: Id = ID_HIGHEST + 122;
 
@@ -149,7 +149,7 @@ pub fn ask_for_settings(
         abandon.set_focus();
     }
 
-    let committed = dialog.show_modal() == ID_COMMIT;
+    let committed = door::show(&dialog) == ID_COMMIT;
     // Read before the window goes: a destroyed control answers with nothing.
     //
     // Both fallbacks are unreachable — the selector's items are `SELECTABLE`
