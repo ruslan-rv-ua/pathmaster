@@ -107,7 +107,12 @@ ticket 03 wins, recorded here.
   forbids a column that appears when filtering starts.
 - The `#` column joins the Status column as a deliberate pixel constant (one more explicit
   `FromDIP()` call); Path still takes all remaining width. NVDA's per-row reading becomes
-  "{#}; {path}; Status: {types}" — Release Checklist steps 2–4 change accordingly (§17).
+  **"{#}; Path: {path}; Status: {types}"** — Release Checklist steps 2–4 change accordingly
+  (§17). *(Amended 2026-08-27 from the measurement in §19's round three; assembly had written
+  "{#}; {path}; …" here. NVDA reads the leftmost report column bare and prefixes every other
+  with its header, so promoting `#` into column 0 is what puts "Path:" in front of the path —
+  a consequence of the column, not a choice. Nothing is lost, and nothing can be changed from
+  the application's side that does not cost the visible header or the free comctl32 path.)*
 - The Fix Issues dialog (§7) and the ticket-03 convention use the same `#` meaning; the column
   header `#` is a Catalogue string.
 - What does **not** return: the count compensation. Entry counts still come from Announcements
@@ -643,9 +648,10 @@ and B12 and the i18n mnemonic gate are voided by the menu growth** and re-run on
 it together — 31 rewritten (the Help menu now holds two items), B12 re-run as written (Tools is
 unchanged, but the bar it sits on gained View).
 
-**Changed v0.1.0 steps**: 2–4 — the row reading gains the leading position number
-("{#}; {path}; Status: …", §2.1); 15 — the full Tab cycle now includes the Search field
-(tabs → field → list → buttons); 31 — replaced by the Help-menu step below.
+**Changed v0.1.0 steps**: 2–4 — the row reading gains the leading position number **and the Path
+column's header** ("{#}; Path: {path}; Status: …", §2.1 as amended — step 2's healthy Entry now
+reads "{#}; Path: {path}" rather than path text alone); 15 — the full Tab cycle now includes the
+Search field (tabs → field → list → buttons); 31 — replaced by the Help-menu step below.
 
 **New steps** (expected speech per §13; every NVDA step gated on the Sanity Check as ever):
 
@@ -724,8 +730,9 @@ wanting either API, the upgrade is pre-cleared by ticket 01's delta finding.
 
 ## 19. NVDA verification record
 
-Everything this delta's accessibility rides was measured by the user against real NVDA, per the
-map's standing constraint — never assumed from an inspector tool:
+Everything this delta's accessibility rides was measured against real NVDA, per the map's standing
+constraint — never assumed from an inspector tool. Rounds one and two were the user personally, as
+that constraint asks; round three's provenance is stated in its own entry:
 
 - **Round one** ([ticket 04](issues/04-live-filter-nvda-prototype.md), 2026-08-26): rows rebuilt
   under an unfocused list are silent (plain rebuild; Freeze/Thaw dropped); the debounced count
@@ -738,6 +745,20 @@ map's standing constraint — never assumed from an inspector tool:
   "Go to entry"/Cancel land and speak; native listview checkboxes read, toggle on Space with
   the change announced, and survive the silent wx event layer; the focus-then-Announcement
   order on [Fix selected] confirmed as designed.
+- **Round three** ([impl ticket 02](../pathmaster-v0-2-0-impl/issues/02-index-column.md),
+  2026-08-27): the `#` column measured on the built application rather than a prototype, both
+  languages. **Provenance differs from rounds one and two**: this was an unattended
+  `tools/nvda-drive.ps1` run against a staged copy, read back out of NVDA's own log — the
+  harness, not the user at the keyboard. It is a real NVDA measurement and not an inspector
+  tool, but it is not a HITL session, and the row reading is worth one keyboard confirmation
+  when the Checklist is next walked. **One contract amended** — §2.1's predicted row reading. A
+  row reads "{#}; Path: {path}; Status: {types}": NVDA reads the leftmost report column bare, as
+  the item's name, and prefixes every other column with that column's header, skipping an empty
+  cell. That is the same rule v0.1.0's baseline measured (its ticket 02, "both columns and the
+  second column's header name"), applied to a list whose column 0 is no longer Path. Renumbering
+  confirmed live on the same run: Alt+Down moved entry 1 and it read back as `2`, Up read `1` as
+  the *other* entry, Del renumbered the rest up, Ctrl+Z restored both. No count compensation
+  appeared and none was added.
 
 The deaf-list risk posture (§19 of the v0.1.0 spec) is unchanged: v0.2.0 ships zero deaf-state
 code, the Sanity Check gates every measurement, and in-app detection stays deferred (§20).

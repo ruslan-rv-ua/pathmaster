@@ -53,8 +53,14 @@ Nothing can be done about it from this side that is worth doing. Blanking the Pa
 bare reading and cost the visible header §14 requires; any `set_accessibility_*` call moves the widget off
 the free comctl32 path entirely, which v0.1.0's baseline warns is a re-measure, not an addition. Nothing is
 lost either way — position and path are both spoken, first keystroke, no Announcement — so the recommended
-resolution is to correct §2.1's sentence to the measured string. **Left for the user: the delta-spec is
-locked, and amending it is not an implementation ticket's call.**
+resolution was to correct §2.1's sentence to the measured string.
+
+**Resolved the same day, by the user's decision:** the delta-spec is amended — §2.1's bullet carries the
+measured string with a note on why, §17's "Changed v0.1.0 steps" line carries it too (and now also says
+step 2's healthy Entry reads "{#}; Path: {path}" rather than path text alone), and §19 gains a round-three
+verification entry recording the measurement and, honestly, its provenance: this was the harness reading
+NVDA's log unattended, not a HITL session like rounds one and two, so the reading is flagged as worth one
+keyboard confirmation on the next Checklist walk.
 
 Live verification (staged copy under its own `data\`, machine `PATH` read but never applied): both Scope
 lists report 3 columns through `LVM_GETHEADER`/`HDM_GETITEMCOUNT`, headers `#` / Path / Status and
