@@ -272,10 +272,10 @@ fn the_announcement_catalogue_is_the_specs_items_and_nothing_else() {
     // v0.2.0's items land here with the tickets that speak them (v0.2.0 §13,
     // closing at fourteen).
     let catalogue = every_announcement();
-    assert_eq!(catalogue.len(), 12);
+    assert_eq!(catalogue.len(), 13);
     assert_eq!(
         catalogue.iter().map(|(item, _)| *item).collect::<Vec<u8>>(),
-        [1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 13, 14]
+        [1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14]
     );
     // Item 5 is the one with no variant of its own — and it is reachable, or
     // the count above would be hiding a message rather than sharing one.
@@ -353,6 +353,7 @@ fn every_announcement() -> Vec<(u8, Announcement)> {
                 total: 3,
             },
         ),
+        (12, Announcement::FixedEntries { count: 3 }),
         (13, Announcement::CopiedToClipboard),
         (14, Announcement::CopyFailed),
     ];
@@ -368,6 +369,7 @@ fn every_announcement() -> Vec<(u8, Announcement)> {
             | Announcement::FilteredCount { .. }
             | Announcement::ScopeFilteredCount { .. }
             | Announcement::FilterCount { .. }
+            | Announcement::FixedEntries { .. }
             | Announcement::CopiedToClipboard
             | Announcement::CopyFailed => {}
         }
@@ -1040,6 +1042,40 @@ fn a_filter_state_is_named_exactly_as_the_status_column_names_its_issue() {
             "the {column} filter does not name itself as the column does"
         );
     }
+}
+
+// ---- Announcement 12: Fix Issues applied (v0.2.0 §13 item 12) ----
+
+#[test]
+fn the_fix_summary_fills_the_number_it_repaired_and_pluralises_by_it() {
+    // Plural by {n}, which is also the number filled in: this count has one
+    // number, unlike the filtered counts whose two made the choice worth
+    // writing down.
+    let catalogue = the_catalogue();
+    assert_eq!(
+        catalogue.announcement(Announcement::FixedEntries { count: 1 }),
+        "Fixed 1 entry"
+    );
+    assert_eq!(
+        catalogue.announcement(Announcement::FixedEntries { count: 7 }),
+        "Fixed 7 entries"
+    );
+}
+
+// ---- The Fix Issues dialog's title (v0.2.0 §7, §14) ----
+
+#[test]
+fn the_fix_title_names_its_scope_in_a_whole_string_of_its_own() {
+    // The title is all NVDA speaks when the modal opens, so it is the only
+    // place the dialog says which PATH it is repairing — and each Scope gets a
+    // whole string rather than a frame, because «PATH користувача» has to agree
+    // with the sentence it stands in.
+    let catalogue = the_catalogue();
+    assert_eq!(catalogue.fix_title(Scope::User), "Fix issues — User PATH");
+    assert_eq!(
+        catalogue.fix_title(Scope::System),
+        "Fix issues — System PATH"
+    );
 }
 
 // ---- Announcements 13 and 14: Copy (v0.2.0 §13 items 13, 14) ----

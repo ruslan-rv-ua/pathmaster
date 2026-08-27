@@ -20,9 +20,11 @@ pathmaster-platform = { path = "../pathmaster-platform" }
 # from source, statically, with crt-static propagating into the C++ build.
 wxdragon = "0.9.17"
 
-# Two callers, each a module of its own: announce() (ADR-0003) takes
-# NotifyWinEvent and its constants, and clipboard::copy takes the Win32
-# clipboard the Copy command writes through rather than wx's (v0.2.0 §8).
+# Three callers, each a module of its own: announce() (ADR-0003) takes
+# NotifyWinEvent and its constants, clipboard::copy takes the Win32 clipboard
+# the Copy command writes through rather than wx's (v0.2.0 §8), and
+# ui::fix_dialog takes the raw LVM_* hatch that wxdragon exposes no checkbox
+# through (v0.2.0 §7).
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
@@ -30,6 +32,7 @@ windows-sys = { version = "0.61", features = [
     "Win32_System_Memory",
     "Win32_System_Ole",
     "Win32_UI_Accessibility",
+    "Win32_UI_Controls",
     "Win32_UI_WindowsAndMessaging",
 ] }
 

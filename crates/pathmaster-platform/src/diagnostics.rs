@@ -23,6 +23,7 @@ use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::thread;
 
 use pathmaster_core::diagnostics::{diagnose, Diagnosis, Existence, Filesystem, RootKind};
+use pathmaster_core::fix::DriveTypes;
 use pathmaster_core::normalize::Environment;
 
 use windows_sys::Win32::Foundation::ERROR_ACCESS_DENIED;
@@ -31,7 +32,7 @@ use windows_sys::Win32::Storage::FileSystem::{
 };
 use windows_sys::Win32::System::Diagnostics::Debug::{SetThreadErrorMode, SEM_FAILCRITICALERRORS};
 use windows_sys::Win32::System::Environment::GetEnvironmentVariableW;
-use windows_sys::Win32::System::WindowsProgramming::DRIVE_REMOTE;
+use windows_sys::Win32::System::WindowsProgramming::{DRIVE_FIXED, DRIVE_REMOTE};
 
 /// One pass to run: both Working Copies as text, in runtime order, and the
 /// generation that says which edit they were taken from.
@@ -224,8 +225,14 @@ impl Environment for ProcessEnvironment {
     }
 }
 
-/// The filesystem, asked the two questions the rules keep apart: where a path's
-/// root lives, and — for a local root only — what the path names.
+/// The filesystem, asked the questions the rules keep apart: where a path's
+/// root lives, what the path names — for a local root only — and, for Fix
+/// Issues' defaults alone, whether that root is a fixed disk.
+///
+/// The last is a trait of its own rather than a third [`Filesystem`] method,
+/// because the diagnostic rulebook never asks it (v0.2.0 §7,
+/// [`DriveTypes`]). Both readings go through the one [`drive_type`] below, so
+/// they cannot come to disagree about a drive.
 pub struct LocalFilesystem;
 
 impl Filesystem for LocalFilesystem {
@@ -245,23 +252,11 @@ impl Filesystem for LocalFilesystem {
     /// not define — is Local, because it must reach the probe: failing there
     /// is how an undefined reference flags Missing (spec §7, D10).
     fn root_kind(&self, path: &str) -> RootKind {
-        let mut chars = path.chars();
-        match (chars.next(), chars.next()) {
-            (Some(first), Some(second)) if is_separator(first) && is_separator(second) => {
-                RootKind::Network
-            }
-            (Some(drive), Some(':')) if drive.is_ascii_alphabetic() => {
-                let root = wide(&format!("{drive}:\\"));
-                // SAFETY: `root` is a NUL-terminated UTF-16 buffer bound above,
-                // so it outlives the call; the call reads it and returns a
-                // scalar.
-                let kind = unsafe { GetDriveTypeW(root.as_ptr()) };
-                if kind == DRIVE_REMOTE {
-                    RootKind::Network
-                } else {
-                    RootKind::Local
-                }
-            }
+        if begins_with_two_separators(path) {
+            return RootKind::Network;
+        }
+        match drive_type(path) {
+            Some(DRIVE_REMOTE) => RootKind::Network,
             _ => RootKind::Local,
         }
     }
@@ -301,6 +296,49 @@ impl Filesystem for LocalFilesystem {
             _ => Existence::NotFound,
         }
     }
+}
+
+/// The one question Fix Issues' defaults ask of this machine (v0.2.0 §7):
+/// whether not finding a path under this root is evidence the Entry is stale.
+///
+/// Fixed and nothing else — removable media, an optical drive, a RAM disk and
+/// a root Windows will not classify all answer `false`, because a path missing
+/// from any of them is absent rather than stale. A network root answers
+/// `false` too and could never reach here anyway: it is never probed, so it
+/// never flags Missing (spec §7, FR-diag-missing).
+impl DriveTypes for LocalFilesystem {
+    fn is_fixed_root(&self, path: &str) -> bool {
+        drive_type(path) == Some(DRIVE_FIXED)
+    }
+}
+
+/// What Windows calls the drive `path` begins with — or `None` for text that
+/// names no drive at all, which is a UNC or device-namespace path, or an Entry
+/// with no root, and both have their own rules above.
+///
+/// `GetDriveTypeW` answers from the mount table and takes no network round
+/// trip, which is the whole reason a classification is affordable here.
+fn drive_type(path: &str) -> Option<u32> {
+    let mut chars = path.chars();
+    match (chars.next(), chars.next()) {
+        (Some(drive), Some(':')) if drive.is_ascii_alphabetic() => {
+            let root = wide(&format!("{drive}:\\"));
+            // SAFETY: `root` is a NUL-terminated UTF-16 buffer bound above, so
+            // it outlives the call; the call reads it and returns a scalar.
+            Some(unsafe { GetDriveTypeW(root.as_ptr()) })
+        }
+        _ => None,
+    }
+}
+
+/// Whether `path` begins with two separators — every `\\` spelling, the device
+/// namespace included.
+fn begins_with_two_separators(path: &str) -> bool {
+    let mut chars = path.chars();
+    matches!(
+        (chars.next(), chars.next()),
+        (Some(first), Some(second)) if is_separator(first) && is_separator(second)
+    )
 }
 
 fn is_separator(c: char) -> bool {

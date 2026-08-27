@@ -128,6 +128,14 @@ pub enum Announcement {
         shown: usize,
         total: usize,
     },
+    /// **12** (v0.2.0) — the Fix Issues dialog applied the rows the user had
+    /// checked. Spoken **after focus has landed**, so the summary is the last
+    /// thing heard: the row focus lands on is what NVDA reads first, and this
+    /// says how much of the list it stands for.
+    ///
+    /// There is no zero: nothing checked is a Cancel, which leaves no
+    /// Checkpoint and speaks nothing (v0.2.0 §7).
+    FixedEntries { count: usize },
     /// **13** (v0.2.0) — the focused Entry's displayed rendering reached the
     /// clipboard. Fixed text with no placeholder: it never echoes what it
     /// copied, because focus has just read the row and Entries run long
@@ -241,6 +249,7 @@ impl Catalogue {
                 shown,
                 total,
             } => self.filter_count(filter, shown, total),
+            Announcement::FixedEntries { count } => self.fixed_entries(count),
             Announcement::CopiedToClipboard => self.lookup.translate(msgids::COPIED_TO_CLIPBOARD),
             Announcement::CopyFailed => self.lookup.translate(msgids::COPY_FAILED),
         }
@@ -435,6 +444,16 @@ impl Catalogue {
         })
     }
 
+    /// Edit → "Fix Issues…": the title of the modal opened over `scope`
+    /// (v0.2.0 §7, §14) — two whole strings picked between, for
+    /// [`tree_title`](Self::tree_title)'s reason and by the same rule.
+    pub fn fix_title(&self, scope: Scope) -> String {
+        self.lookup.translate(match scope {
+            Scope::User => msgids::DIALOG_FIX_USER,
+            Scope::System => msgids::DIALOG_FIX_SYSTEM,
+        })
+    }
+
     /// Help → About: what this build is, in the one line NVDA speaks of a
     /// dialog (spec §15, §16).
     ///
@@ -503,6 +522,23 @@ impl Catalogue {
                 count as u32,
             ),
             &[("m", &count.to_string())],
+        )
+    }
+
+    /// Announcement 12: how many Entries the Fix Issues dialog repaired
+    /// (v0.2.0 §13 item 12).
+    ///
+    /// Plural by `{n}`, which is also the number filled in — unlike the
+    /// filtered counts, whose two numbers made the choice worth writing down.
+    /// No zero case: nothing checked never reaches here.
+    fn fixed_entries(&self, count: usize) -> String {
+        fill(
+            &self.lookup.translate_plural(
+                msgids::FIXED_ENTRIES,
+                msgids::FIXED_ENTRIES_PLURAL,
+                count as u32,
+            ),
+            &[("n", &count.to_string())],
         )
     }
 

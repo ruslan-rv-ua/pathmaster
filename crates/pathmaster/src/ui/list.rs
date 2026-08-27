@@ -1,11 +1,14 @@
-//! The one question both tabs ask a `ListCtrl`: which row is the user on?
+//! What every `ListCtrl` in the application is asked, wherever it lives: which
+//! row is the user on, and how wide is a column meant to be?
 //!
-//! It is here rather than on either page because the answer has a rule in it —
-//! two readings, and a subtraction that must not happen — and one rule with two
-//! copies is one rule that can come apart. Everything else about a list differs
-//! between the two tabs: the Scope list is rebuilt by operations and lands
-//! focus deliberately, the Backups list is rebuilt by a directory and never
-//! moves anyone.
+//! Both answers are here rather than on any one surface because each has a rule
+//! in it — two readings and a subtraction that must not happen for the first, an
+//! FFI boundary wxdragon does not scale across for the second — and one rule
+//! with two copies is one rule that can come apart. Everything else about a list
+//! differs between its surfaces: the Scope list is rebuilt by operations and
+//! lands focus deliberately, the Backups list is rebuilt by a directory and
+//! never moves anyone, and the Fix Issues list is built once and never rebuilt
+//! at all.
 
 use wxdragon::prelude::*;
 
@@ -26,4 +29,20 @@ pub fn focused_row(list: &ListCtrl) -> Option<usize> {
         list.get_first_selected_item()
     };
     usize::try_from(row).ok()
+}
+
+/// The application's explicit FromDIP conversion (spec §12 D4).
+///
+/// wxdragon applies `FromDIP` implicitly to the sizes that cross the FFI
+/// boundary through a builder, but **`ListCtrl` column widths cross it raw** —
+/// so every hardcoded column constant in the application is scaled here,
+/// against the live DPI, and nowhere else.
+pub fn from_dip(list: &ListCtrl, dip: i32) -> i32 {
+    let dc = ClientDC::new(list);
+    let (ppi_x, _) = dc.get_ppi();
+    if ppi_x > 0 {
+        dip * ppi_x / 96
+    } else {
+        dip
+    }
 }

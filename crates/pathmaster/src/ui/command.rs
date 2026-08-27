@@ -1,4 +1,4 @@
-//! The twenty-seven commands the window carries, and the menus they live in
+//! The twenty-eight commands the window carries, and the menus they live in
 //! (spec §15, §5, §6; v0.2.0 §12).
 //!
 //! One enum is the whole map: it names the menu items, the menu each belongs
@@ -24,8 +24,8 @@ use crate::catalog::translate;
 
 /// One user-visible command.
 ///
-/// Twenty-two of them are about a Scope; the last five are not, and are here for
-/// the reason the enum exists at all: they are menu items, and a menu item's
+/// Twenty-three of them are about a Scope; the last five are not, and are here
+/// for the reason the enum exists at all: they are menu items, and a menu item's
 /// id, label and enabled state are answered in one place or in three.
 ///
 /// **Restore is deliberately not one of them.** §15 gives it no menu item and
@@ -44,6 +44,11 @@ pub enum Command {
     Copy,
     MoveUp,
     MoveDown,
+    /// Edit → "Fix Issues…": the modal, per-Scope repair surface over the
+    /// active Scope (v0.2.0 §7). The one Edit command that is about the whole
+    /// Working Copy rather than one Entry — which is why it sits after the Move
+    /// pair and before the history block it feeds a single Checkpoint into.
+    FixIssues,
     Undo,
     Redo,
     Apply,
@@ -100,6 +105,17 @@ pub struct Availability<'a> {
     /// Entry, so zero visible rows closes all three even over a non-empty
     /// Scope.
     pub visible_rows: usize,
+    /// How many of this Scope's Entries the Fix Issues dialog could act on —
+    /// [`fix::fixable`] over the last completed pass (v0.2.0 §7).
+    ///
+    /// Not merely "this Scope has Issues": an all-Relative or Over-length-only
+    /// Scope would open an empty dialog, and menu enablement is the only
+    /// indicator this command has. It is counted over the whole Working Copy
+    /// and never over the Filtered View — the surface is per Scope, so a
+    /// narrowing must not be able to close it.
+    ///
+    /// [`fix::fixable`]: pathmaster_core::fix::fixable
+    pub fixable: usize,
     /// Whether this Run has a Data Directory at all. The one Run that has none
     /// does not know where it is (`ReadOnlyReason::OwnLocationUnknown`), and so
     /// has no folder of Snapshots to show.
@@ -149,7 +165,7 @@ impl Command {
     /// Every command, in **button** order — §15's Add, Edit, Delete, Move Up,
     /// Move Down, Apply, Cancel — which is also the order each menu takes its
     /// own items in, since [`menu`](Self::menu) preserves it.
-    pub const ALL: [Command; 27] = [
+    pub const ALL: [Command; 28] = [
         Command::Add,
         Command::Edit,
         Command::Delete,
@@ -158,6 +174,7 @@ impl Command {
         Command::Copy,
         Command::MoveUp,
         Command::MoveDown,
+        Command::FixIssues,
         Command::Undo,
         Command::Redo,
         Command::Apply,
@@ -234,6 +251,7 @@ impl Command {
             | Command::Copy
             | Command::MoveUp
             | Command::MoveDown
+            | Command::FixIssues
             | Command::Undo
             | Command::Redo
             | Command::Cancel
@@ -269,6 +287,7 @@ impl Command {
             | Command::Copy
             | Command::MoveUp
             | Command::MoveDown
+            | Command::FixIssues
             | Command::Undo
             | Command::Redo
             | Command::Apply
@@ -297,6 +316,7 @@ impl Command {
             Command::Copy => msgids::MENU_COPY,
             Command::MoveUp => msgids::MENU_MOVE_UP,
             Command::MoveDown => msgids::MENU_MOVE_DOWN,
+            Command::FixIssues => msgids::MENU_FIX_ISSUES,
             Command::Undo => msgids::MENU_UNDO,
             Command::Redo => msgids::MENU_REDO,
             Command::Cancel => msgids::MENU_CANCEL,
@@ -347,6 +367,7 @@ impl Command {
             // on-window control** at all (v0.2.0 §4), and neither does its
             // toggle.
             Command::Copy
+            | Command::FixIssues
             | Command::Undo
             | Command::Redo
             | Command::Refresh
@@ -407,8 +428,13 @@ impl Command {
             // The five per-type states are menu-only, and so are the two
             // coarse ones: a radio item carrying a key would fire its own
             // selection rather than the toggle it was meant to be.
+            // Fix Issues carries none either (v0.2.0 §7, §12): an occasional
+            // bulk-review dialog is in the Settings/Restore class, not the F2
+            // class — every shortcut needs a menu home, not every item a
+            // shortcut.
             Command::Filter(_)
             | Command::Add
+            | Command::FixIssues
             | Command::Cancel
             | Command::Settings
             | Command::OpenBackupsFolder
@@ -466,6 +492,7 @@ impl Command {
             | Command::Copy
             | Command::MoveUp
             | Command::MoveDown
+            | Command::FixIssues
             | Command::Undo
             | Command::Redo
             | Command::Apply
@@ -522,6 +549,13 @@ impl Command {
             Command::MoveUp | Command::MoveDown => {
                 !available.narrowed && available.visible_rows > 0
             }
+            // A repair surface with nothing to repair is a dialog that opens
+            // empty, and this item's enabled state is the only indicator the
+            // command has — the Status column and the StatusBar already say
+            // there is work, so nothing here may say there is none (v0.2.0
+            // §7). The count is the Scope's and not the view's: the narrowing
+            // that closes Move Up does not close this.
+            Command::FixIssues => available.fixable > 0,
             Command::Undo => session.can_undo(),
             Command::Redo => session.can_redo(),
             // Both are disabled while clean, and read as disabled (spec §5).
@@ -559,6 +593,7 @@ impl Command {
             | Command::Copy
             | Command::MoveUp
             | Command::MoveDown
+            | Command::FixIssues
             | Command::Undo
             | Command::Redo
             | Command::Apply
@@ -597,6 +632,7 @@ impl Command {
             | Command::Copy
             | Command::MoveUp
             | Command::MoveDown
+            | Command::FixIssues
             | Command::Undo
             | Command::Redo
             | Command::Apply

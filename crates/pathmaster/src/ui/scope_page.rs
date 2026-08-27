@@ -21,11 +21,12 @@ use crate::ui::command::{Availability, Command};
 use crate::ui::list;
 use crate::ui::rendering::Rendering;
 
-/// The `#` and Status column widths in DIP — the app's two deliberate pixel
-/// constants, and its only two explicit `FromDIP()` calls (spec §12 D2, D4;
-/// v0.2.0 §2.1). Both columns hold text of a predictable length — a position,
-/// and comma-joined one-word Issue types — while paths are unbounded, so both
-/// are fixed and Path takes all remaining width.
+/// The `#` and Status column widths in DIP — this tab's two deliberate pixel
+/// constants, scaled through [`list::from_dip`] like every other column width
+/// in the application (spec §12 D2, D4; v0.2.0 §2.1). Both columns hold text of
+/// a predictable length — a position, and comma-joined one-word Issue types —
+/// while paths are unbounded, so both are fixed and Path takes all remaining
+/// width.
 ///
 /// `#` is sized for the four digits no real `PATH` reaches: the whole value is
 /// capped at 32 767 UTF-16 units ([`thresholds::HARD_CAP`]), and one at that
@@ -46,7 +47,8 @@ const STATUS_COLUMN_DIP: i32 = 220;
 pub struct Row {
     /// The Entry's 1-based position in the Working Copy (v0.2.0 §2.1). A
     /// number rather than the digits the cell shows: nothing about it is
-    /// language, and the Fix Issues dialog will want the same value.
+    /// language, and the Fix Issues dialog carries the same value in its own
+    /// `#` column (`fix::Row::position`).
     pub position: usize,
     /// The Entry's **displayed rendering** — its raw text, or the expanded
     /// reading of it under Expansion Mode (v0.2.0 §5). It is the same text
@@ -146,8 +148,8 @@ impl ScopePage {
         let list = ListCtrl::builder(&panel)
             .with_style(ListCtrlStyle::Report | ListCtrlStyle::SingleSel)
             .build();
-        let index_width = from_dip(&list, INDEX_COLUMN_DIP);
-        let status_width = from_dip(&list, STATUS_COLUMN_DIP);
+        let index_width = list::from_dip(&list, INDEX_COLUMN_DIP);
+        let status_width = list::from_dip(&list, STATUS_COLUMN_DIP);
         // `#` would read better right-aligned, and cannot be: comctl32 forces
         // LVCFMT_LEFT on the leftmost report column and silently ignores any
         // other format there. Left is what it will be either way, said out loud.
@@ -417,20 +419,5 @@ impl ScopePage {
         for (command, button) in &self.buttons {
             button.enable(command.enabled(available));
         }
-    }
-}
-
-/// The app's explicit FromDIP conversion (spec §12 D4). wxdragon applies
-/// FromDIP implicitly to sizes crossing the FFI boundary, but ListCtrl column
-/// widths cross it raw, so the hardcoded pixel values — [`INDEX_COLUMN_DIP`]
-/// and [`STATUS_COLUMN_DIP`], and no others — are scaled here against the live
-/// DPI.
-fn from_dip(widget: &ListCtrl, dip: i32) -> i32 {
-    let dc = ClientDC::new(widget);
-    let (ppi_x, _) = dc.get_ppi();
-    if ppi_x > 0 {
-        dip * ppi_x / 96
-    } else {
-        dip
     }
 }

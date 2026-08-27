@@ -69,6 +69,16 @@ pub const COLUMN_INDEX: &str = "#";
 pub const COLUMN_PATH: &str = "Path";
 pub const COLUMN_STATUS: &str = "Status";
 
+/// The two columns only the Fix Issues dialog has (v0.2.0 §7, §14) — beside
+/// `#` and Path, which it reuses.
+///
+/// "Issue" is singular where the main list's header is "Status", and the two
+/// are deliberately different words: that column shows an Entry's whole
+/// diagnostic state, healthy included, while this one exists only on rows that
+/// have a finding. "Action" names what the checkbox beside it will do.
+pub const COLUMN_ISSUE: &str = "Issue";
+pub const COLUMN_ACTION: &str = "Action";
+
 /// The three the Backups tab shows (spec §8, FR-backup-ui). The Scope column's
 /// *values* are [`TAB_USER`] and [`TAB_SYSTEM`] — a Scope has one name, and the
 /// tab that shows it is where it is already written.
@@ -187,6 +197,15 @@ pub const FILTERED_SYSTEM_NAMED_NONE: &str = "System PATH: {filter} — no match
 /// failure speaks, and silence only ever means nothing was selected.
 pub const COPIED_TO_CLIPBOARD: &str = "Copied to clipboard";
 pub const COPY_FAILED: &str = "Could not copy to clipboard";
+
+/// Announcement 12 (v0.2.0 spec §13 item 12): the Fix Issues dialog applied
+/// the rows the user had checked — spoken **after focus lands**, so the
+/// summary is the last thing heard.
+///
+/// Plural by `{n}`, and there is no zero case to word: nothing checked is a
+/// Cancel, which leaves no Checkpoint and says nothing at all (v0.2.0 §7).
+pub const FIXED_ENTRIES: &str = "Fixed {n} entry";
+pub const FIXED_ENTRIES_PLURAL: &str = "Fixed {n} entries";
 
 /// Announcement 2 (spec §10.1 item 2): a Scope's Working Copy reached the
 /// registry. Two whole strings rather than one frame with the Scope filled in:
@@ -395,6 +414,28 @@ pub const BUTTON_GO_TO_ENTRY: &str = "Go to entry";
 pub const TREE_UNRESOLVED_VARIABLES: &str = "Unresolved variables";
 pub const TREE_RELATIVE_ENTRIES: &str = "Relative entries";
 
+/// The Fix Issues dialog's titles (v0.2.0 §7, §14) — two whole strings for
+/// [`DIALOG_TREE_USER`]'s reason, and naming the Scope because the title is
+/// the whole of what NVDA speaks when a modal opens.
+pub const DIALOG_FIX_USER: &str = "Fix issues — User PATH";
+pub const DIALOG_FIX_SYSTEM: &str = "Fix issues — System PATH";
+
+/// The Fix Issues dialog's own button (v0.2.0 §7, §14): it applies the checked
+/// rows to the Working Copy. Cancel beside it is [`BUTTON_DIALOG_CANCEL`].
+///
+/// **"Apply" is banned from this label.** Apply is this product's word for the
+/// registry write (`CONTEXT.md`), and nothing here reaches the registry — a
+/// button that said so would promise the one thing the dialog does not do.
+pub const BUTTON_FIX_SELECTED: &str = "Fix selected";
+
+/// The Action column's cell for a Quoted Entry (v0.2.0 §7, §14): every `"` in
+/// the Entry goes.
+///
+/// Its sibling — the deletion — has no msgid of its own: it **reuses**
+/// Announcement 4's [`OPERATION_DELETE`], because it is the same operation
+/// under the same English (ADR-0004).
+pub const FIX_REMOVE_QUOTES: &str = "Remove quotes";
+
 /// The File menu's items (spec §15). Apply is here because Ctrl+S can only
 /// live on a menu item's label — wxdragon binds no accelerator table at any
 /// level, so **every shortcut has a menu home** (ADR-0004) — and Exit is here
@@ -420,6 +461,12 @@ pub const MENU_DELETE_ENTRY: &str = "&Delete Entry";
 pub const MENU_COPY: &str = "Co&py";
 pub const MENU_MOVE_UP: &str = "&Move Up";
 pub const MENU_MOVE_DOWN: &str = "Mo&ve Down";
+/// Fix Issues sits after the Move pair and before the history block it feeds
+/// one Checkpoint into — a bulk Working-Copy command among the per-Entry ones
+/// (v0.2.0 §12). **No accelerator**: an occasional bulk-review dialog belongs
+/// to the Settings…/Restore class, not the F2 class. Its mnemonic is **I**,
+/// free in this menu because the View menu's Ctrl+I item is another menu's.
+pub const MENU_FIX_ISSUES: &str = "Fix &Issues…";
 pub const MENU_UNDO: &str = "&Undo";
 pub const MENU_REDO: &str = "&Redo";
 pub const MENU_CANCEL: &str = "&Cancel Changes";
@@ -654,6 +701,12 @@ pub const OPERATION_MOVE: &str = "Move entry";
 pub const OPERATION_CANCEL: &str = "Discard changes";
 pub const OPERATION_CHANGE_VALUE_TYPE: &str = "Change value type";
 pub const OPERATION_RESTORE: &str = "Restore snapshot";
+/// The Fix Issues dialog's whole apply, however many rows it touched: one
+/// user-visible operation, one Checkpoint, one name for the undo to speak
+/// (v0.2.0 §7). Different English from [`MENU_FIX_ISSUES`] and from
+/// [`DIALOG_FIX_USER`] because the three need different Ukrainian — the
+/// command, the surface, and the thing that was done.
+pub const OPERATION_FIX_ISSUES: &str = "Fixing issues";
 
 /// Every msgid the application looks up. Later tickets append their strings;
 /// nothing is looked up that is not named here.
@@ -664,6 +717,8 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::text(COLUMN_INDEX),
     CatalogueEntry::text(COLUMN_PATH),
     CatalogueEntry::text(COLUMN_STATUS),
+    CatalogueEntry::text(COLUMN_ISSUE),
+    CatalogueEntry::text(COLUMN_ACTION),
     CatalogueEntry::text(COLUMN_DATE_AND_TIME),
     CatalogueEntry::text(COLUMN_SCOPE),
     CatalogueEntry::text(COLUMN_ENTRIES),
@@ -691,6 +746,7 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::text(FILTERED_SYSTEM_NAMED_NONE),
     CatalogueEntry::text(COPIED_TO_CLIPBOARD),
     CatalogueEntry::text(COPY_FAILED),
+    CatalogueEntry::plural(FIXED_ENTRIES, FIXED_ENTRIES_PLURAL),
     CatalogueEntry::text(APPLIED_USER),
     CatalogueEntry::text(APPLIED_SYSTEM),
     CatalogueEntry::text(APPLY_FAILED),
@@ -733,6 +789,7 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::menu_item(MENU_COPY, MENU_GROUP_EDIT),
     CatalogueEntry::menu_item(MENU_MOVE_UP, MENU_GROUP_EDIT),
     CatalogueEntry::menu_item(MENU_MOVE_DOWN, MENU_GROUP_EDIT),
+    CatalogueEntry::menu_item(MENU_FIX_ISSUES, MENU_GROUP_EDIT),
     CatalogueEntry::menu_item(MENU_UNDO, MENU_GROUP_EDIT),
     CatalogueEntry::menu_item(MENU_REDO, MENU_GROUP_EDIT),
     CatalogueEntry::menu_item(MENU_CANCEL, MENU_GROUP_EDIT),
@@ -759,6 +816,10 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::text(DIALOG_TREE_SYSTEM),
     CatalogueEntry::text(TREE_UNRESOLVED_VARIABLES),
     CatalogueEntry::text(TREE_RELATIVE_ENTRIES),
+    CatalogueEntry::text(DIALOG_FIX_USER),
+    CatalogueEntry::text(DIALOG_FIX_SYSTEM),
+    CatalogueEntry::text(BUTTON_FIX_SELECTED),
+    CatalogueEntry::text(FIX_REMOVE_QUOTES),
     CatalogueEntry::text(DIALOG_EDIT_ENTRY),
     CatalogueEntry::text(DIALOG_ADD_ENTRY),
     CatalogueEntry::text(BUTTON_BROWSE),
@@ -801,6 +862,7 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::text(OPERATION_CANCEL),
     CatalogueEntry::text(OPERATION_CHANGE_VALUE_TYPE),
     CatalogueEntry::text(OPERATION_RESTORE),
+    CatalogueEntry::text(OPERATION_FIX_ISSUES),
 ];
 
 /// The placeholder names in `text`, in order of appearance.

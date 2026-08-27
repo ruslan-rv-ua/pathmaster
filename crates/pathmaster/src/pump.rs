@@ -63,6 +63,21 @@ impl Pump {
         self.timer.start(POLL_MS, false);
     }
 
+    /// Whether a pass is still on its way — which is the same question as
+    /// "does the last completed pass describe the Working Copies as they now
+    /// stand?", because [`request`](Self::request) bumps the generation on
+    /// every change to either of them and [`take`](Self::take) only settles
+    /// the generation it asked for.
+    ///
+    /// That is the **staleness rule's generation stamp** (v0.2.0 §7): Fix
+    /// Issues builds only from a pass whose stamp equals the current
+    /// generation, and asserts the same before it applies. One counter, and it
+    /// is the worker's own — a second one kept beside it could only be a
+    /// second answer to the same question.
+    pub fn outstanding(&self) -> bool {
+        self.worker.borrow().outstanding()
+    }
+
     /// The newest completed pass, if one has landed — and nothing at all for a
     /// pass the Working Copies have already outrun, which the worker drops.
     ///

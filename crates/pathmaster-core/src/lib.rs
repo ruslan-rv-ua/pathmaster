@@ -2,7 +2,7 @@
 //!
 //! Modules land with their tickets: `path` (split/join), `normalize`, `diagnostics`,
 //! `session`, `snapshot`, `rotation`, `backups`, `thresholds`, `settings`, `logfmt`,
-//! `language`, `msgids`, `catalogue`, `filtered`, `expansion`, `tree`.
+//! `language`, `msgids`, `catalogue`, `filtered`, `expansion`, `tree`, `fix`.
 
 #![forbid(unsafe_code)]
 
@@ -11,6 +11,7 @@ pub mod catalogue;
 pub mod diagnostics;
 pub mod expansion;
 pub mod filtered;
+pub mod fix;
 pub mod language;
 pub mod logfmt;
 pub mod msgids;

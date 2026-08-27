@@ -51,6 +51,17 @@ msgstr "Шлях"
 msgid "Status"
 msgstr "Стан"
 
+#. Fix Issues list column header: the issues found for that entry, joined in
+#. the same words the main list's Status column uses. Singular, and a different
+#. word from "Status": every row in this dialog has a finding.
+msgid "Issue"
+msgstr "Проблема"
+
+#. Fix Issues list column header: what the checkbox beside it will do to that
+#. entry — delete it, or remove its quotes.
+msgid "Action"
+msgstr "Дія"
+
 #. Backups list column header: when this Snapshot was taken, local time.
 msgid "Date and time"
 msgstr "Дата й час"
@@ -200,6 +211,15 @@ msgstr "Скопійовано до буфера обміну"
 #. silent failure would be indistinguishable from a missed keystroke.
 msgid "Could not copy to clipboard"
 msgstr "Не вдалося скопіювати до буфера обміну"
+
+#. Announcement: spoken after the Fix Issues dialog repaired the checked rows,
+#. once focus has landed, so the summary is heard last. Plural by {n}. There is
+#. no zero form: nothing checked closes the dialog silently.
+msgid "Fixed {n} entry"
+msgid_plural "Fixed {n} entries"
+msgstr[0] "Виправлено {n} запис"
+msgstr[1] "Виправлено {n} записи"
+msgstr[2] "Виправлено {n} записів"
 
 #. Announcement: spoken after this Scope's entries reached the registry. Two
 #. strings rather than one with the Scope filled in — the sentence agrees with
@@ -419,6 +439,12 @@ msgstr "Перемістити вгору(&M)"
 msgid "Mo&ve Down"
 msgstr "Перемістити вниз(&V)"
 
+#. Edit menu item: opens the Fix Issues dialog over the active scope. No
+#. accelerator — an occasional bulk-review dialog, like Settings. Keep the
+#. mnemonic on the Latin "I".
+msgid "Fix &Issues…"
+msgstr "Виправити проблеми(&I)…"
+
 #. Edit menu item: undoes the last operation (Ctrl+Z). "Скасувати дію" rather
 #. than a bare "Скасувати", which is the Cancel button below.
 msgid "&Undo"
@@ -529,6 +555,26 @@ msgstr "Нерозв'язані змінні"
 #. above.
 msgid "Relative entries"
 msgstr "Відносні записи"
+
+#. Title of the Fix Issues dialog over the User PATH. Like the PATH Tree titles
+#. it names the scope, because the title is all a screen reader speaks when the
+#. modal opens.
+msgid "Fix issues — User PATH"
+msgstr "Виправлення проблем — PATH користувача"
+
+#. Title of the Fix Issues dialog over the System PATH, as above.
+msgid "Fix issues — System PATH"
+msgstr "Виправлення проблем — PATH системи"
+
+#. Default button of the Fix Issues dialog: applies the checked rows to the
+#. working copy. Never "Apply" — that word is reserved for the registry write.
+msgid "Fix selected"
+msgstr "Виправити позначені"
+
+#. Fix Issues Action cell: this entry keeps its place and loses every quote
+#. character in its text. Its sibling action reuses "Delete entry" below.
+msgid "Remove quotes"
+msgstr "Прибрати лапки"
 
 #. Dialog title when an existing entry is edited, and the operation name in
 #. "Undone: {operation}" — hence a verbal noun. It keeps its capital because
@@ -766,3 +812,8 @@ msgstr "Зміна типу значення"
 #. taking one and for the directory they live in, never for the file.
 msgid "Restore snapshot"
 msgstr "Відновлення знімка"
+
+#. Operation name: the Fix Issues dialog's whole apply, however many rows it
+#. touched — a verbal noun, as above ("Скасовано: виправлення проблем").
+msgid "Fixing issues"
+msgstr "Виправлення проблем"

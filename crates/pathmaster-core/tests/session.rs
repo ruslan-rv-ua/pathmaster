@@ -221,6 +221,35 @@ fn a_batch_is_one_checkpoint_however_much_it_touches() {
 }
 
 #[test]
+fn one_undo_restores_every_entry_a_fix_issues_batch_touched() {
+    // v0.2.0 §7: applying the checked rows is one Checkpoint, whatever mixture
+    // of deletions and quote repairs it was — so a user who did not mean it
+    // has one Ctrl+Z to press, and hears the operation named.
+    let mut session = user_session(r#"C:\one;"C:\two";C:\gone;C:\four"#);
+    let quoted = session.entries()[1].id();
+    let missing = session.entries()[2].id();
+    assert!(session.batch(Operation::FixIssues, |s| {
+        s.edit(quoted, r"C:\two");
+        s.delete(missing);
+        // Many Entries, so no one of them is the focus hint.
+        None
+    }));
+    assert_eq!(raws(&session), vec![r"C:\one", r"C:\two", r"C:\four"]);
+
+    let outcome = session.undo().expect("one step to undo");
+    assert_eq!(outcome.operation, Operation::FixIssues);
+    assert_eq!(outcome.focus, None);
+    assert_eq!(
+        raws(&session),
+        vec![r"C:\one", r#""C:\two""#, r"C:\gone", r"C:\four"]
+    );
+    assert!(
+        !session.can_undo(),
+        "the whole apply was a single Checkpoint"
+    );
+}
+
+#[test]
 fn a_batch_that_changes_nothing_is_not_an_operation() {
     let mut session = user_session(r"C:\one");
     let id = session.entries()[0].id();
@@ -410,6 +439,11 @@ fn every_operation_names_itself_for_the_announcement() {
     session.edit(first, r"C:\dirty");
     session.cancel();
     assert_eq!(undone(&mut session), Operation::Cancel);
+    session.batch(Operation::FixIssues, |s| {
+        s.delete(first);
+        None
+    });
+    assert_eq!(undone(&mut session), Operation::FixIssues);
 }
 
 #[test]
@@ -467,11 +501,12 @@ fn an_operation_name_is_a_catalogue_string() {
         Operation::Cancel,
         Operation::ChangeValueType,
         Operation::Restore,
+        Operation::FixIssues,
     ]
     .iter()
     .map(|operation| operation.catalogue_msgid())
     .collect();
-    assert_eq!(msgids.len(), 7, "each operation names a distinct msgid");
+    assert_eq!(msgids.len(), 8, "each operation names a distinct msgid");
     let registered: BTreeSet<&str> = msgids::REGISTRY.iter().map(|entry| entry.msgid).collect();
     for msgid in msgids {
         assert!(registered.contains(msgid), "{msgid:?} is in the Catalogue");

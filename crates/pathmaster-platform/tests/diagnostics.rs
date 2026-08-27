@@ -31,6 +31,7 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use pathmaster_core::diagnostics::{Diagnosis, Existence, Filesystem, Issue, RootKind};
+use pathmaster_core::fix::DriveTypes;
 use pathmaster_core::normalize::Environment;
 use pathmaster_core::session::Scope;
 use pathmaster_platform::diagnostics::{LocalFilesystem, ProcessEnvironment, Worker};
@@ -93,6 +94,35 @@ fn a_path_with_no_root_at_all_is_local() {
     // probe as literal text (spec §7, D10). It has no root to classify, and
     // it must be probed — the probe is what makes it flag Missing.
     assert_eq!(LocalFilesystem.root_kind(r"%NOPE%\bin"), RootKind::Local);
+}
+
+#[test]
+fn the_windows_drive_is_a_fixed_root_and_a_rootless_path_is_not() {
+    // Fix Issues' one machine question (v0.2.0 §7). The drive Windows itself
+    // is installed on is the one fixed disk every machine running these tests
+    // provably has; everything with no drive letter to classify answers no,
+    // which is what keeps a `%VAR%`-carrying or UNC row out of the checked
+    // defaults.
+    let windows = std::env::var("SystemRoot").expect("Windows sets SystemRoot");
+    assert!(LocalFilesystem.is_fixed_root(&windows));
+    assert!(!LocalFilesystem.is_fixed_root(r"\\server\share\bin"));
+    assert!(!LocalFilesystem.is_fixed_root(r"%NOPE%\bin"));
+    assert!(!LocalFilesystem.is_fixed_root("tools"));
+    assert!(!LocalFilesystem.is_fixed_root(""));
+}
+
+#[test]
+fn a_drive_that_is_not_mounted_is_not_a_fixed_root() {
+    // No such drive is `DRIVE_NO_ROOT_DIR`, not `DRIVE_FIXED` — so a Missing
+    // Entry on a letter this machine does not have arrives unchecked, which is
+    // the cautious half of the Disk-Cleanup rule.
+    let unmounted = ('D'..='Z')
+        .map(|letter| format!(r"{letter}:\tools"))
+        .find(|path| !LocalFilesystem.is_fixed_root(path));
+    assert!(
+        unmounted.is_some(),
+        "every drive letter on this machine is a fixed disk"
+    );
 }
 
 #[test]

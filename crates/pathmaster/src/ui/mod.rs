@@ -20,6 +20,7 @@ mod command;
 mod command_line;
 mod door;
 mod entry_dialog;
+mod fix_dialog;
 mod list;
 mod question;
 mod rendering;
@@ -30,10 +31,13 @@ mod tree_dialog;
 use std::cell::{Cell, RefCell};
 use std::path::Path;
 use std::rc::Rc;
+use std::thread;
+use std::time::{Duration, Instant};
 
 use pathmaster_core::catalogue::{Announcement, Catalogue, ScopeCounts, UndoDirection};
-use pathmaster_core::diagnostics::{Diagnosis, Findings};
+use pathmaster_core::diagnostics::{Diagnosis, Findings, Issue};
 use pathmaster_core::filtered::{self, Criteria, Filter};
+use pathmaster_core::fix::{self, DriveTypes, Plan};
 use pathmaster_core::logfmt::{FailureCause, Record};
 use pathmaster_core::msgids;
 use pathmaster_core::normalize::{has_variable_reference, Environment};
@@ -43,7 +47,7 @@ use pathmaster_core::tree::Tree;
 use pathmaster_platform::apply::{self, ApplyRun, Ask, ExternalChange, ScopeInput, ScopeOutcome};
 use pathmaster_platform::args::StartTab;
 use pathmaster_platform::datadir::ReadOnlyReason;
-use pathmaster_platform::diagnostics::ProcessEnvironment;
+use pathmaster_platform::diagnostics::{LocalFilesystem, ProcessEnvironment};
 use pathmaster_platform::elevation::{self, RelaunchFailure};
 use pathmaster_platform::geometry::{self, Placement};
 use pathmaster_platform::logwriter;
@@ -86,6 +90,16 @@ const WXK_RETURN: i32 = 13;
 const WXK_ESCAPE: i32 = 27;
 const WXK_DOWN: i32 = 317;
 const WXK_NUMPAD_ENTER: i32 = 372;
+
+/// How long Fix Issues waits for an outstanding diagnostic pass before giving
+/// up, and how often it looks while it waits (v0.2.0 §7).
+///
+/// The budget is the spec's own: under a second, and no spinner. The poll is
+/// finer than the [`Pump`]'s own 100 ms tick on purpose — this one is a person
+/// waiting for a menu item to open something, not a background column catching
+/// up.
+const STALENESS_BUDGET: Duration = Duration::from_millis(1000);
+const STALENESS_POLL: Duration = Duration::from_millis(10);
 
 /// The page a Scope's tab sits at. The one place the order above is read as a
 /// mapping, so activating a Scope's tab and finding the tab a page belongs to
@@ -328,6 +342,65 @@ impl ScopeTab {
                     }),
                     env,
                 )
+            })
+        })
+    }
+
+    /// This Scope's fixable Entries, as the last completed pass found them —
+    /// what the Fix Issues dialog opens over (v0.2.0 §7).
+    ///
+    /// Composed inside the scoped access and handed out owned, like
+    /// [`rows`](Self::rows) and [`tree`](Self::tree) and for their reason: the
+    /// dialog it feeds runs a nested event loop, and nothing may carry a
+    /// borrow into one (ADR-0011). The drives are the one thing it asks of the
+    /// machine, and `GetDriveTypeW` reads the mount table — a scalar answer,
+    /// not a dispatch.
+    ///
+    /// It reads the **whole** Working Copy and never the Filtered View: the
+    /// surface is per Scope (`CONTEXT.md`), so what the user happens to be
+    /// searching for cannot hide half the work from it.
+    fn fix_plan(&self, drives: &dyn DriveTypes) -> Plan {
+        // Copied out **before** the plan is built, not after: building one asks
+        // the machine which kind of drive a root is, and an OS call has no more
+        // business inside a scoped-access closure than a dialog does — the
+        // owned-values-out rule, applied to the same seam (ADR-0011).
+        let flagged: Vec<(EntryId, String, Vec<Issue>)> = self.session.with(|session| {
+            self.findings.with(|findings| {
+                session
+                    .entries()
+                    .iter()
+                    .map(|entry| {
+                        (
+                            entry.id(),
+                            entry.raw().to_string(),
+                            findings
+                                .as_ref()
+                                .map_or(&[][..], |findings| findings.issues(entry))
+                                .to_vec(),
+                        )
+                    })
+                    .collect()
+            })
+        });
+        Plan::of(
+            flagged
+                .iter()
+                .map(|(id, raw, issues)| (*id, raw.as_str(), issues.as_slice())),
+            drives,
+        )
+    }
+
+    /// How many rows that plan would hold — the Fix Issues item's whole
+    /// enablement question, answered without asking the machine anything
+    /// (v0.2.0 §7).
+    fn fixable(&self) -> usize {
+        self.session.with(|session| {
+            self.findings.with(|findings| {
+                fix::fixable(session.entries().iter().map(|entry| {
+                    findings
+                        .as_ref()
+                        .map_or(&[][..], |findings| findings.issues(entry))
+                }))
             })
         })
     }
@@ -890,7 +963,8 @@ impl App {
             | Command::Filter(_)
             | Command::ToggleIssuesFilter
             | Command::ExpandedValues
-            | Command::PathTree => {}
+            | Command::PathTree
+            | Command::FixIssues => {}
         }
         let Some(tab) = active else { return };
         match command {
@@ -916,6 +990,7 @@ impl App {
             // "disabled on Backups, like every other View item" means.
             Command::ExpandedValues => self.toggle_expansion(),
             Command::PathTree => self.open_tree(tab),
+            Command::FixIssues => self.fix_issues(tab),
             // Answered above, before there was a Scope to answer them over.
             Command::Settings
             | Command::OpenBackupsFolder
@@ -1136,6 +1211,95 @@ impl App {
         if let Some(row) = tab.view_row_of(id) {
             tab.page.focus_row(row);
         }
+    }
+
+    /// Edit → "Fix Issues…": the modal, per-Scope repair surface (v0.2.0 §7).
+    ///
+    /// **The staleness rule is both halves of this function.** *At open*: the
+    /// plan is built only from a pass whose generation stamp equals the
+    /// Working Copies' — [`settle_diagnosis`](Self::settle_diagnosis) waits
+    /// for the outstanding one if there is one, and gives up rather than
+    /// opening over findings that describe a list the user has already left.
+    /// A pass that lands in that window can also *remove* the last fixable
+    /// row, which is why the plan's emptiness is checked after the wait rather
+    /// than trusted from the menu's own enablement. *After open*: modality is
+    /// the fence — nothing can request a pass or touch a Working Copy while
+    /// the modal runs — so the generation is asserted rather than re-settled,
+    /// and the rows resolve to Entries **by id**, never by index.
+    ///
+    /// **What the checked rows do to the Session is [`fix::repair`]'s**, not
+    /// this function's: one Checkpoint, resolution by id, and the count
+    /// Announcement 12 speaks are rules a test can hold, so they live a tier
+    /// down (ADR-0007). What is left here is what only a window can do — the
+    /// staleness, the dialog, the focus and the voice.
+    ///
+    /// The tail is Delete's, deliberately: focus at the same visual position
+    /// clamped to the new last row, and only then Announcement 12 — so what
+    /// NVDA reads first is the row and what it says last is the summary. Zero
+    /// rows checked never reaches any of it: the dialog answers `None`,
+    /// exactly as Cancel does, and a repair that changed nothing left no
+    /// Checkpoint to speak of.
+    fn fix_issues(&self, tab: &ScopeTab) {
+        if !self.settle_diagnosis() {
+            return;
+        }
+        let plan = tab.fix_plan(&LocalFilesystem);
+        if plan.is_empty() {
+            return;
+        }
+        let title = self.catalogue.fix_title(tab.scope);
+        let Some(chosen) =
+            fix_dialog::ask_which_to_fix(&self.frame, &self.catalogue, &title, &plan)
+        else {
+            return;
+        };
+        // The assert §7 names, so that no later change can unmake it quietly:
+        // a generation that moved while the modal was up would mean the fence
+        // had gone — that the dialog had become modeless, or that something
+        // had learned to edit behind one.
+        if self.pump.outstanding() {
+            return;
+        }
+        let fixed = tab
+            .session
+            .with_mut(|session| fix::repair(session, &chosen));
+        if fixed == 0 {
+            return;
+        }
+        // Delete's law: the same visual position, clamped to the new last row.
+        self.after_edit(tab, None);
+        self.announcer
+            .announce(Announcement::FixedEntries { count: fixed });
+    }
+
+    /// Waits, at most [`STALENESS_BUDGET`], for the outstanding diagnostic
+    /// pass to land, and answers whether the last completed one now describes
+    /// the Working Copies (v0.2.0 §7).
+    ///
+    /// **No spinner and no nested event loop**: the pass crosses back over a
+    /// channel, so this blocks the UI thread rather than pumping it — a pump
+    /// here would re-enter the very commands this is deciding on behalf of.
+    /// The budget is what makes blocking honest; a pass over a few hundred
+    /// Entries lands in milliseconds, and a run that somehow overruns is one
+    /// where the command does nothing at all rather than one that opens over
+    /// findings it was told not to trust.
+    ///
+    /// Landing a pass here is landing it everywhere: it goes through the
+    /// Timer's own [`collect_pass`](Self::collect_pass), so the Status columns
+    /// and the StatusBar are updated by it exactly as a tick would have.
+    fn settle_diagnosis(&self) -> bool {
+        let deadline = Instant::now() + STALENESS_BUDGET;
+        while self.pump.outstanding() {
+            self.collect_pass();
+            if !self.pump.outstanding() {
+                break;
+            }
+            if Instant::now() >= deadline {
+                return false;
+            }
+            thread::sleep(STALENESS_POLL);
+        }
+        true
     }
 
     /// ESC in the Search field: clears the text and returns focus to the list
@@ -2071,12 +2235,14 @@ impl App {
             Some(tab) => {
                 let narrowed = tab.narrowed();
                 let visible_rows = tab.visible().len();
+                let fixable = tab.fixable();
                 let filter = Some(tab.filter());
                 tab.session.with(|session| {
                     read(&Availability {
                         session: Some(session),
                         narrowed,
                         visible_rows,
+                        fixable,
                         data_dir,
                         elevated,
                         expansion,
@@ -2093,6 +2259,7 @@ impl App {
                 session: None,
                 narrowed: false,
                 visible_rows: 0,
+                fixable: 0,
                 data_dir,
                 elevated,
                 expansion,

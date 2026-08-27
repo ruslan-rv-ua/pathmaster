@@ -78,6 +78,11 @@ pub enum Operation {
     Cancel,
     ChangeValueType,
     Restore,
+    /// The Fix Issues dialog's whole apply — deletions and quote repairs
+    /// together, however many rows were checked (v0.2.0 §7). The batch is what
+    /// makes it one: [`batch`](Session::batch) is why one Ctrl+Z restores every
+    /// Entry it touched.
+    FixIssues,
 }
 
 impl Operation {
@@ -93,6 +98,7 @@ impl Operation {
             Operation::Cancel => crate::msgids::OPERATION_CANCEL,
             Operation::ChangeValueType => crate::msgids::OPERATION_CHANGE_VALUE_TYPE,
             Operation::Restore => crate::msgids::OPERATION_RESTORE,
+            Operation::FixIssues => crate::msgids::OPERATION_FIX_ISSUES,
         }
     }
 }
@@ -356,8 +362,9 @@ impl Session {
     /// Runs several mutations as one user-visible operation — one Checkpoint,
     /// one undo step ("batches are one Checkpoint", FR-undo-redo). Ticket
     /// 11's convert-or-keep dialog commits an edit and a type change this
-    /// way; v0.2.0's Fix Issues will batch multi-entry edits. A batch whose
-    /// net effect is no change is not an operation and leaves no Checkpoint.
+    /// way, and Fix Issues commits every checked row this way — which is what
+    /// makes one Ctrl+Z restore all of them (v0.2.0 §7). A batch whose net
+    /// effect is no change is not an operation and leaves no Checkpoint.
     ///
     /// `operation` is what the whole batch is called: the inner mutations'
     /// own names go with the Checkpoints this discards. `mutate` answers with
