@@ -28,11 +28,12 @@ use crate::ui::list;
 /// `wxLIST_AUTOSIZE_USEHEADER`: fit the column to the wider of its content and
 /// its header, and — on the last column — to whatever width is left.
 ///
-/// Not a pixel constant, which is the point. §12 D2 gives the application
-/// exactly one of those and one explicit `FromDIP` call, both spent on the
-/// Scope list's Status column; three more here would be three more numbers to
-/// keep true across every DPI. What these columns hold is short and known —
-/// a fixed-width stamp, a Scope's name, a count — so wx can measure them.
+/// Not a pixel constant, which is the point. §12 D2 spends the application's
+/// deliberate ones on the Scope list, and only there — its Status column, and
+/// the `#` column v0.2.0 §2.1 puts beside it; three more here would be three
+/// more numbers to keep true across every DPI. What these columns hold is short
+/// and known — a fixed-width stamp, a Scope's name, a count — so wx can
+/// measure them.
 const AUTOSIZE_USEHEADER: i32 = -2;
 
 /// The Backups tab.

@@ -170,6 +170,7 @@ fn the_registry_holds_the_strings_the_shell_shows() {
         pathmaster_core::msgids::TAB_USER,
         pathmaster_core::msgids::TAB_SYSTEM,
         pathmaster_core::msgids::TAB_BACKUPS,
+        pathmaster_core::msgids::COLUMN_INDEX,
         pathmaster_core::msgids::COLUMN_PATH,
         pathmaster_core::msgids::COLUMN_STATUS,
         pathmaster_core::msgids::READONLY,

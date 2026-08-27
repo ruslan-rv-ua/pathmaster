@@ -19,26 +19,46 @@ use crate::catalog::translate;
 use crate::ui::command::{Availability, Command};
 use crate::ui::list;
 
-/// Status column width in DIP — the app's single deliberate pixel constant
-/// (spec §12 D2). Status text is of predictable length (comma-joined one-word
-/// Issue types) while paths are unbounded, so Status is fixed and Path takes
-/// all remaining width.
+/// The `#` and Status column widths in DIP — the app's two deliberate pixel
+/// constants, and its only two explicit `FromDIP()` calls (spec §12 D2, D4;
+/// v0.2.0 §2.1). Both columns hold text of a predictable length — a position,
+/// and comma-joined one-word Issue types — while paths are unbounded, so both
+/// are fixed and Path takes all remaining width.
+///
+/// `#` is sized for the four digits no real `PATH` reaches: the whole value is
+/// capped at 32 767 UTF-16 units ([`thresholds::HARD_CAP`]), and one at that
+/// length made of one-character Entries is not a machine anyone has. Past four
+/// the cell would clip on screen and stay whole in speech, since a screen
+/// reader reads the item's text and not its pixels.
+///
+/// [`thresholds::HARD_CAP`]: pathmaster_core::thresholds::HARD_CAP
+const INDEX_COLUMN_DIP: i32 = 48;
 const STATUS_COLUMN_DIP: i32 = 220;
 
-/// One row as the list shows it: the Path cell and the Status cell, owned.
+/// One row as the list shows it: the `#` cell, the Path cell and the Status
+/// cell, owned.
 ///
 /// Owned is the point (ADR-0011): rows are composed under the Session's and
 /// the findings' scoped access and rendered after both closures have died, so
 /// a rebuild — which runs the list's own events — is never inside one.
 pub struct Row {
+    /// The Entry's 1-based position in the Working Copy (v0.2.0 §2.1). A
+    /// number rather than the digits the cell shows: nothing about it is
+    /// language, and the Fix Issues dialog will want the same value.
+    pub position: usize,
     pub path: String,
     pub status: String,
 }
 
 impl Row {
-    /// Composes every row of a Scope: each Entry's raw text, and the Status
-    /// column the last completed pass gives it — nothing, until one has run
-    /// (spec §7, FR-diag-async).
+    /// Composes every row of a Scope: each Entry's position and raw text, and
+    /// the Status column the last completed pass gives it — nothing, until one
+    /// has run (spec §7, FR-diag-async).
+    ///
+    /// The position is where the Entry stands **now**, counted off the Working
+    /// Copy this call reads. Every operation that reorders or removes Entries
+    /// ends in a rebuild through this function, so the column renumbers with
+    /// the data and can never describe a list that has moved on.
     pub fn compose(
         session: &Session,
         findings: Option<&Findings>,
@@ -47,7 +67,9 @@ impl Row {
         session
             .entries()
             .iter()
-            .map(|entry| Row {
+            .enumerate()
+            .map(|(index, entry)| Row {
+                position: index + 1,
                 path: entry.raw().to_string(),
                 status: catalogue
                     .status_column(findings.map_or(&[][..], |findings| findings.issues(entry))),
@@ -68,27 +90,41 @@ pub struct ScopePage {
 impl ScopePage {
     /// Builds the tab over a Scope's rows as they stand at startup.
     ///
-    /// The list is report mode with exactly two columns, Path and Status — no
-    /// index column, no icons (spec §7, §10) — and `SingleSel`, which is the
-    /// app's real shape: Delete, Move Up and Move Down act on one Entry.
-    /// `ListCtrlStyle::EditLabels` is deliberately absent: editing is the
-    /// modal dialog and nothing else (spec §6).
+    /// The list is report mode with exactly three columns, `#`, Path and
+    /// Status, and no icons (spec §7, §10; v0.2.0 §2.1) — and `SingleSel`,
+    /// which is the app's real shape: Delete, Move Up and Move Down act on one
+    /// Entry. `ListCtrlStyle::EditLabels` is deliberately absent: editing is
+    /// the modal dialog and nothing else (spec §6).
+    ///
+    /// The three columns are built once, here, and are never added or removed
+    /// afterwards. §12's layout rule is that the window does not reflow under
+    /// the user, so `#` is present before there is any narrowing to need it.
     pub fn build(notebook: &Notebook, rows: &[Row]) -> ScopePage {
         let panel = Panel::builder(notebook).build();
         let list = ListCtrl::builder(&panel)
             .with_style(ListCtrlStyle::Report | ListCtrlStyle::SingleSel)
             .build();
+        let index_width = from_dip(&list, INDEX_COLUMN_DIP);
         let status_width = from_dip(&list, STATUS_COLUMN_DIP);
+        // `#` would read better right-aligned, and cannot be: comctl32 forces
+        // LVCFMT_LEFT on the leftmost report column and silently ignores any
+        // other format there. Left is what it will be either way, said out loud.
+        list.insert_column(
+            0,
+            &translate(msgids::COLUMN_INDEX),
+            ListColumnFormat::Left,
+            index_width,
+        );
         // Path's width is never a constant: the fit below sets it on the initial
         // layout and on every resize, so it is inserted at zero.
         list.insert_column(
-            0,
+            1,
             &translate(msgids::COLUMN_PATH),
             ListColumnFormat::Left,
             0,
         );
         list.insert_column(
-            1,
+            2,
             &translate(msgids::COLUMN_STATUS),
             ListColumnFormat::Left,
             status_width,
@@ -116,8 +152,8 @@ impl ScopePage {
         // sizes during construction.
         panel.on_size(move |event| {
             panel.layout();
-            let path_width = list.get_client_size().width - status_width;
-            list.set_column_width(0, path_width.max(0));
+            let path_width = list.get_client_size().width - index_width - status_width;
+            list.set_column_width(1, path_width.max(0));
             event.skip(true);
         });
 
@@ -154,9 +190,12 @@ impl ScopePage {
     pub fn render(&self, rows: &[Row], row: Option<usize>) {
         self.list.delete_all_items();
         for (index, data) in rows.iter().enumerate() {
-            self.list.insert_item(index as i64, &data.path, None);
             self.list
-                .set_item_text_by_column(index as i64, 1, &data.status);
+                .insert_item(index as i64, &data.position.to_string(), None);
+            self.list
+                .set_item_text_by_column(index as i64, 1, &data.path);
+            self.list
+                .set_item_text_by_column(index as i64, 2, &data.status);
         }
         if let Some(row) = row {
             self.focus_row(row);
@@ -172,12 +211,14 @@ impl ScopePage {
     /// the User tab, whose rows did not change but whose duplicates did.
     ///
     /// It writes the same [`Row`]s a rebuild takes and reads only their Status
-    /// half — one composition path for the column, whichever way it reaches
-    /// the screen.
+    /// third — one composition path for the column, whichever way it reaches
+    /// the screen. The `#` and Path cells it leaves alone are by construction
+    /// already right: only a Working-Copy change can move an Entry or renumber
+    /// one, and every such change goes through [`render`](Self::render).
     pub fn render_status(&self, rows: &[Row]) {
         for (index, data) in rows.iter().enumerate() {
             self.list
-                .set_item_text_by_column(index as i64, 1, &data.status);
+                .set_item_text_by_column(index as i64, 2, &data.status);
         }
     }
 
@@ -284,10 +325,11 @@ impl ScopePage {
     }
 }
 
-/// The app's single explicit FromDIP conversion (spec §12 D4). wxdragon applies
+/// The app's explicit FromDIP conversion (spec §12 D4). wxdragon applies
 /// FromDIP implicitly to sizes crossing the FFI boundary, but ListCtrl column
-/// widths cross it raw, so the one hardcoded pixel value is scaled here against
-/// the live DPI.
+/// widths cross it raw, so the hardcoded pixel values — [`INDEX_COLUMN_DIP`]
+/// and [`STATUS_COLUMN_DIP`], and no others — are scaled here against the live
+/// DPI.
 fn from_dip(widget: &ListCtrl, dip: i32) -> i32 {
     let dc = ClientDC::new(widget);
     let (ppi_x, _) = dc.get_ppi();

@@ -36,6 +36,13 @@ msgstr "PATH системи"
 msgid "Backups"
 msgstr "Резервні копії"
 
+#. List column header, first column: the entry's 1-based position in the PATH.
+#. A sign, not a word. The delta-spec (§2.1, §14) writes this header as "#" in
+#. both languages and fixes no Ukrainian form, so it stands as the source does
+#. — «№» is one catalogue edit away should that be revisited.
+msgid "#"
+msgstr "#"
+
 #. List column header: one PATH entry, exactly as stored.
 msgid "Path"
 msgstr "Шлях"

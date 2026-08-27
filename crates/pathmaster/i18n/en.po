@@ -45,6 +45,12 @@ msgstr "System PATH"
 msgid "Backups"
 msgstr "Backups"
 
+#. List column header, first column: the entry's 1-based position in the PATH.
+#. A sign, not a word — leave it as "#" unless your language writes the number
+#. sign differently (Ukrainian and Russian would use "№").
+msgid "#"
+msgstr "#"
+
 #. List column header: one PATH entry, exactly as stored.
 msgid "Path"
 msgstr "Path"

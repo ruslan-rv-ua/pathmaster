@@ -59,7 +59,13 @@ pub const TAB_USER: &str = "User PATH";
 pub const TAB_SYSTEM: &str = "System PATH";
 pub const TAB_BACKUPS: &str = "Backups";
 
-/// The two list columns every Scope tab shows (spec §7, §12).
+/// The three list columns every Scope tab shows (spec §7, §12; v0.2.0 §2.1).
+///
+/// `#` is a sign rather than a word, and both shipped languages write it the
+/// same. It is a msgid all the same: the shell looks up everything it shows, so
+/// a language that spells the sign differently — «№» — needs its own catalogue
+/// and no code change.
+pub const COLUMN_INDEX: &str = "#";
 pub const COLUMN_PATH: &str = "Path";
 pub const COLUMN_STATUS: &str = "Status";
 
@@ -431,6 +437,7 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::text(TAB_USER),
     CatalogueEntry::text(TAB_SYSTEM),
     CatalogueEntry::text(TAB_BACKUPS),
+    CatalogueEntry::text(COLUMN_INDEX),
     CatalogueEntry::text(COLUMN_PATH),
     CatalogueEntry::text(COLUMN_STATUS),
     CatalogueEntry::text(COLUMN_DATE_AND_TIME),
