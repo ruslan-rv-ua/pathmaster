@@ -13,6 +13,7 @@
 
 mod announce;
 mod catalog;
+mod clipboard;
 mod pump;
 mod scoped;
 mod ui;

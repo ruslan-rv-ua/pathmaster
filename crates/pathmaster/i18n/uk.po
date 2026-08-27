@@ -190,6 +190,17 @@ msgstr[2] "PATH системи: {filter} — {n} з {m} записів"
 msgid "System PATH: {filter} — no matching entries"
 msgstr "PATH системи: {filter} — немає збігів"
 
+#. Announcement: spoken when Copy put the focused entry on the clipboard. Fixed
+#. text — it never repeats what was copied, because focus has just read the row.
+msgid "Copied to clipboard"
+msgstr "Скопійовано до буфера обміну"
+
+#. Announcement: spoken when the clipboard write failed. Spoken at once and not
+#. retried — NVDA says nothing of its own for an application-side copy, so a
+#. silent failure would be indistinguishable from a missed keystroke.
+msgid "Could not copy to clipboard"
+msgstr "Не вдалося скопіювати до буфера обміну"
+
 #. Announcement: spoken after this Scope's entries reached the registry. Two
 #. strings rather than one with the Scope filled in — the sentence agrees with
 #. its subject, and a name dropped into a shared frame would not.
@@ -387,6 +398,12 @@ msgstr "Змінити запис(&E)…"
 #. Edit menu item: deletes the focused entry, with no confirmation (Del).
 msgid "&Delete Entry"
 msgstr "Видалити запис(&D)"
+
+#. Edit menu item: puts the focused entry, as the list is showing it, on the
+#. clipboard (Ctrl+C). The mnemonic is p and not the usual C, which "&Cancel
+#. Changes" already holds in this menu.
+msgid "Co&py"
+msgstr "Копіювати(&P)"
 
 #. Edit menu item: moves the focused entry one place earlier (Alt+Up).
 msgid "&Move Up"

@@ -272,10 +272,10 @@ fn the_announcement_catalogue_is_the_specs_items_and_nothing_else() {
     // v0.2.0's items land here with the tickets that speak them (v0.2.0 §13,
     // closing at fourteen).
     let catalogue = every_announcement();
-    assert_eq!(catalogue.len(), 10);
+    assert_eq!(catalogue.len(), 12);
     assert_eq!(
         catalogue.iter().map(|(item, _)| *item).collect::<Vec<u8>>(),
-        [1, 2, 3, 4, 6, 7, 8, 9, 10, 11]
+        [1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 13, 14]
     );
     // Item 5 is the one with no variant of its own — and it is reachable, or
     // the count above would be hiding a message rather than sharing one.
@@ -297,9 +297,9 @@ fn the_announcement_catalogue_is_the_specs_items_and_nothing_else() {
 
 /// One value per variant, each labelled with the §10.1 item it stands for.
 ///
-/// **The `match` is what closes the set**: an eighth Announcement cannot be
-/// added to the enum without failing to compile here, which is the whole point
-/// of the type. The list is what says which spec item each variant is.
+/// **The `match` is what closes the set**: a new Announcement cannot be added
+/// to the enum without failing to compile here, which is the whole point of the
+/// type. The list is what says which spec item each variant is.
 fn every_announcement() -> Vec<(u8, Announcement)> {
     let catalogue = vec![
         (
@@ -353,6 +353,8 @@ fn every_announcement() -> Vec<(u8, Announcement)> {
                 total: 3,
             },
         ),
+        (13, Announcement::CopiedToClipboard),
+        (14, Announcement::CopyFailed),
     ];
     for (_, announcement) in &catalogue {
         match announcement {
@@ -365,7 +367,9 @@ fn every_announcement() -> Vec<(u8, Announcement)> {
             | Announcement::ExpansionMode { .. }
             | Announcement::FilteredCount { .. }
             | Announcement::ScopeFilteredCount { .. }
-            | Announcement::FilterCount { .. } => {}
+            | Announcement::FilterCount { .. }
+            | Announcement::CopiedToClipboard
+            | Announcement::CopyFailed => {}
         }
     }
     catalogue
@@ -1036,6 +1040,34 @@ fn a_filter_state_is_named_exactly_as_the_status_column_names_its_issue() {
             "the {column} filter does not name itself as the column does"
         );
     }
+}
+
+// ---- Announcements 13 and 14: Copy (v0.2.0 §13 items 13, 14) ----
+
+#[test]
+fn a_copy_says_that_it_landed_and_never_what_it_copied() {
+    // Fixed text, no placeholder: focus has just read the row, Entries run
+    // long, and echoing the payload would re-speak what NVDA already said
+    // (v0.2.0 §8).
+    assert_eq!(
+        the_catalogue().announcement(Announcement::CopiedToClipboard),
+        "Copied to clipboard"
+    );
+}
+
+#[test]
+fn a_failed_copy_says_so_rather_than_leaving_the_gesture_silent() {
+    // Silence is reserved for "nothing was selected". NVDA announces nothing
+    // of its own for an application-side copy, so a swallowed failure would be
+    // indistinguishable from a missed keystroke (v0.2.0 §8).
+    assert_eq!(
+        the_catalogue().announcement(Announcement::CopyFailed),
+        "Could not copy to clipboard"
+    );
+    assert_ne!(
+        the_catalogue().announcement(Announcement::CopyFailed),
+        the_catalogue().announcement(Announcement::CopiedToClipboard)
+    );
 }
 
 // ---- StatusBar field 0 under a named Filter (v0.2.0 spec §16) ----

@@ -1,4 +1,4 @@
-//! The twenty-five commands the window carries, and the menus they live in
+//! The twenty-six commands the window carries, and the menus they live in
 //! (spec §15, §5, §6; v0.2.0 §12).
 //!
 //! One enum is the whole map: it names the menu items, the menu each belongs
@@ -24,7 +24,7 @@ use crate::catalog::translate;
 
 /// One user-visible command.
 ///
-/// Twenty of them are about a Scope; the last five are not, and are here for
+/// Twenty-one of them are about a Scope; the last five are not, and are here for
 /// the reason the enum exists at all: they are menu items, and a menu item's
 /// id, label and enabled state are answered in one place or in three.
 ///
@@ -38,6 +38,10 @@ pub enum Command {
     Add,
     Edit,
     Delete,
+    /// The one per-Entry command that reads rather than changes: it puts the
+    /// focused visible Entry's **currently displayed** rendering on the
+    /// clipboard (v0.2.0 §8).
+    Copy,
     MoveUp,
     MoveDown,
     Undo,
@@ -87,8 +91,9 @@ pub struct Availability<'a> {
     /// [`Criteria::narrowing`]: pathmaster_core::filtered::Criteria::narrowing
     pub narrowed: bool,
     /// How many Entries the view now shows — the Scope's whole count when
-    /// nothing narrows it. Edit and Delete act on the focused **visible**
-    /// Entry, so zero visible rows closes them even over a non-empty Scope.
+    /// nothing narrows it. Edit, Delete and Copy act on the focused **visible**
+    /// Entry, so zero visible rows closes all three even over a non-empty
+    /// Scope.
     pub visible_rows: usize,
     /// Whether this Run has a Data Directory at all. The one Run that has none
     /// does not know where it is (`ReadOnlyReason::OwnLocationUnknown`), and so
@@ -139,10 +144,13 @@ impl Command {
     /// Every command, in **button** order — §15's Add, Edit, Delete, Move Up,
     /// Move Down, Apply, Cancel — which is also the order each menu takes its
     /// own items in, since [`menu`](Self::menu) preserves it.
-    pub const ALL: [Command; 25] = [
+    pub const ALL: [Command; 26] = [
         Command::Add,
         Command::Edit,
         Command::Delete,
+        // Copy closes the per-Entry group rather than opening it: it is the
+        // group's one read-only member (v0.2.0 §12).
+        Command::Copy,
         Command::MoveUp,
         Command::MoveDown,
         Command::Undo,
@@ -215,6 +223,7 @@ impl Command {
             Command::Add
             | Command::Edit
             | Command::Delete
+            | Command::Copy
             | Command::MoveUp
             | Command::MoveDown
             | Command::Undo
@@ -248,6 +257,7 @@ impl Command {
             Command::Add
             | Command::Edit
             | Command::Delete
+            | Command::Copy
             | Command::MoveUp
             | Command::MoveDown
             | Command::Undo
@@ -274,6 +284,7 @@ impl Command {
             Command::Add => msgids::MENU_ADD_ENTRY,
             Command::Edit => msgids::MENU_EDIT_ENTRY,
             Command::Delete => msgids::MENU_DELETE_ENTRY,
+            Command::Copy => msgids::MENU_COPY,
             Command::MoveUp => msgids::MENU_MOVE_UP,
             Command::MoveDown => msgids::MENU_MOVE_DOWN,
             Command::Undo => msgids::MENU_UNDO,
@@ -315,9 +326,17 @@ impl Command {
             Command::MoveDown => msgids::BUTTON_MOVE_DOWN,
             Command::Apply => msgids::BUTTON_APPLY,
             Command::Cancel => msgids::BUTTON_CANCEL,
-            // Every View command is menu-only: the Filter has **no on-window
-            // control** at all (v0.2.0 §4), and neither does its toggle.
-            Command::Undo
+            // Copy is menu-and-keyboard like Undo beside it: §15's seven
+            // buttons are the whole row, and v0.2.0 adds none — a Ctrl+C
+            // with a button under the list it copies from would be an
+            // eighth control in the Tab cycle for a gesture that already
+            // has a home.
+            //
+            // Every View command is menu-only too: the Filter has **no
+            // on-window control** at all (v0.2.0 §4), and neither does its
+            // toggle.
+            Command::Copy
+            | Command::Undo
             | Command::Redo
             | Command::Refresh
             | Command::Search
@@ -345,6 +364,13 @@ impl Command {
         match self {
             Command::Edit => Some("F2"),
             Command::Delete => Some("Del"),
+            // **Scoped by the platform, not by us** (v0.2.0 §8): wxMSW text
+            // entries claim Ctrl+C/X/V/A *before* accelerator translation
+            // (`wxMSWTextEntryShouldPreProcessMessage`, pinned 3.3.3), so this
+            // label can never steal the Search field's or a dialog field's own
+            // copy. No focus-checking handler, no dynamic table — and
+            // everywhere else it fires frame-wide like every Entry command.
+            Command::Copy => Some("Ctrl+C"),
             Command::MoveUp => Some("Alt+Up"),
             Command::MoveDown => Some("Alt+Down"),
             Command::Undo => Some("Ctrl+Z"),
@@ -388,7 +414,7 @@ impl Command {
     pub fn enabled(self, available: &Availability) -> bool {
         // Exhaustive, like every `match` over this enum: the split is between
         // the commands that answer to the Run, the ones that answer to nothing
-        // at all, and the ten that answer to a Scope — and the next command
+        // at all, and the ones that answer to a Scope — and the next command
         // someone adds has to say which it is.
         match self {
             // Not about a Scope: it shows this Run's own directory, so it is
@@ -421,6 +447,7 @@ impl Command {
             Command::Add
             | Command::Edit
             | Command::Delete
+            | Command::Copy
             | Command::MoveUp
             | Command::MoveDown
             | Command::Undo
@@ -454,6 +481,15 @@ impl Command {
             | Command::Filter(_)
             | Command::ToggleIssuesFilter
             | Command::ExpandedValues => true,
+            // Copy answers **above** the writability line for the same reason,
+            // and it is the only Entry command that does: it reads the Working
+            // Copy and never changes it (v0.2.0 §8, §12). An unelevated System
+            // tab and a Read-only Data run are Scopes the user may look at, and
+            // a row that can be read aloud is one that can be copied. What it
+            // still asks is the same question Edit and Delete ask — a focused
+            // **visible** Entry to act on, which an empty result set has none
+            // of (v0.2.0 §2, §3).
+            Command::Copy => available.visible_rows > 0,
             _ if !session.writable() => false,
             // Add appends at the end — a position a narrowed view may be
             // hiding, so it closes with Move Up and Move Down (v0.2.0 §2).
@@ -498,6 +534,7 @@ impl Command {
             Command::Add
             | Command::Edit
             | Command::Delete
+            | Command::Copy
             | Command::MoveUp
             | Command::MoveDown
             | Command::Undo
@@ -534,6 +571,7 @@ impl Command {
             Command::Add
             | Command::Edit
             | Command::Delete
+            | Command::Copy
             | Command::MoveUp
             | Command::MoveDown
             | Command::Undo

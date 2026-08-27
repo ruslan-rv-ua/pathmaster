@@ -174,6 +174,20 @@ pub const FILTERED_SYSTEM_NAMED: &str = "System PATH: {filter} — {n} of {m} en
 pub const FILTERED_SYSTEM_NAMED_PLURAL: &str = "System PATH: {filter} — {n} of {m} entries";
 pub const FILTERED_SYSTEM_NAMED_NONE: &str = "System PATH: {filter} — no matching entries";
 
+/// Announcements 13 and 14 (v0.2.0 spec §13 items 13, 14): the Copy command
+/// succeeded, or its clipboard write failed.
+///
+/// Two whole sentences and **no placeholder** — neither echoes the payload.
+/// Focus has just read the row, Entries run long, and what the user needs back
+/// is whether the gesture landed, not what it copied.
+///
+/// The failure is spoken rather than swallowed because NVDA announces nothing
+/// of its own for an application-side copy (nvda#75): a copy that silently did
+/// nothing would be indistinguishable from a missed keystroke. Success speaks,
+/// failure speaks, and silence only ever means nothing was selected.
+pub const COPIED_TO_CLIPBOARD: &str = "Copied to clipboard";
+pub const COPY_FAILED: &str = "Could not copy to clipboard";
+
 /// Announcement 2 (spec §10.1 item 2): a Scope's Working Copy reached the
 /// registry. Two whole strings rather than one frame with the Scope filled in:
 /// «PATH користувача застосовано» agrees with its subject, and a Scope name
@@ -358,6 +372,12 @@ pub const MENU_EXIT: &str = "E&xit";
 pub const MENU_ADD_ENTRY: &str = "&Add Entry…";
 pub const MENU_EDIT_ENTRY: &str = "&Edit Entry…";
 pub const MENU_DELETE_ENTRY: &str = "&Delete Entry";
+/// Copy joins the per-Entry group after Delete Entry — the one read-only
+/// member, and so the one that closes the group (v0.2.0 §12). Its mnemonic is
+/// **p** and not the C every other Windows Edit menu gives Copy: C is already
+/// [`MENU_CANCEL`]'s here, and a menu with one letter for two items is a menu
+/// where Alt+C means whichever wx reaches first.
+pub const MENU_COPY: &str = "Co&py";
 pub const MENU_MOVE_UP: &str = "&Move Up";
 pub const MENU_MOVE_DOWN: &str = "Mo&ve Down";
 pub const MENU_UNDO: &str = "&Undo";
@@ -629,6 +649,8 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::text(FILTERED_USER_NAMED_NONE),
     CatalogueEntry::plural(FILTERED_SYSTEM_NAMED, FILTERED_SYSTEM_NAMED_PLURAL),
     CatalogueEntry::text(FILTERED_SYSTEM_NAMED_NONE),
+    CatalogueEntry::text(COPIED_TO_CLIPBOARD),
+    CatalogueEntry::text(COPY_FAILED),
     CatalogueEntry::text(APPLIED_USER),
     CatalogueEntry::text(APPLIED_SYSTEM),
     CatalogueEntry::text(APPLY_FAILED),
@@ -667,6 +689,7 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::menu_item(MENU_ADD_ENTRY, MENU_GROUP_EDIT),
     CatalogueEntry::menu_item(MENU_EDIT_ENTRY, MENU_GROUP_EDIT),
     CatalogueEntry::menu_item(MENU_DELETE_ENTRY, MENU_GROUP_EDIT),
+    CatalogueEntry::menu_item(MENU_COPY, MENU_GROUP_EDIT),
     CatalogueEntry::menu_item(MENU_MOVE_UP, MENU_GROUP_EDIT),
     CatalogueEntry::menu_item(MENU_MOVE_DOWN, MENU_GROUP_EDIT),
     CatalogueEntry::menu_item(MENU_UNDO, MENU_GROUP_EDIT),

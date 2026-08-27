@@ -55,6 +55,7 @@ use wxdragon::prelude::*;
 
 use crate::announce::Announcer;
 use crate::catalog::{self, translate};
+use crate::clipboard;
 use crate::pump::Pump;
 use crate::scoped::Scoped;
 use crate::ui::backups_page::BackupsPage;
@@ -843,6 +844,7 @@ impl App {
             Command::Add
             | Command::Edit
             | Command::Delete
+            | Command::Copy
             | Command::MoveUp
             | Command::MoveDown
             | Command::Undo
@@ -860,6 +862,7 @@ impl App {
             Command::Add => self.add(tab),
             Command::Edit => self.edit(tab),
             Command::Delete => self.delete(tab),
+            Command::Copy => self.copy(tab),
             // The direction is the command, so it travels as the command: a
             // bare `true` at this call site would say nothing.
             Command::MoveUp | Command::MoveDown => self.move_entry(tab, command),
@@ -1452,6 +1455,55 @@ impl App {
             return;
         }
         self.after_edit(tab, None);
+    }
+
+    /// Copy puts the focused visible Entry's **currently displayed rendering**
+    /// on the clipboard — raw text in raw mode, the expanded reading in
+    /// expanded (v0.2.0 §8). It is [`Rendering::render`] and not the row's own
+    /// cell because the two are the same text by construction, and the Working
+    /// Copy is where an Entry's text actually lives.
+    ///
+    /// Exact fidelity: nothing is added, and an Entry's own quotes are content
+    /// rather than something to strip. Nothing is changed either — no
+    /// Checkpoint, no `after_edit`, no diagnostic pass; this is the one
+    /// per-Entry command that only reads.
+    ///
+    /// **No selection is a silent no-op**, the `edit`/`delete` precedent: the
+    /// two Announcements say what happened when something did, so silence only
+    /// ever means nothing was selected.
+    ///
+    /// A failure speaks immediately and is not retried (v0.2.0 §8) — and it
+    /// leaves no log record: [`clipboard::copy`] answers `bool` and nothing
+    /// more, so there is no raw error code for a line to carry, and §14's
+    /// records are built from derived facts rather than from the fact that
+    /// something went wrong. The Announcement is the channel this failure has,
+    /// and [`clipboard`] is why it is the *only* one.
+    fn copy(&self, tab: &ScopeTab) {
+        let Some((_, id)) = tab.focused_entry() else {
+            return;
+        };
+        let Some(raw) = tab.session.with(|session| {
+            session
+                .entries()
+                .iter()
+                .find(|entry| entry.id() == id)
+                .map(|entry| entry.raw().to_string())
+        }) else {
+            return;
+        };
+        // Owned out of the scoped access first: the write crosses into the
+        // OS, and no scoped closure may hold a borrow across a dispatch
+        // (ADR-0011).
+        let shown = self.rendering.render(&raw);
+        // The frame is the owner the clipboard records, and the write needs
+        // one: opened with none, the clipboard would refuse the very data it
+        // was opened to take.
+        let copied = clipboard::copy(self.frame.get_handle().cast(), &shown);
+        self.announcer.announce(if copied {
+            Announcement::CopiedToClipboard
+        } else {
+            Announcement::CopyFailed
+        });
     }
 
     /// One Move Up or Move Down, one Checkpoint. Moving the first Entry up is

@@ -127,6 +127,20 @@ pub enum Announcement {
         shown: usize,
         total: usize,
     },
+    /// **13** (v0.2.0) — the focused Entry's displayed rendering reached the
+    /// clipboard. Fixed text with no placeholder: it never echoes what it
+    /// copied, because focus has just read the row and Entries run long
+    /// (v0.2.0 §8).
+    CopiedToClipboard,
+    /// **14** (v0.2.0) — the clipboard write failed, spoken immediately and
+    /// with no retry.
+    ///
+    /// Its own variant rather than a flag on [`CopiedToClipboard`]: these are
+    /// two items of the closed set, not one item with a mood, and a `bool` at
+    /// the call site would say nothing about which sentence it chose. NVDA
+    /// speaks nothing of its own for an application-side copy, so a swallowed
+    /// failure is indistinguishable from a missed keystroke.
+    CopyFailed,
 }
 
 /// Which way the undo history was walked, and so which of Announcement 4's two
@@ -226,6 +240,8 @@ impl Catalogue {
                 shown,
                 total,
             } => self.filter_count(filter, shown, total),
+            Announcement::CopiedToClipboard => self.lookup.translate(msgids::COPIED_TO_CLIPBOARD),
+            Announcement::CopyFailed => self.lookup.translate(msgids::COPY_FAILED),
         }
     }
 
