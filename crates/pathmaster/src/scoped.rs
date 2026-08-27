@@ -11,9 +11,11 @@
 //! Data that a rebuild or a dialog needs is copied out of the closure as owned
 //! values and used after it has returned.
 //!
-//! Cells only one kind of call touches (`last_read`, `settings`, the `Pump`'s
-//! worker behind its interface) stay plain `RefCell`s with local borrows; a
-//! future cell classifies itself by the same rule, not by a roster.
+//! Cells only one kind of call touches (`last_read`, the `Pump`'s worker
+//! behind its interface) stay plain `RefCell`s with local borrows; a future
+//! cell classifies itself by the same rule, not by a roster — which is how
+//! `settings` moved in here the moment the Search debounce's tick began
+//! reading it.
 
 use std::cell::RefCell;
 

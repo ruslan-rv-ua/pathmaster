@@ -1,5 +1,5 @@
-//! One Scope tab: the list of Entries and the buttons that edit them
-//! (spec §7, §12, §15).
+//! One Scope tab: the Search field, the list of Entries it narrows, and the
+//! buttons that edit them (spec §7, §12, §15; v0.2.0 §3).
 //!
 //! Everything about focus lives here, because focus is how this application
 //! speaks. Delete has no Announcement and no confirmation; the commit of an
@@ -12,8 +12,9 @@
 use pathmaster_core::catalogue::Catalogue;
 use pathmaster_core::diagnostics::Findings;
 use pathmaster_core::msgids;
-use pathmaster_core::session::{EntryId, Session};
+use pathmaster_core::session::Session;
 use wxdragon::prelude::*;
+use wxdragon::timer::Timer;
 
 use crate::catalog::translate;
 use crate::ui::command::{Availability, Command};
@@ -64,15 +65,30 @@ impl Row {
         findings: Option<&Findings>,
         catalogue: &Catalogue,
     ) -> Vec<Row> {
-        session
-            .entries()
+        let all: Vec<usize> = (0..session.entries().len()).collect();
+        Self::compose_visible(session, findings, catalogue, &all)
+    }
+
+    /// [`compose`](Self::compose) narrowed to a Filtered View's visible set —
+    /// `visible` is the Working-Copy indices the view shows, in order (v0.2.0
+    /// §2). The `#` cell carries each Entry's **original** position, which is
+    /// exactly what makes it worth carrying under any narrowing (§2.1).
+    pub fn compose_visible(
+        session: &Session,
+        findings: Option<&Findings>,
+        catalogue: &Catalogue,
+        visible: &[usize],
+    ) -> Vec<Row> {
+        visible
             .iter()
-            .enumerate()
-            .map(|(index, entry)| Row {
-                position: index + 1,
-                path: entry.raw().to_string(),
-                status: catalogue
-                    .status_column(findings.map_or(&[][..], |findings| findings.issues(entry))),
+            .map(|&index| {
+                let entry = &session.entries()[index];
+                Row {
+                    position: index + 1,
+                    path: entry.raw().to_string(),
+                    status: catalogue
+                        .status_column(findings.map_or(&[][..], |findings| findings.issues(entry))),
+                }
             })
             .collect()
     }
@@ -81,6 +97,18 @@ impl Row {
 /// One Scope's tab.
 pub struct ScopePage {
     pub panel: Panel,
+    /// The permanent Search field above the list (v0.2.0 §3): a native
+    /// `TextCtrl`, never `SearchCtrl` — the generic composite on MSW is
+    /// unmeasured with NVDA, while `TextCtrl` is the exact control ticket 04
+    /// proved. Its label is constant and never carries the count.
+    pub search: TextCtrl,
+    /// The Search debounce: one-shot, restarted on every keystroke, owned by
+    /// the field and not the Frame — wxdragon binds `on_tick` on the owner
+    /// with no id filter, so a second Timer on the [`Pump`]'s Frame would fire
+    /// the diagnostic drain's handler too (and vice versa).
+    ///
+    /// [`Pump`]: crate::pump::Pump
+    pub debounce: Timer<TextCtrl>,
     pub list: ListCtrl,
     /// The commands with a button, in Tab order — `Command::ALL` filtered by
     /// [`Command::button_label`], so the two can never disagree.
@@ -101,6 +129,14 @@ impl ScopePage {
     /// the user, so `#` is present before there is any narrowing to need it.
     pub fn build(notebook: &Notebook, rows: &[Row]) -> ScopePage {
         let panel = Panel::builder(notebook).build();
+        // The Search field is created before the list because creation order
+        // is the Tab order, and v0.2.0 §3 fixes it: tabs → search field →
+        // list → buttons. The label is a `StaticText` — not a Tab stop — and
+        // never carries a mnemonic or the count.
+        let search_label = StaticText::builder(&panel)
+            .with_label(&translate(msgids::SEARCH_LABEL))
+            .build();
+        let search = TextCtrl::builder(&panel).build();
         let list = ListCtrl::builder(&panel)
             .with_style(ListCtrlStyle::Report | ListCtrlStyle::SingleSel)
             .build();
@@ -141,7 +177,17 @@ impl ScopePage {
             })
             .collect();
 
+        let search_row = BoxSizer::builder(Orientation::Horizontal).build();
+        search_row.add(
+            &search_label,
+            0,
+            SizerFlag::AlignCenterVertical | SizerFlag::All,
+            4,
+        );
+        search_row.add(&search, 1, SizerFlag::Expand | SizerFlag::All, 4);
+
         let sizer = BoxSizer::builder(Orientation::Vertical).build();
+        sizer.add_sizer(&search_row, 0, SizerFlag::Expand | SizerFlag::All, 0);
         sizer.add(&list, 1, SizerFlag::Expand | SizerFlag::All, 4);
         sizer.add_sizer(&button_row, 0, SizerFlag::Expand | SizerFlag::All, 4);
         panel.set_sizer(sizer, true);
@@ -157,8 +203,11 @@ impl ScopePage {
             event.skip(true);
         });
 
+        let debounce = Timer::new(&search);
         let page = ScopePage {
             panel,
+            search,
+            debounce,
             list,
             buttons,
         };
@@ -188,6 +237,28 @@ impl ScopePage {
     /// runs the list's own events, so it may not happen inside a scoped-access
     /// closure — the caller copies the rows out first (ADR-0011).
     pub fn render(&self, rows: &[Row], row: Option<usize>) {
+        self.rebuild(rows);
+        if let Some(row) = row {
+            self.focus_row(row);
+        }
+    }
+
+    /// [`render`](Self::render) without the keyboard focus: the row state is
+    /// set but the list is not focused — the rebuild a Search keystroke asks
+    /// for, where focus stays in the field and moving it would be the one
+    /// uninvited jump v0.2.0 §2 forbids. Measured silent under NVDA exactly
+    /// like this: rows rebuilt under the unfocused list, no chatter (ticket
+    /// 04's verdict).
+    pub fn render_quiet(&self, rows: &[Row], row: Option<usize>) {
+        self.rebuild(rows);
+        if let Some(row) = row {
+            self.mark_row(row);
+        }
+    }
+
+    /// The one rebuild: plain `DeleteAllItems` + reinsert, no Freeze/Thaw —
+    /// it earned nothing under NVDA and is dropped (v0.2.0 §3).
+    fn rebuild(&self, rows: &[Row]) {
         self.list.delete_all_items();
         for (index, data) in rows.iter().enumerate() {
             self.list
@@ -196,9 +267,6 @@ impl ScopePage {
                 .set_item_text_by_column(index as i64, 1, &data.path);
             self.list
                 .set_item_text_by_column(index as i64, 2, &data.status);
-        }
-        if let Some(row) = row {
-            self.focus_row(row);
         }
     }
 
@@ -232,6 +300,15 @@ impl ScopePage {
     /// the button that emptied it would say nothing at all.
     pub fn focus_row(&self, row: usize) {
         self.list.set_focus();
+        self.mark_row(row);
+    }
+
+    /// The row-state half of [`focus_row`](Self::focus_row): selects and
+    /// focuses `row` (clamped) inside the list without giving the list the
+    /// keyboard focus — which is what a rebuild under a focused Search field
+    /// needs, so the landing row is ready to be read the moment the user
+    /// arrows or Tabs in.
+    fn mark_row(&self, row: usize) {
         let Some(last) = self.last_row() else { return };
         let row = row.min(last) as i64;
         self.list.set_item_state(
@@ -294,21 +371,11 @@ impl ScopePage {
             .checked_sub(1)
     }
 
-    /// The row the user is on, if any (see [`list::focused_row`]).
+    /// The row the user is on, if any (see [`list::focused_row`]). Under a
+    /// Filtered View this is a **view** row; mapping it onto an Entry is the
+    /// tab's business, because only the tab holds the view's criteria.
     pub fn focused_row(&self) -> Option<usize> {
         list::focused_row(&self.list)
-    }
-
-    /// The Entry the user is on: its row and its id. `None` when the list is
-    /// empty or nothing in it has been reached yet.
-    pub fn focused_entry(&self, session: &Session) -> Option<(usize, EntryId)> {
-        let row = self.focused_row()?;
-        Some((row, session.entries().get(row)?.id()))
-    }
-
-    /// The row `id` now stands at.
-    pub fn row_of(session: &Session, id: EntryId) -> Option<usize> {
-        session.entries().iter().position(|entry| entry.id() == id)
     }
 
     /// Points every button at the state that now holds — the same `match` the

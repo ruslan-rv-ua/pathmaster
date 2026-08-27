@@ -51,10 +51,11 @@ pub trait Lookup {
     fn translate_plural(&self, singular: &str, plural: &str, n: u32) -> String;
 }
 
-/// One of §10.1's Announcements: the closed set of messages the application
-/// speaks, as a type.
+/// One of the Announcements: the closed set of messages the application
+/// speaks, as a type (spec §10.1; v0.2.0 §13, growing the set toward
+/// fourteen as the tickets land their variants).
 ///
-/// **Six variants for seven Announcements.** Item 5 is item 4's text with the
+/// Item 5 is item 4's text with the
 /// ", unsaved changes" suffix rather than a message of its own, and
 /// [`UndoOutcome::crossed_apply`](crate::session::UndoOutcome::crossed_apply)
 /// already models exactly that; a seventh variant would be a second route to
@@ -93,6 +94,18 @@ pub enum Announcement {
     /// the msgid `ReadOnlyReason::catalogue_msgid()` returns: the reason is a
     /// platform type, its name is Catalogue text.
     ReadOnly { reason: &'static str },
+    /// **9** (v0.2.0) — the filtered count on a view-criteria change: `shown`
+    /// visible of `total` in the Scope. Spoken debounced on typing pauses and
+    /// never on Working-Copy changes, which recompute membership silently.
+    FilteredCount { shown: usize, total: usize },
+    /// **10** (v0.2.0) — the Scope-named filtered count, on tab activation and
+    /// Refresh while that Scope has a Filtered View. The same composition is
+    /// StatusBar field 0's fragment for a narrowed Scope (v0.2.0 §16).
+    ScopeFilteredCount {
+        scope: Scope,
+        shown: usize,
+        total: usize,
+    },
 }
 
 /// Which way the undo history was walked, and so which of Announcement 4's two
@@ -121,6 +134,11 @@ pub enum UndoDirection {
 pub struct ScopeCounts {
     pub scope: Scope,
     pub entries: usize,
+    /// How many Entries the Scope's Filtered View shows — `Some` only while
+    /// one is active, and then the fragment reads "{n} of {m}" (v0.2.0 §16).
+    /// `None` is no narrowing, which is not the same as `Some(entries)`: a
+    /// view that happens to match everything still reads as a view.
+    pub visible: Option<usize>,
     pub issues: Option<usize>,
 }
 
@@ -167,6 +185,12 @@ impl Catalogue {
             Announcement::UndoRedo { direction, outcome } => self.undo_redo(direction, outcome),
             Announcement::ChangesDiscarded => self.lookup.translate(msgids::CHANGES_DISCARDED),
             Announcement::ReadOnly { reason } => self.read_only(reason),
+            Announcement::FilteredCount { shown, total } => self.filtered_count(shown, total),
+            Announcement::ScopeFilteredCount {
+                scope,
+                shown,
+                total,
+            } => self.scope_filtered_count(scope, shown, total),
         }
     }
 
@@ -364,9 +388,15 @@ impl Catalogue {
         fill(&self.lookup.translate(msgid), &[("n", &length.to_string())])
     }
 
-    /// One Scope's half of StatusBar field 0.
+    /// One Scope's half of StatusBar field 0. A narrowed Scope reads "{n} of
+    /// {m}" through Announcement 10's own composition — one wording for one
+    /// meaning — while the issue parenthetical never changes: it counts the
+    /// Scope's Issues, not the view's (v0.2.0 §16).
     fn counts(&self, counts: &ScopeCounts) -> String {
-        let entries = self.entry_count(counts.scope, counts.entries);
+        let entries = match counts.visible {
+            Some(shown) => self.scope_filtered_count(counts.scope, shown, counts.entries),
+            None => self.entry_count(counts.scope, counts.entries),
+        };
         match counts.issues {
             Some(issues) => entries + &self.issue_count(issues),
             None => entries,
@@ -456,6 +486,54 @@ impl Catalogue {
                 &[("n", &count.to_string())],
             )
         }
+    }
+
+    /// Announcement 9 (v0.2.0 §13 item 9): the filtered count. The plural form
+    /// is selected by **the total**, `{m}` — the number whose word the
+    /// sentence ends on — and zero visible takes its own worded msgid rather
+    /// than a count.
+    fn filtered_count(&self, shown: usize, total: usize) -> String {
+        if shown == 0 {
+            return self.lookup.translate(msgids::FILTERED_COUNT_NONE);
+        }
+        self.shown_of_total(
+            msgids::FILTERED_COUNT,
+            msgids::FILTERED_COUNT_PLURAL,
+            shown,
+            total,
+        )
+    }
+
+    /// Announcement 10 (v0.2.0 §13 item 10), and the narrowed half of
+    /// [`counts`](Self::counts): the Scope-named filtered count, whole strings
+    /// per Scope like every Scope-named sentence here. Plural by `{m}`; the
+    /// zero cases are their own msgids, one per Scope.
+    fn scope_filtered_count(&self, scope: Scope, shown: usize, total: usize) -> String {
+        let (none, singular, plural) = match scope {
+            Scope::User => (
+                msgids::FILTERED_USER_NONE,
+                msgids::FILTERED_USER,
+                msgids::FILTERED_USER_PLURAL,
+            ),
+            Scope::System => (
+                msgids::FILTERED_SYSTEM_NONE,
+                msgids::FILTERED_SYSTEM,
+                msgids::FILTERED_SYSTEM_PLURAL,
+            ),
+        };
+        if shown == 0 {
+            return self.lookup.translate(none);
+        }
+        self.shown_of_total(singular, plural, shown, total)
+    }
+
+    /// The "{n} of {m}" frame both filtered counts fill: one lookup whose
+    /// plural form `{m}` selects, then both numbers filled in.
+    fn shown_of_total(&self, singular: &str, plural: &str, shown: usize, total: usize) -> String {
+        fill(
+            &self.lookup.translate_plural(singular, plural, total as u32),
+            &[("n", &shown.to_string()), ("m", &total.to_string())],
+        )
     }
 
     /// Announcements 4 and 5: what was undone or redone, and — when the step

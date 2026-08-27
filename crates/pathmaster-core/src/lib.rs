@@ -9,6 +9,7 @@
 pub mod backups;
 pub mod catalogue;
 pub mod diagnostics;
+pub mod filtered;
 pub mod language;
 pub mod logfmt;
 pub mod msgids;

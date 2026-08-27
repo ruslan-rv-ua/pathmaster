@@ -2,7 +2,8 @@
 //! with the native status bar attached to the frame outside the sizer, and the menu
 //! bar on the frame itself.
 //!
-//! The tab order is the whole map: tabs → list → buttons, full traversal, no traps.
+//! The tab order is the whole map: tabs → search field → list → buttons, full
+//! traversal, no traps (v0.2.0 §3).
 //! `announce()` speaks without touching focus; the status bar is command-only
 //! (`NVDA+End`), absent from the Tab order.
 //!
@@ -29,10 +30,11 @@ use std::rc::Rc;
 
 use pathmaster_core::catalogue::{Announcement, Catalogue, ScopeCounts, UndoDirection};
 use pathmaster_core::diagnostics::{Diagnosis, Findings};
+use pathmaster_core::filtered;
 use pathmaster_core::logfmt::{FailureCause, Record};
 use pathmaster_core::msgids;
 use pathmaster_core::normalize::has_variable_reference;
-use pathmaster_core::session::{EntryId, Operation, Scope, Session, ValueType};
+use pathmaster_core::session::{Entry, EntryId, Operation, Scope, Session, ValueType};
 use pathmaster_core::settings::SettingsFile;
 use pathmaster_platform::apply::{self, ApplyRun, Ask, ExternalChange, ScopeInput, ScopeOutcome};
 use pathmaster_platform::datadir::ReadOnlyReason;
@@ -64,6 +66,15 @@ const TAB_INDEX_USER: i32 = 0;
 const TAB_INDEX_SYSTEM: i32 = 1;
 const TAB_INDEX_BACKUPS: i32 = 2;
 
+/// The key codes the Search field answers to (v0.2.0 §3). wxdragon names no
+/// `WXK_` constants at any level, so the wxWidgets values are spelled here —
+/// the same ones the ticket-04 prototype keyed on. Both Enters are consumed:
+/// one gesture, one meaning, whichever side of the keyboard it came from.
+const WXK_RETURN: i32 = 13;
+const WXK_ESCAPE: i32 = 27;
+const WXK_DOWN: i32 = 317;
+const WXK_NUMPAD_ENTER: i32 = 372;
+
 /// The page a Scope's tab sits at. The one place the order above is read as a
 /// mapping, so activating a Scope's tab and finding the tab a page belongs to
 /// cannot disagree.
@@ -94,6 +105,13 @@ struct ScopeTab {
     /// the Timer's tick and by synchronous toolkit callbacks (ADR-0011).
     session: Rc<Scoped<Session>>,
     page: ScopePage,
+    /// The **applied** Search text — the criteria the list on screen was last
+    /// rebuilt under, which is not always what the field holds: typing sits in
+    /// the field until the debounce tick applies it. Per-Editing-Session
+    /// derived view state (v0.2.0 §2): it dies with the Run, no Checkpoint
+    /// captures it, and no command changes it — only the user's typing does.
+    /// [`Scoped`] because commands and the debounce's tick both reach it.
+    query: Scoped<String>,
     /// What the last completed pass found here — the Status column's whole
     /// content, and the issue count StatusBar field 0 reports. A derived view,
     /// held beside the Session and never inside it (ADR-0001), and [`Scoped`]
@@ -130,17 +148,39 @@ impl ScopeTab {
         })
     }
 
-    /// The two numbers StatusBar field 0 reports about this Scope: how many
-    /// Entries it holds now, and how many findings the last pass made here —
+    /// The numbers StatusBar field 0 reports about this Scope: how many
+    /// Entries it holds now, how many its Filtered View shows (`None` while
+    /// nothing narrows it), and how many findings the last pass made here —
     /// `None` until one has run (see [`ScopeCounts`]).
     fn counts(&self) -> ScopeCounts {
         ScopeCounts {
             scope: self.scope,
             entries: self.session.with(|session| session.entries().len()),
+            visible: self.narrowed().then(|| self.visible().len()),
             issues: self
                 .findings
                 .with(|findings| findings.as_ref().map(Findings::issue_count)),
         }
+    }
+
+    /// Whether this Scope has a Filtered View: a non-empty applied Search text
+    /// (the Filter axis composes in with ticket 05, fixed at `All` until then).
+    fn narrowed(&self) -> bool {
+        self.query.with(|query| !query.is_empty())
+    }
+
+    /// The visible set: the Working-Copy indices of the Entries this Scope's
+    /// Filtered View shows, in order — every index, while nothing narrows.
+    /// Recomputed from the live Working Copy on each ask, so it can never
+    /// describe a list that has moved on; matching reads the currently
+    /// displayed rendering, which is the raw text until ticket 04's Expansion
+    /// Mode arrives (v0.2.0 §3).
+    fn visible(&self) -> Vec<usize> {
+        self.session.with(|session| {
+            self.query.with(|query| {
+                filtered::visible_indices(session.entries().iter().map(Entry::raw), query)
+            })
+        })
     }
 
     /// The registry value behind this tab. Built where it is used rather than
@@ -152,27 +192,40 @@ impl ScopeTab {
         }
     }
 
-    /// The Entry the user is on: its row and its id — owned out of the scoped
-    /// access, because every command asks this question immediately before
-    /// opening a modal dialog.
+    /// The Entry the user is on: its **view** row and its id — owned out of
+    /// the scoped access, because every command asks this question immediately
+    /// before opening a modal dialog. The view row is mapped through the
+    /// visible set: under a Filtered View the list's row 0 can be the Working
+    /// Copy's Entry 7, and every allowed command touches exactly the visible
+    /// Entry the user is on, never a hidden one (v0.2.0 §2).
     fn focused_entry(&self) -> Option<(usize, EntryId)> {
+        let row = self.page.focused_row()?;
+        let index = *self.visible().get(row)?;
         self.session
-            .with(|session| self.page.focused_entry(session))
+            .with(|session| session.entries().get(index).map(|entry| (row, entry.id())))
     }
 
-    /// The row `id` now stands at.
-    fn row_of(&self, id: EntryId) -> Option<usize> {
-        self.session.with(|session| ScopePage::row_of(session, id))
-    }
-
-    /// This Scope's rows as the list would show them now: the Working Copy's
-    /// Entries under the last completed pass's findings, composed inside the
-    /// scoped access and handed out owned — which is what lets the caller
-    /// rebuild the list with no closure open (ADR-0011).
-    fn rows(&self, catalogue: &Catalogue) -> Vec<Row> {
+    /// The view row `id` now stands at — `None` when the view does not show it,
+    /// which under a Filtered View is not the same as the Entry being gone.
+    fn view_row_of(&self, id: EntryId) -> Option<usize> {
         self.session.with(|session| {
-            self.findings
-                .with(|findings| Row::compose(session, findings.as_ref(), catalogue))
+            let entries = session.entries();
+            self.visible()
+                .into_iter()
+                .position(|index| entries[index].id() == id)
+        })
+    }
+
+    /// This Scope's rows as the list would show them now: the Filtered View's
+    /// visible Entries under the last completed pass's findings, composed
+    /// inside the scoped access and handed out owned — which is what lets the
+    /// caller rebuild the list with no closure open (ADR-0011).
+    fn rows(&self, catalogue: &Catalogue) -> Vec<Row> {
+        let visible = self.visible();
+        self.session.with(|session| {
+            self.findings.with(|findings| {
+                Row::compose_visible(session, findings.as_ref(), catalogue, &visible)
+            })
         })
     }
 
@@ -186,17 +239,17 @@ impl ScopeTab {
     /// external change at the very next Apply, and a focus rule applied at one
     /// of the two call sites and not the other would be a rule only half kept.
     ///
-    /// Answers the **row** focus lands on: the Entry with the same id if it
-    /// survived the re-read, else its nearest neighbour by index, else wherever
-    /// the user already was (spec §5, FR-refresh).
-    fn adopt(&self, raw: RawValue) -> Option<usize> {
-        let previous_row = self.page.focused_row();
+    /// Answers the **Entry** focus should land on: the one with the same id if
+    /// it survived the re-read, else its nearest neighbour by index (spec §5,
+    /// FR-refresh). Turning that into a row is the caller's focus rule —
+    /// `None` falls back to the visual position the user was already at.
+    fn adopt(&self, raw: RawValue) -> Option<EntryId> {
         let focus = self.focused_entry().map(|(_, id)| id);
         let landing = self
             .session
             .with_mut(|session| session.refresh(raw.decode(), focus));
         *self.last_read.borrow_mut() = raw;
-        landing.and_then(|id| self.row_of(id)).or(previous_row)
+        landing
     }
 
     /// Records a successful Apply: the value now in the registry becomes what
@@ -253,7 +306,12 @@ struct App {
     /// `maxBackups` is a setting the user changes while the application runs,
     /// which is exactly why it is not one of the Run's facts (ADR-0010); the
     /// Settings dialog replaces what is here.
-    settings: RefCell<SettingsFile>,
+    ///
+    /// [`Scoped`] since v0.2.0's Search landed: the debounce Timer's tick and
+    /// the field's synchronous handlers read it, and the Settings command
+    /// writes it — more than one kind of call, which is ADR-0011's whole
+    /// classification rule.
+    settings: Scoped<SettingsFile>,
     /// Whether the elevated instance has been spawned and this one is exiting
     /// (spec §9, ADR-0005). Read in exactly one place: the close path, whose
     /// standard close-confirm must not re-ask what the restart command's
@@ -348,6 +406,7 @@ pub fn build_main_window(
             scope: Scope::User,
             session: user.session,
             page: user_page,
+            query: Scoped::new(String::new()),
             findings: Scoped::new(None),
             last_read: RefCell::new(user.last_read),
         },
@@ -355,6 +414,7 @@ pub fn build_main_window(
             scope: Scope::System,
             session: system.session,
             page: system_page,
+            query: Scoped::new(String::new()),
             findings: Scoped::new(None),
             last_read: RefCell::new(system.last_read),
         },
@@ -404,7 +464,7 @@ pub fn build_main_window(
         pump: Pump::new(&frame),
         merged_length: Cell::new(None),
         run,
-        settings: RefCell::new(settings),
+        settings: Scoped::new(settings),
         relaunched: Cell::new(false),
     });
     // The tab the user left, honoured before the handlers exist: a plain
@@ -487,6 +547,49 @@ impl App {
                 let command = *command;
                 button.on_click(move |_| app.run(command));
             }
+
+            // The Search field (v0.2.0 §3). Typing restarts the one-shot
+            // debounce; the criteria apply — rebuild, sync, count — at the
+            // tick. The delay is read per keystroke, so a settings change is
+            // in force with no restart.
+            let scope = tab.scope;
+            let app = Rc::clone(self);
+            tab.page.search.on_text_changed(move |_| {
+                let delay = app.settings.with(SettingsFile::filtered_count_delay_ms) as i32;
+                app.tab_of(scope).page.debounce.start(delay, true);
+            });
+            // Inert while a dialog is up, like the Pump's tick (ADR-0011): an
+            // accelerator can open a dialog inside the debounce window, and a
+            // rebuild plus an Announcement must not land under its modal loop.
+            // Restarting rather than dropping keeps the promise the keystroke
+            // made: the count speaks, one delay after the dialog closes.
+            let app = Rc::clone(self);
+            tab.page.debounce.on_tick(move |_| {
+                let tab = app.tab_of(scope);
+                if door::modal_open() {
+                    let delay = app.settings.with(SettingsFile::filtered_count_delay_ms) as i32;
+                    tab.page.debounce.start(delay, true);
+                    return;
+                }
+                app.apply_search(tab);
+            });
+            // The field's keyboard contract (v0.2.0 §3): Enter is consumed
+            // and does nothing — unhandled it would reach the default button —
+            // Down-arrow enters the list (Tab does so on its own: the list is
+            // next in the Tab order), and ESC clears and returns focus.
+            let app = Rc::clone(self);
+            tab.page.search.on_key_down(move |event| {
+                let key = match &event {
+                    WindowEventData::Keyboard(keyboard) => keyboard.get_key_code(),
+                    _ => None,
+                };
+                match key {
+                    Some(WXK_RETURN) | Some(WXK_NUMPAD_ENTER) => {}
+                    Some(WXK_DOWN) => app.tab_of(scope).page.focus_list(),
+                    Some(WXK_ESCAPE) => app.clear_search(app.tab_of(scope)),
+                    _ => event.skip(true),
+                }
+            });
         }
 
         // The Backups tab's own two events. Restore has no menu item and no
@@ -498,9 +601,11 @@ impl App {
         let app = Rc::clone(self);
         self.backups.list.on_item_focused(move |_| app.sync());
 
-        // Announcement 1 (spec §10.1): activating a Scope tab speaks its entry
-        // count. The count is read at activation time, not captured — Refresh
-        // and editing change it under the same handler.
+        // Announcement 1 (spec §10.1) — or, while the Scope has a Filtered
+        // View, the Scope-named filtered count (v0.2.0 §13 item 10):
+        // activating a Scope tab speaks what its list holds. The counts are
+        // read at activation time, not captured — Refresh and editing change
+        // them under the same handler.
         let app = Rc::clone(self);
         self.notebook.on_page_changed(move |event| {
             // The selection the event carries, not the notebook's: on Windows
@@ -508,11 +613,7 @@ impl App {
             let selection = event.get_selection();
             let active = app.tab_at(selection);
             if let Some(tab) = active {
-                let count = tab.session.with(|session| session.entries().len());
-                app.announcer.announce(Announcement::EntryCount {
-                    scope: tab.scope,
-                    count,
-                });
+                app.speak_scope_status(tab);
             }
             // The directory is re-read here rather than held: the other
             // instance writes Snapshots into it too, and this tab is the only
@@ -588,16 +689,16 @@ impl App {
     /// because a pass lands on its own schedule, and rebuilding would clear the
     /// focused row out from under whoever is arrowing through it. Both tabs are
     /// written, not just the active one: the tab the user is not looking at was
-    /// diagnosed by the same pass.
+    /// diagnosed by the same pass. The rows are the tab's own — the Filtered
+    /// View's visible set — so a narrowed list's cells line up with the rows
+    /// it actually shows.
     fn apply_pass(&self, diagnosis: &Diagnosis) {
         for tab in &self.tabs {
-            let (findings, rows) = tab.session.with(|session| {
-                let findings = Findings::of(session.entries(), diagnosis.scope(tab.scope));
-                let rows = Row::compose(session, Some(&findings), &self.catalogue);
-                (findings, rows)
-            });
-            tab.page.render_status(&rows);
+            let findings = tab
+                .session
+                .with(|session| Findings::of(session.entries(), diagnosis.scope(tab.scope)));
             tab.findings.with_mut(|held| *held = Some(findings));
+            tab.page.render_status(&tab.rows(&self.catalogue));
         }
         self.merged_length.set(Some(diagnosis.merged_length()));
         self.sync();
@@ -640,7 +741,8 @@ impl App {
             | Command::Redo
             | Command::Apply
             | Command::Cancel
-            | Command::Refresh => {}
+            | Command::Refresh
+            | Command::Search => {}
         }
         let Some(tab) = active else { return };
         match command {
@@ -654,6 +756,7 @@ impl App {
             Command::Apply => self.apply(tab),
             Command::Cancel => self.cancel(tab),
             Command::Refresh => self.refresh(tab),
+            Command::Search => self.focus_search(tab),
             // Answered above, before there was a Scope to answer them over.
             Command::Settings
             | Command::OpenBackupsFolder
@@ -661,6 +764,115 @@ impl App {
             | Command::Exit
             | Command::About => {}
         }
+    }
+
+    /// Ctrl+F, View → Search: focuses the active Scope's Search field and
+    /// selects its whole contents, so typing replaces the old query rather
+    /// than appending to it (v0.2.0 §3).
+    fn focus_search(&self, tab: &ScopeTab) {
+        tab.page.search.set_focus();
+        tab.page.search.select_all();
+    }
+
+    /// The debounce tick: applies what the Search field now holds as this
+    /// Scope's criteria — rebuild, enablement, StatusBar, and the spoken
+    /// count, in that order so what is heard describes what is on screen.
+    ///
+    /// A tick whose text equals the applied criteria is not a change — typing
+    /// `a` then Backspace inside one debounce window lands here with nothing
+    /// to do, and §2's "speaks only when the criteria change" says to do
+    /// nothing, loudly included.
+    fn apply_search(&self, tab: &ScopeTab) {
+        let typed = tab.page.search.get_value();
+        if tab.query.with(|query| *query == typed) {
+            return;
+        }
+        let concerned = tab.focused_entry().map(|(_, id)| id);
+        tab.query.with_mut(|query| *query = typed);
+        // Quiet: focus stays in the field the user is typing in — the rebuild
+        // marks the landing row without taking the keyboard focus, which is
+        // the mechanism ticket 04 measured silent under NVDA. The first row
+        // stands in when the rule answers nothing (a Run whose first gesture
+        // is typing has no row to keep), so Down and Tab always land on a row
+        // NVDA reads.
+        let row = self.landing_row(tab, concerned).or(Some(0));
+        tab.page.render_quiet(&tab.rows(&self.catalogue), row);
+        self.sync();
+        // Spoken only about the list the user is on: the debounce survives a
+        // tab switch, and a count describing a hidden list would be noise —
+        // the criteria still applied, and arrival speech covers the return.
+        if self
+            .active_tab()
+            .is_some_and(|active| active.scope == tab.scope)
+        {
+            self.speak_view(tab, |shown, total| Announcement::FilteredCount {
+                shown,
+                total,
+            });
+        }
+    }
+
+    /// ESC in the Search field: clears the text and returns focus to the list
+    /// (v0.2.0 §3) — the second half honouring `searchEscapeReturnsFocus`,
+    /// the first happening either way. One gesture, one meaning: on an
+    /// already-idle field it still returns focus and says nothing.
+    fn clear_search(&self, tab: &ScopeTab) {
+        // The pending debounce dies with the text it was about; the clear is
+        // applied here, discretely, not debounced. `change_value` — never
+        // `set_value` — because the programmatic clear must not fire the
+        // typing path on top of this one.
+        tab.page.debounce.stop();
+        tab.page.search.change_value("");
+        if tab.narrowed() {
+            let concerned = tab.focused_entry().map(|(_, id)| id);
+            tab.query.with_mut(String::clear);
+            let row = self.landing_row(tab, concerned).or(Some(0));
+            tab.page.render_quiet(&tab.rows(&self.catalogue), row);
+            self.sync();
+            // The criteria changed and no Filtered View remains: Announcement
+            // 1 speaks, the two-part condition's Search half (v0.2.0 §13
+            // item 1; the Filter half completes in ticket 05).
+            self.speak_view(tab, |shown, total| Announcement::FilteredCount {
+                shown,
+                total,
+            });
+        }
+        if self
+            .settings
+            .with(SettingsFile::search_escape_returns_focus)
+        {
+            tab.page.focus_list();
+        }
+    }
+
+    /// The view's voice, one shape for both count Announcements (v0.2.0 §13):
+    /// with no Filtered View, Announcement 1; narrowed, the count `narrowed`
+    /// builds — item 9 for a criteria change, item 10 for an arrival — gated
+    /// by `speakFilteredCount`, which items 9/10/11 answer to and
+    /// Announcement 1 does not. The zero case is the msgid's own business.
+    fn speak_view(&self, tab: &ScopeTab, narrowed: impl FnOnce(usize, usize) -> Announcement) {
+        let total = tab.session.with(|session| session.entries().len());
+        if !tab.narrowed() {
+            self.announcer.announce(Announcement::EntryCount {
+                scope: tab.scope,
+                count: total,
+            });
+        } else if self.settings.with(SettingsFile::speak_filtered_count) {
+            self.announcer
+                .announce(narrowed(tab.visible().len(), total));
+        }
+    }
+
+    /// The arrival voice — tab activation and Refresh: Announcement 1, or the
+    /// Scope-named filtered count (item 10) while the Scope has a Filtered
+    /// View (v0.2.0 §13 items 1 and 10).
+    fn speak_scope_status(&self, tab: &ScopeTab) {
+        let scope = tab.scope;
+        self.speak_view(tab, move |shown, total| Announcement::ScopeFilteredCount {
+            scope,
+            shown,
+            total,
+        });
     }
 
     /// Help → About: what this build is (spec §15, §16).
@@ -761,9 +973,9 @@ impl App {
     ///
     /// The order is the whole of it. What the dialog opens on is read out
     /// **before** it is shown, and what it answers is recorded and written
-    /// afterwards — `settings` is one of the plain cells ADR-0011 leaves
-    /// outside the wrapper, and a plain cell's rule is local borrows: a `Ref`
-    /// taken inside the call would live across the dialog's modal loop.
+    /// afterwards — `settings` lives behind [`Scoped`] (the Search debounce's
+    /// tick reads it too), whose closures nothing can escape: everything the
+    /// dialog needs is owned before its modal loop starts (ADR-0011).
     ///
     /// **`maxBackups` is in force the moment this returns**: the settings the
     /// window holds are what the next Apply Run reads its rotation budget from
@@ -775,7 +987,7 @@ impl App {
     /// controls the user only looked at: `record_choices` compares, and a
     /// comparison that finds nothing has nothing to write.
     fn open_settings(&self) {
-        let opening = self.settings.borrow().choices();
+        let opening = self.settings.with(SettingsFile::choices);
         // The one run that may write is the one whose OK is worth pressing.
         // Asked once, and used twice: the dialog disables its controls on this
         // answer, and the write below needs the very directory it names.
@@ -795,7 +1007,7 @@ impl App {
         let Some(data_dir) = data_dir else { return };
         // Amended on a copy, because what the file takes is what this run
         // adopts (`record_settings`). The borrow dies with this statement.
-        let mut amended = self.settings.borrow().clone();
+        let mut amended = self.settings.with(SettingsFile::clone);
         if !amended.record_choices(chosen) {
             return;
         }
@@ -838,7 +1050,7 @@ impl App {
                 }));
             return false;
         }
-        *self.settings.borrow_mut() = amended;
+        self.settings.with_mut(|settings| *settings = amended);
         true
     }
 
@@ -881,8 +1093,10 @@ impl App {
         }
         self.activate(scope);
         // The first row, or — over a Snapshot that restored nothing — the list
-        // itself, which is where `focus_row` lands when there is no row.
-        self.after_edit(tab, Some(0));
+        // itself, which is where `focus_row` lands when there is no row. Past
+        // the focus rule on purpose: a Restore concerns no single Entry, and
+        // the top of the restored list is v0.1.0's contract.
+        self.after_edit_at(tab, Some(0));
     }
 
     /// Re-reads `data\backups\` and puts it on screen.
@@ -924,17 +1138,26 @@ impl App {
                 session.add(&text)
             }
         });
-        self.after_edit(tab, added.and_then(|id| tab.row_of(id)));
+        self.after_edit(tab, added);
     }
 
-    /// Edit opens the same dialog over the focused Entry's raw text. Focus
-    /// lands back on the edited row whatever the outcome (spec §6 D7).
+    /// Edit opens the same dialog over the focused visible Entry's raw text.
+    /// Focus lands back on the edited row whatever the outcome (spec §6 D7) —
+    /// unless the edit took the Entry out of the match set, in which case it
+    /// vanishes at OK and §2's focus rule lands on the same visual position.
     fn edit(&self, tab: &ScopeTab) {
-        let focused = tab.focused_entry();
-        let Some((row, id)) = focused else { return };
-        let raw = tab
-            .session
-            .with(|session| session.entries()[row].raw().to_string());
+        let Some((_, id)) = tab.focused_entry() else {
+            return;
+        };
+        let Some(raw) = tab.session.with(|session| {
+            session
+                .entries()
+                .iter()
+                .find(|entry| entry.id() == id)
+                .map(|entry| entry.raw().to_string())
+        }) else {
+            return;
+        };
         let title = translate(msgids::DIALOG_EDIT_ENTRY);
         let Some(text) = entry_dialog::ask_for_entry(&self.frame, &self.catalogue, &title, &raw)
         else {
@@ -952,20 +1175,21 @@ impl App {
                 session.edit(id, &text);
             }
         });
-        self.after_edit(tab, tab.row_of(id));
+        self.after_edit(tab, Some(id));
     }
 
     /// Delete has no confirmation — undo is the safety net (spec §6 D4).
-    /// Focus stays at the same index, clamped to the new last row, and the row
-    /// NVDA reads there is the whole of the feedback.
+    /// Focus stays at the same visual position, clamped to the new last row —
+    /// §2's rule with the concerned Entry gone — and the row NVDA reads there
+    /// is the whole of the feedback.
     fn delete(&self, tab: &ScopeTab) {
-        let Some((row, id)) = tab.focused_entry() else {
+        let Some((_, id)) = tab.focused_entry() else {
             return;
         };
         if !tab.session.with_mut(|session| session.delete(id)) {
             return;
         }
-        self.after_edit(tab, Some(row));
+        self.after_edit(tab, None);
     }
 
     /// One Move Up or Move Down, one Checkpoint. Moving the first Entry up is
@@ -981,7 +1205,7 @@ impl App {
         if !moved {
             return;
         }
-        self.after_edit(tab, tab.row_of(id));
+        self.after_edit(tab, Some(id));
     }
 
     /// Undo and Redo restore a Checkpoint, move focus to the Entry it hints,
@@ -989,7 +1213,6 @@ impl App {
     /// back across an Apply (spec §10.1). The operation name is the one thing
     /// focus cannot say.
     fn undo_redo(&self, tab: &ScopeTab, command: Command) {
-        let previous_row = tab.page.focused_row();
         // One match, because the command decides two things that must not be
         // allowed to disagree: which way the history is walked, and which of
         // Announcement 4's two sentences says so.
@@ -998,8 +1221,7 @@ impl App {
             _ => (UndoDirection::Undo, session.undo()),
         });
         let Some(outcome) = outcome else { return };
-        let row = outcome.focus.and_then(|id| tab.row_of(id)).or(previous_row);
-        self.after_edit(tab, row);
+        self.after_edit(tab, outcome.focus);
         self.announcer
             .announce(Announcement::UndoRedo { direction, outcome });
     }
@@ -1011,11 +1233,10 @@ impl App {
         if !self.confirm(msgids::DIALOG_DISCARD_CHANGES) {
             return;
         }
-        let previous_row = tab.page.focused_row();
         if !tab.session.with_mut(Session::cancel) {
             return;
         }
-        self.after_edit(tab, previous_row);
+        self.after_edit(tab, None);
         self.announcer.announce(Announcement::ChangesDiscarded);
     }
 
@@ -1035,13 +1256,12 @@ impl App {
             return;
         }
         let Ok(raw) = tab.key().read() else { return };
-        let row = tab.adopt(raw);
-        self.after_edit(tab, row);
-        let count = tab.session.with(|session| session.entries().len());
-        self.announcer.announce(Announcement::EntryCount {
-            scope: tab.scope,
-            count,
-        });
+        let landing = tab.adopt(raw);
+        self.after_edit(tab, landing);
+        // Announcement 1 — or, while this Scope has a Filtered View, item 10:
+        // the criteria survive a Refresh untouched (v0.2.0 §2), so what is
+        // spoken is what the narrowed list now shows.
+        self.speak_scope_status(tab);
     }
 
     /// Ctrl+S: the Apply Run over the active Scope alone (spec §5, FR-apply).
@@ -1069,10 +1289,10 @@ impl App {
     /// and this is what its `None` means.
     fn apply_scopes(&self, order: &[Scope]) -> Option<apply::Outcome> {
         let data_dir = self.run.data_dir()?;
-        // Read out here rather than in the struct below: a `Ref` taken inside
-        // the call expression would live until the call returned, which is to
-        // say across every dialog the run opens.
-        let max_backups = self.settings.borrow().max_backups();
+        // Read out here rather than in the struct below: the scoped access
+        // must be closed before the run opens its dialogs, not live inside
+        // the call expression across every one of them.
+        let max_backups = self.settings.with(SettingsFile::max_backups);
         Some(apply::apply(
             ApplyRun {
                 scopes: [
@@ -1153,7 +1373,8 @@ impl App {
                     // because the sync and the diagnostic pass belong to the
                     // run as a whole, and happen once below however many Scopes
                     // it reached.
-                    let row = tab.adopt(found);
+                    let landing = tab.adopt(found);
+                    let row = self.landing_row(tab, landing);
                     tab.page.render(&tab.rows(&self.catalogue), row);
                 }
                 // Nothing happened, and the user is the one who decided so.
@@ -1310,7 +1531,7 @@ impl App {
         }
         let position = self.frame.get_position();
         let size = self.frame.get_size();
-        let mut amended = self.settings.borrow().clone();
+        let mut amended = self.settings.with(SettingsFile::clone);
         // `pathmaster_core::settings::Window` spelled out: `Window` in a wx
         // module is wx's own, and this is the record in the file.
         amended.set_window(pathmaster_core::settings::Window {
@@ -1377,14 +1598,38 @@ impl App {
         )
     }
 
-    /// Redraws the Scope, lands focus, points every control at the state that
-    /// now holds, and asks for a fresh pass — the tail of every operation, so
-    /// no screen can show one Working Copy while a menu reads another.
+    /// §2's focus rule, answered as the view row to land on: (1) the Entry the
+    /// operation concerned, if the view shows it; (2) else the visual position
+    /// the user was already at — `render`'s clamp makes "else the last visible
+    /// row" fall out of the same number; (3) `None` over an empty list, where
+    /// focus stays on the list itself and never jumps to the Search field
+    /// uninvited.
+    ///
+    /// Asked **before** the rebuild: `focused_row` still reads the list as the
+    /// user left it, which is what "same visual position" means.
+    fn landing_row(&self, tab: &ScopeTab, concerned: Option<EntryId>) -> Option<usize> {
+        concerned
+            .and_then(|id| tab.view_row_of(id))
+            .or_else(|| tab.page.focused_row())
+    }
+
+    /// Redraws the Scope, lands focus by §2's rule on the Entry the operation
+    /// concerned (`None` for an operation that concerned no surviving Entry),
+    /// points every control at the state that now holds, and asks for a fresh
+    /// pass — the tail of every operation, so no screen can show one Working
+    /// Copy while a menu reads another.
+    fn after_edit(&self, tab: &ScopeTab, concerned: Option<EntryId>) {
+        let row = self.landing_row(tab, concerned);
+        self.after_edit_at(tab, row);
+    }
+
+    /// [`after_edit`](Self::after_edit) with the landing row already decided —
+    /// Restore's first-row landing comes here directly, past the focus rule.
     ///
     /// The redraw carries the *last* pass's findings, read by Entry id: a row
     /// that only moved keeps its Status words, and the one whose text just
     /// changed shows none until the new pass lands (spec §7, FR-diag-async).
-    fn after_edit(&self, tab: &ScopeTab, row: Option<usize>) {
+    fn after_edit_at(&self, tab: &ScopeTab, row: Option<usize>) {
         tab.page.render(&tab.rows(&self.catalogue), row);
         self.sync();
         self.request_pass();
@@ -1423,30 +1668,42 @@ impl App {
             .find(|tab| tab_index(tab.scope) == selection)
     }
 
-    /// What a command's availability is decided from: a Session, and the facts
-    /// of this Run (see [`Availability`]).
-    fn availability<'a>(&self, session: Option<&'a Session>) -> Availability<'a> {
-        Availability {
-            session,
-            data_dir: self.run.data_dir().is_some(),
-            elevated: self.run.elevated(),
-        }
-    }
-
     /// Reads `tab`'s availability through a closure — [`Availability`] borrows
     /// the Session, so it lives inside the scoped access and the answer comes
     /// out owned. `None` is a tab that is not a Scope, whose availability is
     /// the Run's facts alone.
+    ///
+    /// The view facts ride along (v0.2.0 §2): each tab answers under **its
+    /// own** Filtered View, so a Scope narrowed in the background keeps its
+    /// buttons honest however long the user looks elsewhere.
     fn with_availability<R>(
         &self,
         tab: Option<&ScopeTab>,
         read: impl FnOnce(&Availability) -> R,
     ) -> R {
+        let data_dir = self.run.data_dir().is_some();
+        let elevated = self.run.elevated();
         match tab {
-            Some(tab) => tab
-                .session
-                .with(|session| read(&self.availability(Some(session)))),
-            None => read(&self.availability(None)),
+            Some(tab) => {
+                let narrowed = tab.narrowed();
+                let visible_rows = tab.visible().len();
+                tab.session.with(|session| {
+                    read(&Availability {
+                        session: Some(session),
+                        narrowed,
+                        visible_rows,
+                        data_dir,
+                        elevated,
+                    })
+                })
+            }
+            None => read(&Availability {
+                session: None,
+                narrowed: false,
+                visible_rows: 0,
+                data_dir,
+                elevated,
+            }),
         }
     }
 

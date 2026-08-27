@@ -94,6 +94,37 @@ pub const ENTRIES_SYSTEM: &str = "System PATH: {n} entry";
 pub const ENTRIES_SYSTEM_PLURAL: &str = "System PATH: {n} entries";
 pub const ENTRIES_SYSTEM_NONE: &str = "System PATH: no entries";
 
+/// The Search field's label (v0.2.0 spec §3, §14): constant, no mnemonic, and
+/// never carrying the count — a changing label is a `NAMECHANGE`, measured
+/// dead in v0.1.0.
+pub const SEARCH_LABEL: &str = "Search:";
+
+/// Announcement 9 (v0.2.0 spec §13 item 9): the filtered count on a criteria
+/// change — a typing pause, ESC into a still-filtered view, an Expansion
+/// toggle, Filter → All with query text. `{n}` is the visible count, `{m}` the
+/// Scope's total; **the plural form is selected by `{m}`**, the total —
+/// written down or lost, because the i18n gate checks plural presence, not
+/// which number chose them. The zero case is worded, its own msgid: Ukrainian's
+/// three plural forms have no zero form, and "No matching entries" is better
+/// speech than "0".
+pub const FILTERED_COUNT: &str = "{n} of {m} entry";
+pub const FILTERED_COUNT_PLURAL: &str = "{n} of {m} entries";
+pub const FILTERED_COUNT_NONE: &str = "No matching entries";
+
+/// Announcement 10 (v0.2.0 spec §13 item 10): the Scope-named filtered count
+/// on tab activation and Refresh while that Scope has a Filtered View. Whole
+/// strings per Scope, never one frame — «PATH користувача: …» agrees with its
+/// subject the way [`APPLIED_USER`]'s does — and the same composition is
+/// StatusBar field 0's per-Scope fragment while that Scope is narrowed
+/// (v0.2.0 spec §16). Plural by `{m}`; the zero cases are their own msgids,
+/// one per Scope.
+pub const FILTERED_USER: &str = "User PATH: {n} of {m} entry";
+pub const FILTERED_USER_PLURAL: &str = "User PATH: {n} of {m} entries";
+pub const FILTERED_USER_NONE: &str = "User PATH: no matching entries";
+pub const FILTERED_SYSTEM: &str = "System PATH: {n} of {m} entry";
+pub const FILTERED_SYSTEM_PLURAL: &str = "System PATH: {n} of {m} entries";
+pub const FILTERED_SYSTEM_NONE: &str = "System PATH: no matching entries";
+
 /// Announcement 2 (spec §10.1 item 2): a Scope's Working Copy reached the
 /// registry. Two whole strings rather than one frame with the Scope filled in:
 /// «PATH користувача застосовано» agrees with its subject, and a Scope name
@@ -191,13 +222,22 @@ pub const MENU_GROUP_EDIT: &str = "Edit";
 pub const MENU_GROUP_FILE: &str = "File";
 pub const MENU_GROUP_HELP: &str = "Help";
 pub const MENU_GROUP_TOOLS: &str = "Tools";
+pub const MENU_GROUP_VIEW: &str = "View";
 
-/// The menu bar's titles (spec §15), complete: the mnemonics are F, E, T, H —
-/// unique across the bar, and gated.
+/// The menu bar's titles (spec §15; v0.2.0 §12): the mnemonics are F, E, V,
+/// T, H — unique across the bar, and gated. View returns with v0.2.0, between
+/// Edit and Tools: commands that change *what the list shows* live there.
 pub const MENU_TITLE_EDIT: &str = "&Edit";
 pub const MENU_TITLE_FILE: &str = "&File";
 pub const MENU_TITLE_HELP: &str = "&Help";
 pub const MENU_TITLE_TOOLS: &str = "&Tools";
+pub const MENU_TITLE_VIEW: &str = "&View";
+
+/// The View menu's first item (v0.2.0 §12): Ctrl+F's menu home, which focuses
+/// the Search field and selects its contents. The accelerator is appended by
+/// the code, never typed here (ADR-0004). Its mnemonic is S, unique in the
+/// menu it opens.
+pub const MENU_SEARCH: &str = "&Search";
 
 /// The File menu's items (spec §15). Apply is here because Ctrl+S can only
 /// live on a menu item's label — wxdragon binds no accelerator table at any
@@ -448,6 +488,13 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::text(ENTRIES_USER_NONE),
     CatalogueEntry::plural(ENTRIES_SYSTEM, ENTRIES_SYSTEM_PLURAL),
     CatalogueEntry::text(ENTRIES_SYSTEM_NONE),
+    CatalogueEntry::text(SEARCH_LABEL),
+    CatalogueEntry::plural(FILTERED_COUNT, FILTERED_COUNT_PLURAL),
+    CatalogueEntry::text(FILTERED_COUNT_NONE),
+    CatalogueEntry::plural(FILTERED_USER, FILTERED_USER_PLURAL),
+    CatalogueEntry::text(FILTERED_USER_NONE),
+    CatalogueEntry::plural(FILTERED_SYSTEM, FILTERED_SYSTEM_PLURAL),
+    CatalogueEntry::text(FILTERED_SYSTEM_NONE),
     CatalogueEntry::text(APPLIED_USER),
     CatalogueEntry::text(APPLIED_SYSTEM),
     CatalogueEntry::text(APPLY_FAILED),
@@ -472,6 +519,8 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::menu_item(MENU_TITLE_FILE, MENU_GROUP_BAR),
     CatalogueEntry::menu_item(MENU_TITLE_HELP, MENU_GROUP_BAR),
     CatalogueEntry::menu_item(MENU_TITLE_TOOLS, MENU_GROUP_BAR),
+    CatalogueEntry::menu_item(MENU_TITLE_VIEW, MENU_GROUP_BAR),
+    CatalogueEntry::menu_item(MENU_SEARCH, MENU_GROUP_VIEW),
     CatalogueEntry::menu_item(MENU_APPLY, MENU_GROUP_FILE),
     CatalogueEntry::menu_item(MENU_EXIT, MENU_GROUP_FILE),
     CatalogueEntry::menu_item(MENU_ADD_ENTRY, MENU_GROUP_EDIT),

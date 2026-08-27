@@ -263,15 +263,17 @@ fn a_failed_apply_fills_the_cause_into_the_one_sentence_the_taxonomy_speaks() {
 }
 
 #[test]
-fn the_announcement_catalogue_is_the_specs_seven_and_nothing_else() {
-    // ADR-0003 closed the catalogue at seven and nothing enforced it. This is
-    // the enforcement: six variants for seven items, because item 5 is item
-    // 4's text with a suffix and `crossed_apply` already models it.
+fn the_announcement_catalogue_is_the_specs_items_and_nothing_else() {
+    // ADR-0003 closed the catalogue and nothing enforced it. This is the
+    // enforcement: one variant per item the shipped tickets speak — item 5 is
+    // item 4's text with a suffix and `crossed_apply` already models it, and
+    // v0.2.0's items land here with the tickets that speak them (v0.2.0 §13,
+    // closing at fourteen).
     let catalogue = every_announcement();
-    assert_eq!(catalogue.len(), 6);
+    assert_eq!(catalogue.len(), 8);
     assert_eq!(
         catalogue.iter().map(|(item, _)| *item).collect::<Vec<u8>>(),
-        [1, 2, 3, 4, 6, 7]
+        [1, 2, 3, 4, 6, 7, 9, 10]
     );
     // Item 5 is the one with no variant of its own — and it is reachable, or
     // the count above would be hiding a message rather than sharing one.
@@ -326,6 +328,15 @@ fn every_announcement() -> Vec<(u8, Announcement)> {
                 reason: msgids::READONLY_REASON_CANNOT_CREATE,
             },
         ),
+        (9, Announcement::FilteredCount { shown: 1, total: 3 }),
+        (
+            10,
+            Announcement::ScopeFilteredCount {
+                scope: Scope::User,
+                shown: 1,
+                total: 3,
+            },
+        ),
     ];
     for (_, announcement) in &catalogue {
         match announcement {
@@ -334,7 +345,9 @@ fn every_announcement() -> Vec<(u8, Announcement)> {
             | Announcement::ApplyFailed { .. }
             | Announcement::UndoRedo { .. }
             | Announcement::ChangesDiscarded
-            | Announcement::ReadOnly { .. } => {}
+            | Announcement::ReadOnly { .. }
+            | Announcement::FilteredCount { .. }
+            | Announcement::ScopeFilteredCount { .. } => {}
         }
     }
     catalogue
@@ -448,11 +461,13 @@ fn a_healthy_entry_gets_an_empty_column_and_never_a_word_for_it() {
 // ---- StatusBar field 0: the general status (spec §12) ----
 
 /// One Scope's numbers as the window reports them: `issues` is `None` until a
-/// pass has looked.
+/// pass has looked, and `visible` is `None` while no Filtered View narrows the
+/// Scope (v0.2.0 spec §16).
 fn counts(scope: Scope, entries: usize, issues: Option<usize>) -> ScopeCounts {
     ScopeCounts {
         scope,
         entries,
+        visible: None,
         issues,
     }
 }
@@ -743,5 +758,141 @@ fn the_product_name_is_not_looked_up_while_the_elevated_title_is() {
     assert_eq!(
         Catalogue::new(Marked).window_title(true),
         format!("[{}]", msgids::WINDOW_TITLE_ELEVATED)
+    );
+}
+
+// ---- Announcement 9: the filtered count (v0.2.0 spec §13 item 9) ----
+
+#[test]
+fn the_filtered_count_names_shown_of_total() {
+    assert_eq!(
+        the_catalogue().announcement(Announcement::FilteredCount {
+            shown: 4,
+            total: 50,
+        }),
+        "4 of 50 entries"
+    );
+}
+
+#[test]
+fn the_filtered_counts_plural_is_selected_by_the_total() {
+    // Plural by {m}, the total — written down or lost, because the i18n gate
+    // checks plural presence, not which number chose them (v0.2.0 spec §3).
+    assert_eq!(
+        the_catalogue().announcement(Announcement::FilteredCount { shown: 1, total: 1 }),
+        "1 of 1 entry"
+    );
+    assert_eq!(
+        the_catalogue().announcement(Announcement::FilteredCount { shown: 1, total: 9 }),
+        "1 of 9 entries"
+    );
+}
+
+#[test]
+fn no_matches_takes_its_own_msgid_rather_than_a_zero() {
+    // Worded, never a bare zero (v0.2.0 spec §13 item 9's zero case) — and
+    // Ukrainian's three plural forms have no zero form to give it.
+    assert_eq!(
+        the_catalogue().announcement(Announcement::FilteredCount {
+            shown: 0,
+            total: 50,
+        }),
+        "No matching entries"
+    );
+}
+
+// ---- Announcement 10: the Scope-named filtered count (v0.2.0 §13 item 10) ----
+
+#[test]
+fn the_scope_named_filtered_count_is_a_whole_string_per_scope() {
+    assert_eq!(
+        the_catalogue().announcement(Announcement::ScopeFilteredCount {
+            scope: Scope::User,
+            shown: 4,
+            total: 50,
+        }),
+        "User PATH: 4 of 50 entries"
+    );
+    assert_eq!(
+        the_catalogue().announcement(Announcement::ScopeFilteredCount {
+            scope: Scope::System,
+            shown: 1,
+            total: 1,
+        }),
+        "System PATH: 1 of 1 entry"
+    );
+}
+
+#[test]
+fn the_scope_named_zero_case_is_its_own_string_per_scope() {
+    // Two Scope-named strings, never one frame (v0.2.0 spec §13 item 10).
+    assert_eq!(
+        the_catalogue().announcement(Announcement::ScopeFilteredCount {
+            scope: Scope::User,
+            shown: 0,
+            total: 50,
+        }),
+        "User PATH: no matching entries"
+    );
+    assert_eq!(
+        the_catalogue().announcement(Announcement::ScopeFilteredCount {
+            scope: Scope::System,
+            shown: 0,
+            total: 50,
+        }),
+        "System PATH: no matching entries"
+    );
+}
+
+// ---- StatusBar field 0 under a Filtered View (v0.2.0 spec §16) ----
+
+#[test]
+fn a_narrowed_scope_reports_shown_of_total_and_keeps_counting_its_own_issues() {
+    // The parenthetical never changes meaning: it counts the Scope's Issues,
+    // not the view's — a filter is a view, the diagnosis is a fact about the
+    // data (v0.2.0 spec §16).
+    assert_eq!(
+        the_catalogue().general_status(
+            [
+                ScopeCounts {
+                    scope: Scope::User,
+                    entries: 50,
+                    visible: Some(4),
+                    issues: Some(12),
+                },
+                ScopeCounts {
+                    scope: Scope::System,
+                    entries: 9,
+                    visible: None,
+                    issues: Some(0),
+                },
+            ],
+            None
+        ),
+        "User PATH: 4 of 50 entries (12 issues) | System PATH: 9 entries (0 issues)"
+    );
+}
+
+#[test]
+fn a_narrowed_scope_with_no_matches_reads_the_worded_zero_case() {
+    assert_eq!(
+        the_catalogue().general_status(
+            [
+                ScopeCounts {
+                    scope: Scope::User,
+                    entries: 50,
+                    visible: Some(0),
+                    issues: Some(12),
+                },
+                ScopeCounts {
+                    scope: Scope::System,
+                    entries: 9,
+                    visible: None,
+                    issues: None,
+                },
+            ],
+            None
+        ),
+        "User PATH: no matching entries (12 issues) | System PATH: 9 entries"
     );
 }

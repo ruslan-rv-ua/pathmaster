@@ -1,5 +1,5 @@
-//! The fifteen commands the window carries, and the menus they live in
-//! (spec §15, §5, §6).
+//! The sixteen commands the window carries, and the menus they live in
+//! (spec §15, §5, §6; v0.2.0 §12).
 //!
 //! One enum is the whole map: it names the menu items, the menu each belongs
 //! to, the ids the menu events arrive under, the accelerators, the per-Scope
@@ -22,9 +22,9 @@ use crate::catalog::translate;
 
 /// One user-visible command.
 ///
-/// Ten of them are about a Scope; the last five are not, and are here for the
-/// reason the enum exists at all: they are menu items, and a menu item's id,
-/// label and enabled state are answered in one place or in three.
+/// Eleven of them are about a Scope; the last five are not, and are here for
+/// the reason the enum exists at all: they are menu items, and a menu item's
+/// id, label and enabled state are answered in one place or in three.
 ///
 /// **Restore is deliberately not one of them.** §15 gives it no menu item and
 /// no accelerator — the Backups tab covers it — and a button on that tab is not
@@ -43,6 +43,7 @@ pub enum Command {
     Apply,
     Cancel,
     Refresh,
+    Search,
     Settings,
     OpenBackupsFolder,
     RestartAsAdministrator,
@@ -61,6 +62,15 @@ pub enum Command {
 /// settings belong to the Run, not to whichever tab happens to be showing.
 pub struct Availability<'a> {
     pub session: Option<&'a Session>,
+    /// Whether this Scope's Filtered View is active — a non-empty Search text
+    /// (the Filter axis composes in with ticket 05). A reorder's effect
+    /// concerns positions the user cannot see, and Add appends below them, so
+    /// a narrowed view closes Move Up, Move Down and Add (v0.2.0 §2).
+    pub narrowed: bool,
+    /// How many Entries the view now shows — the Scope's whole count when
+    /// nothing narrows it. Edit and Delete act on the focused **visible**
+    /// Entry, so zero visible rows closes them even over a non-empty Scope.
+    pub visible_rows: usize,
     /// Whether this Run has a Data Directory at all. The one Run that has none
     /// does not know where it is (`ReadOnlyReason::OwnLocationUnknown`), and so
     /// has no folder of Snapshots to show.
@@ -76,7 +86,7 @@ impl Command {
     /// Every command, in **button** order — §15's Add, Edit, Delete, Move Up,
     /// Move Down, Apply, Cancel — which is also the order each menu takes its
     /// own items in, since [`menu`](Self::menu) preserves it.
-    pub const ALL: [Command; 15] = [
+    pub const ALL: [Command; 16] = [
         Command::Add,
         Command::Edit,
         Command::Delete,
@@ -87,6 +97,7 @@ impl Command {
         Command::Apply,
         Command::Cancel,
         Command::Refresh,
+        Command::Search,
         Command::Settings,
         Command::OpenBackupsFolder,
         Command::RestartAsAdministrator,
@@ -94,10 +105,13 @@ impl Command {
         Command::About,
     ];
 
-    /// The menus, in menu-bar order — the whole of spec §15's table.
-    const MENUS: [(&'static str, &'static str); 4] = [
+    /// The menus, in menu-bar order — the whole of spec §15's table, with
+    /// v0.2.0 §12's View between Edit and Tools: commands that change *what
+    /// the list shows* live there.
+    const MENUS: [(&'static str, &'static str); 5] = [
         (msgids::MENU_TITLE_FILE, msgids::MENU_GROUP_FILE),
         (msgids::MENU_TITLE_EDIT, msgids::MENU_GROUP_EDIT),
+        (msgids::MENU_TITLE_VIEW, msgids::MENU_GROUP_VIEW),
         (msgids::MENU_TITLE_TOOLS, msgids::MENU_GROUP_TOOLS),
         (msgids::MENU_TITLE_HELP, msgids::MENU_GROUP_HELP),
     ];
@@ -139,6 +153,7 @@ impl Command {
             | Command::Redo
             | Command::Cancel
             | Command::Refresh => msgids::MENU_GROUP_EDIT,
+            Command::Search => msgids::MENU_GROUP_VIEW,
             Command::Settings | Command::OpenBackupsFolder | Command::RestartAsAdministrator => {
                 msgids::MENU_GROUP_TOOLS
             }
@@ -160,6 +175,7 @@ impl Command {
             Command::Redo => msgids::MENU_REDO,
             Command::Cancel => msgids::MENU_CANCEL,
             Command::Refresh => msgids::MENU_REFRESH,
+            Command::Search => msgids::MENU_SEARCH,
             Command::Settings => msgids::MENU_SETTINGS,
             Command::OpenBackupsFolder => msgids::MENU_OPEN_BACKUPS_FOLDER,
             Command::RestartAsAdministrator => msgids::MENU_RESTART_AS_ADMIN,
@@ -192,6 +208,7 @@ impl Command {
             Command::Undo
             | Command::Redo
             | Command::Refresh
+            | Command::Search
             | Command::Settings
             | Command::OpenBackupsFolder
             | Command::RestartAsAdministrator
@@ -220,6 +237,10 @@ impl Command {
             Command::Apply => Some("Ctrl+S"),
             Command::Exit => Some("Alt+F4"),
             Command::Refresh => Some("F5"),
+            // Fires frame-wide even with focus already in the Search field —
+            // wxMSW's text-entry preprocessing claims only Ctrl+C/X/V/A
+            // (v0.2.0 §12), which is intended: one keystroke, one meaning.
+            Command::Search => Some("Ctrl+F"),
             Command::Add
             | Command::Cancel
             | Command::Settings
@@ -281,18 +302,30 @@ impl Command {
             | Command::Redo
             | Command::Apply
             | Command::Cancel
-            | Command::Refresh => available.session.is_some_and(|session| self.over(session)),
+            | Command::Refresh
+            | Command::Search => available
+                .session
+                .is_some_and(|session| self.over(session, available)),
         }
     }
 
-    /// What a Scope command asks of the Session it would act on.
-    fn over(self, session: &Session) -> bool {
+    /// What a Scope command asks of the Session it would act on — and, for the
+    /// commands a Filtered View narrows, of the view (v0.2.0 §2).
+    fn over(self, session: &Session, available: &Availability) -> bool {
         match self {
             Command::Refresh => true,
+            // Read-only Data searches normally: a Run that cannot edit still
+            // reads, diagnoses and lists (v0.2.0 §3).
+            Command::Search => true,
             _ if !session.writable() => false,
-            Command::Add => true,
-            Command::Edit | Command::Delete | Command::MoveUp | Command::MoveDown => {
-                !session.entries().is_empty()
+            // Add appends at the end — a position a narrowed view may be
+            // hiding, so it closes with Move Up and Move Down (v0.2.0 §2).
+            Command::Add => !available.narrowed,
+            // The focused **visible** Entry is what these act on: an empty
+            // result set shows zero rows and closes both (v0.2.0 §2, §3).
+            Command::Edit | Command::Delete => available.visible_rows > 0,
+            Command::MoveUp | Command::MoveDown => {
+                !available.narrowed && available.visible_rows > 0
             }
             Command::Undo => session.can_undo(),
             Command::Redo => session.can_redo(),

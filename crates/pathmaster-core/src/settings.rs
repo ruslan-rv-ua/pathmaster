@@ -35,16 +35,38 @@ pub const DEFAULT_LANGUAGE: LanguageChoice = LanguageChoice::Auto;
 /// delete the pre-Apply safety net the product exists to provide.
 pub const DEFAULT_MAX_BACKUPS: u32 = 50;
 
+/// Whether the filtered count Announcements — items 9, 10 and 11 — speak at
+/// all (v0.2.0 spec §15).
+pub const DEFAULT_SPEAK_FILTERED_COUNT: bool = true;
+
+/// The debounce before a filtered count speaks, in milliseconds (v0.2.0 spec
+/// §15). The default is the primary user's own verdict from the ticket-04 NVDA
+/// session — snappy 250 over the research's 1400; the setting exists precisely
+/// so it can be slowed. `0` is a legal delay; the ceiling keeps a typo from
+/// silently muting a feature the user believes is on.
+pub const DEFAULT_FILTERED_COUNT_DELAY_MS: u32 = 250;
+pub const MAX_FILTERED_COUNT_DELAY_MS: u32 = 5000;
+
+/// Whether ESC in the Search field returns focus to the list (v0.2.0 spec §15)
+/// — the PRD's shape by default, reversible toward the Windows/ARIA
+/// stay-in-the-field convention.
+pub const DEFAULT_SEARCH_ESCAPE_RETURNS_FOCUS: bool = true;
+
 /// How the geometry default reads in the log — the only default with no value
 /// to render, because having none *is* the default (spec §12: first run is
 /// 900×650 centred, which the window decides, not the file).
 const DEFAULT_WINDOW_SHOWN: &str = "none";
 
 /// The field names, which are the file's API surface — never translated
-/// (spec §11) and never spelled twice.
+/// (spec §11) and never spelled twice. Flat `camelCase`, deliberately not a
+/// record (v0.2.0 spec §15): each of the three Filtered View fields has its
+/// own default, and a record would let one typo silently reset all three.
 const LANGUAGE: &str = "language";
 const MAX_BACKUPS: &str = "maxBackups";
 const WINDOW: &str = "window";
+const SPEAK_FILTERED_COUNT: &str = "speakFilteredCount";
+const FILTERED_COUNT_DELAY_MS: &str = "filteredCountDelayMs";
+const SEARCH_ESCAPE_RETURNS_FOCUS: &str = "searchEscapeReturnsFocus";
 
 /// The window's remembered geometry (spec §12): where it was, how big, and
 /// whether it was maximised. Restoring it is clamped to the connected
@@ -160,6 +182,9 @@ pub struct SettingsFile {
     language: LanguageChoice,
     max_backups: u32,
     window: Option<Window>,
+    speak_filtered_count: bool,
+    filtered_count_delay_ms: u32,
+    search_escape_returns_focus: bool,
 }
 
 impl SettingsFile {
@@ -173,6 +198,9 @@ impl SettingsFile {
             language: DEFAULT_LANGUAGE,
             max_backups: DEFAULT_MAX_BACKUPS,
             window: None,
+            speak_filtered_count: DEFAULT_SPEAK_FILTERED_COUNT,
+            filtered_count_delay_ms: DEFAULT_FILTERED_COUNT_DELAY_MS,
+            search_escape_returns_focus: DEFAULT_SEARCH_ESCAPE_RETURNS_FOCUS,
         }
     }
 
@@ -210,6 +238,28 @@ impl SettingsFile {
             &mut rejected,
             Window::read,
         );
+        let speak_filtered_count = read_field(
+            &document,
+            SPEAK_FILTERED_COUNT,
+            &DEFAULT_SPEAK_FILTERED_COUNT.to_string(),
+            &mut rejected,
+            Value::as_bool,
+        );
+        let filtered_count_delay_ms = read_field(
+            &document,
+            FILTERED_COUNT_DELAY_MS,
+            &DEFAULT_FILTERED_COUNT_DELAY_MS.to_string(),
+            &mut rejected,
+            // 0–5000 whole; nothing outside the domain is nudged into it.
+            |value| value.as_u64().and_then(in_count_delay),
+        );
+        let search_escape_returns_focus = read_field(
+            &document,
+            SEARCH_ESCAPE_RETURNS_FOCUS,
+            &DEFAULT_SEARCH_ESCAPE_RETURNS_FOCUS.to_string(),
+            &mut rejected,
+            Value::as_bool,
+        );
 
         Parsed::Readable {
             file: SettingsFile {
@@ -217,6 +267,11 @@ impl SettingsFile {
                 language: language.unwrap_or(DEFAULT_LANGUAGE),
                 max_backups: max_backups.unwrap_or(DEFAULT_MAX_BACKUPS),
                 window,
+                speak_filtered_count: speak_filtered_count.unwrap_or(DEFAULT_SPEAK_FILTERED_COUNT),
+                filtered_count_delay_ms: filtered_count_delay_ms
+                    .unwrap_or(DEFAULT_FILTERED_COUNT_DELAY_MS),
+                search_escape_returns_focus: search_escape_returns_focus
+                    .unwrap_or(DEFAULT_SEARCH_ESCAPE_RETURNS_FOCUS),
             },
             rejected,
         }
@@ -236,6 +291,24 @@ impl SettingsFile {
     /// The remembered geometry, or `None` when the file has none to give.
     pub fn window(&self) -> Option<Window> {
         self.window
+    }
+
+    /// Whether the filtered count Announcements — items 9, 10 and 11 — speak
+    /// (v0.2.0 spec §15).
+    pub fn speak_filtered_count(&self) -> bool {
+        self.speak_filtered_count
+    }
+
+    /// The debounce before a filtered count speaks, in milliseconds — always
+    /// within 0–5000 (v0.2.0 spec §15).
+    pub fn filtered_count_delay_ms(&self) -> u32 {
+        self.filtered_count_delay_ms
+    }
+
+    /// Whether ESC in the Search field returns focus to the list (v0.2.0 spec
+    /// §15).
+    pub fn search_escape_returns_focus(&self) -> bool {
+        self.search_escape_returns_focus
     }
 
     /// The two settings the Settings dialog opens on — what this run is using,
@@ -349,6 +422,15 @@ pub fn parse_max_backups(typed: &str) -> Option<u32> {
 /// at zero deletes the pre-Apply safety net — and the ceiling is the type's.
 fn in_backup_budget(n: u64) -> Option<u32> {
     u32::try_from(n).ok().filter(|n| *n >= 1)
+}
+
+/// The count delay this application accepts: whole, 0–5000 (v0.2.0 spec §15).
+/// Zero is legal — speak on the next tick — and nothing past the ceiling is
+/// clamped into it: a typo falls back to the default, visibly in the log.
+fn in_count_delay(n: u64) -> Option<u32> {
+    u32::try_from(n)
+        .ok()
+        .filter(|n| *n <= MAX_FILTERED_COUNT_DELAY_MS)
 }
 
 /// One field through the field layer: absent is not a rejection, a value

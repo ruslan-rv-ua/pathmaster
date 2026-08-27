@@ -99,6 +99,44 @@ msgstr[1] "System PATH: {n} entries"
 msgid "System PATH: no entries"
 msgstr "System PATH: no entries"
 
+#. Search field label, above each Scope's list. Constant, no mnemonic, and it
+#. never carries the count.
+msgid "Search:"
+msgstr "Search:"
+
+#. Announcement: the filtered count after a typing pause — {n} entries shown
+#. of the Scope's {m}. The plural form is selected by {m}, the total.
+msgid "{n} of {m} entry"
+msgid_plural "{n} of {m} entries"
+msgstr[0] "{n} of {m} entry"
+msgstr[1] "{n} of {m} entries"
+
+#. Announcement: the filtered count's zero case — worded, never a bare "0".
+msgid "No matching entries"
+msgstr "No matching entries"
+
+#. Announcement: the Scope-named filtered count, on tab activation and Refresh
+#. while the User tab is narrowed; also its StatusBar fragment then. Plural
+#. by {m}.
+msgid "User PATH: {n} of {m} entry"
+msgid_plural "User PATH: {n} of {m} entries"
+msgstr[0] "User PATH: {n} of {m} entry"
+msgstr[1] "User PATH: {n} of {m} entries"
+
+#. Announcement: the User tab's filtered zero case.
+msgid "User PATH: no matching entries"
+msgstr "User PATH: no matching entries"
+
+#. Announcement: the Scope-named filtered count for the System tab.
+msgid "System PATH: {n} of {m} entry"
+msgid_plural "System PATH: {n} of {m} entries"
+msgstr[0] "System PATH: {n} of {m} entry"
+msgstr[1] "System PATH: {n} of {m} entries"
+
+#. Announcement: the System tab's filtered zero case.
+msgid "System PATH: no matching entries"
+msgstr "System PATH: no matching entries"
+
 #. Announcement: spoken after this Scope's entries reached the registry. Two
 #. strings rather than one with the Scope filled in — the sentence agrees with
 #. its subject, and a name dropped into a shared frame would not.
@@ -217,6 +255,16 @@ msgstr "&Help"
 #. Menu bar title. The mnemonic letter is Latin in every language.
 msgid "&Tools"
 msgstr "&Tools"
+
+#. Menu bar title: commands that change what the list shows, between Edit and
+#. Tools.
+msgid "&View"
+msgstr "&View"
+
+#. View menu item: focuses the Search field and selects its contents (Ctrl+F).
+#. The code appends its accelerator.
+msgid "&Search"
+msgstr "&Search"
 
 #. File menu item: writes the active Scope's entries to the registry (Ctrl+S).
 #. The code appends its accelerator.

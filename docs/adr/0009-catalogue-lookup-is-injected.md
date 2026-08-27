@@ -46,7 +46,11 @@ that *can* be announced from outside the catalogue — which is what ADR-0003 as
 - **Six variants stand for seven Announcements.** §10.1's item 5 is item 4's text with the
   ", unsaved changes" suffix, not a message of its own, and `UndoOutcome::crossed_apply` already models
   it exactly. Writing it as a seventh variant would create a second route to one sentence; the count is
-  recorded here so the discrepancy is not later "fixed".
+  recorded here so the discrepancy is not later "fixed". *(Amended 2026-08-27: the v0.2.0 delta-spec
+  §13 is the contract change this ADR said adding a message would be — the closed set grows 7 → 14,
+  one variant per new item, landing with the impl tickets that speak them. Item 5's share-a-variant
+  rule stands; what closes the set is still the type and its test, only the number in that test moves
+  with the spec.)*
 - **A platform type may not appear in an Announcement.** `ReadOnlyReason` lives in
   `pathmaster-platform`, and so will impl ticket 13's typed Apply failure; core cannot name either
   without reversing the dependency direction. Both contribute a **msgid** instead, which is what

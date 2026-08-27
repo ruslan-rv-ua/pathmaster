@@ -533,3 +533,91 @@ fn the_backup_budget_field_rejects_everything_the_file_would_have_rejected() {
         assert_eq!(parse_max_backups(typed), None, "{typed:?}");
     }
 }
+
+// ------------------------------------ the three Filtered View fields (v0.2.0)
+
+#[test]
+fn the_filtered_view_fields_default_when_the_file_does_not_name_them() {
+    let (file, rejected) = read("{}");
+    assert!(file.speak_filtered_count());
+    assert_eq!(file.filtered_count_delay_ms(), 250);
+    assert!(file.search_escape_returns_focus());
+    assert!(rejected.is_empty());
+}
+
+#[test]
+fn the_filtered_view_fields_are_read_when_the_file_names_them_validly() {
+    let (file, rejected) = read(
+        r#"{"speakFilteredCount": false,
+            "filteredCountDelayMs": 1400,
+            "searchEscapeReturnsFocus": false}"#,
+    );
+    assert!(!file.speak_filtered_count());
+    assert_eq!(file.filtered_count_delay_ms(), 1400);
+    assert!(!file.search_escape_returns_focus());
+    assert!(rejected.is_empty());
+}
+
+#[test]
+fn zero_is_a_legal_delay_and_the_upper_bound_is_not_off_by_one() {
+    // 0 means "speak on the next tick"; 5000 is the ceiling that keeps a typo
+    // from silently muting a feature the user believes is on (spec §15).
+    let (file, rejected) = read(r#"{"filteredCountDelayMs": 0}"#);
+    assert_eq!(file.filtered_count_delay_ms(), 0);
+    assert!(rejected.is_empty());
+
+    let (file, rejected) = read(r#"{"filteredCountDelayMs": 5000}"#);
+    assert_eq!(file.filtered_count_delay_ms(), 5000);
+    assert!(rejected.is_empty());
+}
+
+#[test]
+fn a_delay_outside_the_domain_falls_back_to_its_default_and_is_never_clamped() {
+    for (text, raw) in [
+        (r#"{"filteredCountDelayMs": 5001}"#, "5001"),
+        (r#"{"filteredCountDelayMs": -1}"#, "-1"),
+        (r#"{"filteredCountDelayMs": 2.5}"#, "2.5"),
+        (r#"{"filteredCountDelayMs": "250"}"#, "250"),
+        (r#"{"filteredCountDelayMs": null}"#, "null"),
+    ] {
+        let (file, rejected) = read(text);
+        assert_eq!(file.filtered_count_delay_ms(), 250, "{text}");
+        assert_eq!(
+            rejected_fields(&rejected),
+            ["filteredCountDelayMs"],
+            "{text}"
+        );
+        assert_eq!(rejected[0].raw, raw, "{text}");
+        assert_eq!(rejected[0].default, "250", "{text}");
+    }
+}
+
+#[test]
+fn a_boolean_field_that_is_not_a_boolean_falls_back_and_is_reported() {
+    for (text, field) in [
+        (r#"{"speakFilteredCount": "yes"}"#, "speakFilteredCount"),
+        (r#"{"speakFilteredCount": 1}"#, "speakFilteredCount"),
+        (
+            r#"{"searchEscapeReturnsFocus": "true"}"#,
+            "searchEscapeReturnsFocus",
+        ),
+        (
+            r#"{"searchEscapeReturnsFocus": null}"#,
+            "searchEscapeReturnsFocus",
+        ),
+    ] {
+        let (file, rejected) = read(text);
+        assert!(file.speak_filtered_count(), "{text}");
+        assert!(file.search_escape_returns_focus(), "{text}");
+        assert_eq!(rejected_fields(&rejected), [field], "{text}");
+        assert_eq!(rejected[0].default, "true", "{text}");
+    }
+}
+
+#[test]
+fn a_rejected_filtered_view_field_keeps_its_raw_text_in_the_document() {
+    // The file keeps what the hand wrote (spec §13, choice-not-outcome): the
+    // rewrite hands back the raw value the run could not read.
+    let (file, _) = read(r#"{"filteredCountDelayMs": 99999}"#);
+    assert!(file.to_json().contains("99999"), "{}", file.to_json());
+}
