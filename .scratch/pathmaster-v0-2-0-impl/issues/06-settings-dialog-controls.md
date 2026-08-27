@@ -6,13 +6,13 @@
 
 **Blocked by:** 03 (the fields and the behaviour they gate).
 
-**Status:** in review — built and driven live in both languages; the NVDA reading is the one bullet still open, see Comments
+**Status:** in review — built and driven live in both languages; the NVDA reading is **deferred to the Release Checklist by the user's decision** (2026-08-27), not left undone, see Comments
 
 - [x] Three controls with the assembly labels (amendable at implementation like v0.1.0's dialog strings were): "Speak filtered entry counts" («Озвучувати кількість відфільтрованих записів»), "Delay before speaking the count (ms)" («Затримка перед озвученням кількості (мс)»), "Escape returns focus to the list" («Escape повертає фокус до списку») — taken unamended
 - [x] The dialog's existing rules extend unchanged: only changed settings are written, domains are one rule read twice (0–5000 for the delay, 0 legal), Read-only Data disables the controls and OK
 - [x] Changing the delay in the dialog demonstrably changes when the count speaks; turning `speakFilteredCount` off demonstrably silences items 9/10/11 without touching anything else
 - [x] New dialog msgids shipped in both languages, i18n gate green
-- [ ] NVDA reads the three controls and their states on the free native path
+- [ ] NVDA reads the three controls and their states on the free native path — **deferred to the Release Checklist (B12a, B18) by decision, 2026-08-27**
 
 ## Comments
 
@@ -69,11 +69,16 @@ With both fields wrong the budget's message comes first. `settings.json` gains o
 `maxBackups` were left alone. In the unwritable-`data\` run the selector, both fields, **both
 checkboxes** and OK all read disabled with their values still shown, Cancel alone alive.
 
-**Still open: the NVDA reading.** The controls are stock `wxCheckBox` (native `Button` answering
-`BM_GETCHECK`) and a `TextCtrl` behind a `StaticText`, with zero accessibility calls — ADR-0003's
-free native path by construction — but this project measures rather than assumes, and the
-unattended harness needs NVDA's logging level at Input/Output, which logs every keystroke on the
-machine while it is on. Left for the user to authorise or to walk at the keyboard.
+**The NVDA reading is deferred to the Release Checklist, by decision** (user, 2026-08-27) — a
+decision, not an omission. The controls are stock `wxCheckBox` (native `Button` answering
+`BM_GETCHECK`, confirmed cross-process) and a `TextCtrl` behind a `StaticText`, with zero
+accessibility calls: ADR-0003's free native path by construction. But this project measures rather
+than assumes, and the two ways to measure both cost something the ticket does not get to spend —
+the unattended harness needs NVDA's logging level at Input/Output, which records every keystroke on
+the machine while it is on, and a HITL session is the user's time. B12a and B18 already carry the
+expected speech, so the measurement happens where the other twenty-odd NVDA facts about this dialog
+are already checked. **Nothing here is believed until it does**: the bullet stays unticked and the
+ticket stays in review.
 
 The Release Checklist steps **this** change falsifies were rewritten here rather than left to
 ticket 12, which is not told to touch them: B12a's Tab list now names the three controls and their
