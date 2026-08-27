@@ -191,6 +191,13 @@ reverse, surprising, and a genuine trade-off earns an ADR under `docs/adr/`.
   Hands 15/impl one hard constraint: the Search debounce timer must own a non-Frame widget
   (wxdragon binds `on_tick` on the owner, no id filter). No menu item, no Announcement, no
   settings field, no CONTEXT.md term.
+- [NVDA verification round 2](issues/16-nvda-verification-round-2.md) — all seven parked
+  obligations discharged by the user against real NVDA (2026-08-27), **no contract amended**:
+  check and radio menu items speak their state (the radio check follows the active Scope), both
+  successive announcements survive at the 250 ms default (no floor change), compressed tree nodes
+  and three-part leaves speak in full, "Go to entry"/Cancel land and speak, and native listview
+  checkboxes read, toggle on Space with the change announced, and survive the silent wx event
+  layer; the focus-then-Announcement order on [Fix selected] confirmed as designed.
 
 In scope, but not yet sharp enough to ticket. Graduates as the frontier advances.
 

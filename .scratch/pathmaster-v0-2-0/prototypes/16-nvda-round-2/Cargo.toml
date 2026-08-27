@@ -1,0 +1,27 @@
+# THROWAWAY PROTOTYPE — wayfinder v0.2.0 ticket 16 (NVDA verification round 2).
+# One window discharging the seven listening obligations tickets 05-09 accumulated.
+# Exists only to be listened to with NVDA. Delete once ticket 16 is resolved.
+[package]
+name = "nvda-round-2-prototype"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+# Same pin as the app (>= 0.9.17 per v0.1.0 ticket 01; 0.9.18 is what the app resolves).
+wxdragon = "0.9.18"
+# The announcement voice (NotifyWinEvent, same route as the app's announce.rs) plus the
+# raw LVM_* checkbox hatch ticket 01's research mapped (Win32_UI_Controls).
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_UI_Accessibility",
+    "Win32_UI_Controls",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[[bin]]
+name = "nvda-round-2"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = 2
