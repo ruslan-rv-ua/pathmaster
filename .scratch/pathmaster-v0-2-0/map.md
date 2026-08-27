@@ -3,6 +3,10 @@
 Wayfinder map. Tickets are the files in `issues/`; the frontier is every ticket that is `open`, unclaimed,
 and whose `Blocked by` list is fully `resolved`.
 
+**Destination reached (2026-08-27).** Every ticket is resolved and the locked delta-specification
+is assembled: [spec.md](spec.md). No open question stands between it and an implementation effort;
+this map is complete.
+
 ## Destination
 
 A **locked delta-specification for PathMaster v0.2.0** — `spec.md` in this directory — describing only
@@ -198,60 +202,17 @@ reverse, surprising, and a genuine trade-off earns an ADR under `docs/adr/`.
   and three-part leaves speak in full, "Go to entry"/Cancel land and speak, and native listview
   checkboxes read, toggle on Space with the change announced, and survive the silent wx event
   layer; the focus-then-Announcement order on [Fix selected] confirmed as designed.
+- [Locked delta-spec for v0.2.0](issues/15-locked-delta-spec.md) — **the destination, assembled
+  (2026-08-27): [spec.md](spec.md)**. Final accelerators Ctrl+I/Ctrl+E/Ctrl+T fixed; the coarse
+  Filter toggle earns its own menu item; Fix Issues… carries no accelerator; the Announcement
+  catalogue closes at fourteen with both languages; the Checklist delta, the three settings
+  fields, and the disposition/deferral tables are all in. One recency resolution recorded: the
+  main list regains a permanent `#` column (ticket 03's PRD anchor over v0.1.0's index-column
+  cut). Release mechanics checked — nothing to decide. Handed to implementation: the
+  borrow-discipline retrofit lands first; the Search debounce timer owns a non-Frame widget.
 
-In scope, but not yet sharp enough to ticket. Graduates as the frontier advances.
-
-- **Menu, accelerator and Announcement assembly** — where every new command lives in the menus, the
-  final accelerator table (Ctrl+F, Alt+T, Ctrl+C, F1 and whatever the tickets add), and the final
-  closed Announcement set with exact wording in both languages. Sharpens only once each feature's
-  command surface is decided; lands in the locked-spec assembly ticket unless it grows into its own.
-  Fixed so far: 05's pair (item 8) and 06's six msgids (items 9 and 10), Search's home in View;
-  07 adds the View → Filter submenu (seven radio items, disabled on Backups), a proposed Ctrl+I
-  coarse toggle, one more count pair ("{filter}: …"), and makes Announcement 1's condition
-  two-part (empty query AND Filter at All); 08 adds a View → "PATH tree…" item (disabled on
-  Backups), a proposed Ctrl+T, and the dialog's title, two buttons and two group names as
-  Catalogue strings — the Announcement set itself is unchanged by 08; 09 adds an Edit →
-  "Fix issues…" item (disabled on Backups; accelerator open), the dialog's Scope-naming title, two
-  buttons, four column headers and two action strings as Catalogue entries, and Announcement 12
-  ("Fixed {n} entries" pair, plural by {n}); 11 adds an Edit → Copy item carrying Ctrl+C (disabled
-  on Backups; no Ctrl+Insert twin) and Announcements 13/14 ("Copied to clipboard" / "Could not
-  copy to clipboard" pairs, no placeholders) — the set reaches fourteen; 12 adds a Help →
-  "&User Guide" / «Посібник користувача(&U)» item carrying F1, first in its menu with About last
-  (mnemonics U and A, no separator, no `…`, enabled in every state), and **no** Announcement — the
-  set stays at fourteen; 13 adds no menu item and no Announcement either (the set holds at
-  fourteen), but grows the Catalogue by the fourth Read-only reason pair, the unknown-argument
-  dialog title, the shared usage line and the `--help` dialog title; 14 adds nothing to menus,
-  Announcements or the Catalogue — its contribution to 15 is a sequencing constraint (the
-  mechanism retrofit is the first implementation ticket) and the debounce-timer-owner rule. Steps
-  31, B12 and the mnemonic gate are voided by the menu growth and are 15's to re-run once, for
-  all of it together.
-- **Release Checklist delta** — which steps the new surfaces add (search, filter, tree, Fix Issues
-  dialog, Ctrl+C copy with its two Announcements; D&D died in ticket 10), and whether any v0.1.0
-  steps change. Sharpens with the feature contracts. Ticket 12 has named its eight: the two-item
-  Help menu, F1 opening the browser onto a title NVDA speaks, `data\help.html` present and in the
-  Interface Language, rewritten after a language change with no orphan, restored after deletion,
-  the unwritable-`data\` run falling to the online URL with one `WARN` line, F1 silent in a dialog,
-  and the item available on Backups and in Read-only Data. Ticket 13 names its seven: a fresh-path
-  `--data-dir` launch creates the directory there with `data\` beside the exe untouched, a relative
-  path resolves against the shell's CWD, an unusable target speaks the fourth Read-only reason and
-  writes nothing anywhere, "Restart as Administrator" during an override Run with a spaced path
-  lands the elevated instance in the same directory, an unknown argument shows the dialog and the
-  app continues with one `WARN` line, `--help` shows the usage dialog and exits, and the startup
-  log line carries `dataDir:` on override Runs.
-- **`settings.json` additions** — mostly landed. Ticket 05: Expansion Mode does **not** persist, no
-  field. Ticket 06 named ticket 04's three members, fixed their domains and defaults
-  (`speakFilteredCount`, `filteredCountDelayMs` 0–5000, `searchEscapeReturnsFocus`), gave each a
-  dialog control, established that they are ordinary field-layer members needing **no new failure
-  layer**, and settled that the Search text dies with the Run. Ticket 07 answered its own
-  question — the Filter does not persist, so no field. Ticket 08 adds none — the Tree View remembers
-  nothing. Ticket 09 adds none — nothing about the Fix Issues dialog persists. Ticket 11 adds
-  none — nothing about Copy persists or configures. Ticket 12 adds none either — the User Guide is
-  neither configurable nor remembered, though it does add a **fourth file to `data\`**
-  (`help.html`), so §3's and the README's by-name inventory of that directory grow by one. Ticket 13
-  adds none by construction — the switch is per-launch and remembers nothing (ADR-0002). What is
-  left is folding all of it into §13 at assembly.
-- **Whether v0.2.0's release mechanics need any decision at all** — scoop autoupdate and the release
-  pipeline exist; possibly nothing to decide beyond version numbers. Check at assembly time.
+Nothing remains here. Every patch of fog graduated into the assembly ticket and was
+absorbed by [spec.md](spec.md) on 2026-08-27; the destination is reached.
 
 ## Out of scope
 
