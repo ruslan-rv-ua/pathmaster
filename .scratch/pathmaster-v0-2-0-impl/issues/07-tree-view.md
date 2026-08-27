@@ -6,7 +6,7 @@
 
 **Blocked by:** 03 (the Filtered View the snapshot is taken of).
 
-**Status:** in review — built, gated, and driven live in both languages; **two measured deviations from §6's letter** (the activation event must be *consumed*, and Escape could not be measured from the probe), see Comments
+**Status:** done — verified against live NVDA by the user at the keyboard; **§6 amended twice from the toolkit** (the handler performs the toggle, and must consume the activation), see Comments
 
 - [x] Menu item View → "PATH Tree…" with Ctrl+T, disabled on the Backups tab; dialog title names the Scope ("PATH Tree — User PATH" / "… — System PATH"), both languages
 - [x] Content: the active Scope's Filtered View snapshotted at open (whole Working Copy when unnarrowed); the dialog never touches the narrowing criteria; snapshot — no live diagnostics, no refresh affordance, no timer in the modal's event loop; reopening is the refresh
@@ -77,8 +77,9 @@ Our toggle and comctl32's then both fired and a double-click on a folder visibly
 `event.event.skip(false)` is the fix, and it is load-bearing rather than tidiness. The keyboard path
 was never affected — wxMSW ignores the result there — which is exactly why only a mouse probe found it.
 
-*The second deviation is a measurement gap, not a behaviour.* **Escape could not be measured from the
-probe.** wx's `SetEscapeId` rides `wxEVT_CHAR_HOOK`, which wxMSW generates from a `WH_KEYBOARD` hook
+*The second deviation was a measurement gap, not a behaviour, and the user closed it — see the NVDA
+paragraph below.* **Escape could not be measured from the probe.** wx's `SetEscapeId` rides
+`wxEVT_CHAR_HOOK`, which wxMSW generates from a `WH_KEYBOARD` hook
 (`msw/window.cpp`, `wxKeyboardHook`); a posted `WM_KEYDOWN` does not reach it, and `SendInput` from
 this session reaches nothing at all — with the dialog confirmed foreground and `SendInput` reporting
 two events accepted, Escape closed neither the Tree View **nor the Add/Edit dialog**, whose Escape is
@@ -131,3 +132,19 @@ cross-process, labels read through a buffer allocated in the target with `TVM_GE
 open, the focused node as the tree is walked, the landed row after Go to entry and the restored focus
 after Cancel, all natively. The dialog holds no state at all — a fresh `Tree` and a fresh `TreeCtrl`
 per open, so "expansion state not preserved" is a property of the code rather than a rule kept by hand.
+
+**Verified against live NVDA on this machine (2026-08-27), the user at the keyboard** — rounds one
+and two's provenance, not round three's harness, and so recorded as **round four** in delta-spec §19.
+Seven readings, all as designed: Ctrl+T speaks the Scope-named dialog title and the first top-level
+node; arrowing the tree speaks a compressed node's **joined** label in full; a three-part leaf speaks
+all three parts — segment, raw form in parentheses, Status word; Enter on an inner node speaks the
+expanded and then the collapsed state and does **not** commit; Enter on a leaf closes the dialog and
+the landed row speaks in full in the main list; **Esc closes and returns the focus to where Ctrl+T was
+given from** — the one reading the probe could not reach, now measured by ear; and Tab walks
+tree → "Go to entry" → Cancel with the button reading as unavailable on a folder node and available on
+a leaf.
+
+That discharges on the built application the three obligations ticket 16 took against a prototype
+(joined compressed labels, three-part leaves, the focus landing after Go to entry). **Nothing NVDA
+said amended a contract.** The two §6 amendments above came from the toolkit, not from the reading,
+and both were already found by the cross-process mouse probe before this session.

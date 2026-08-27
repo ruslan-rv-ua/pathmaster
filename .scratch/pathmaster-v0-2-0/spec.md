@@ -252,9 +252,15 @@ Settled by [ticket 08](issues/08-tree-browser-contract.md); term in `CONTEXT.md`
 >   no suffixes. Compressed labels and three-part leaves speak in full (measured, ticket 16
 >   probes 4–5).
 > - **Interaction**: Enter on a leaf **selects that Entry's row in the main list — by Entry
->   identity, never by text — and closes**; Enter on an inner node expands/collapses (the native
+>   identity, never by text — and closes**; Enter on an inner node expands/collapses (the node's
 >   default action; wxMSW's tree eats unmodified Enter and raises `ITEM_ACTIVATED`, so the
->   activation handler is the single home of the commit logic). Buttons **"Go to entry"**
+>   activation handler is the single home of the commit logic). Two facts about that handler,
+>   **measured at implementation** (impl ticket 07) and corrected here from what this section
+>   first predicted: comctl32 performs **no** action of its own on Enter and wxMSW discards the
+>   event's result there, so the handler **performs the toggle itself** rather than delegating to
+>   a native default that does not exist; and the handler must **consume** the activation, or a
+>   *double-click* on an inner node fires both the handler's toggle and comctl32's own
+>   (`*result = processed`, `NM_DBLCLK`) and visibly does nothing. Buttons **"Go to entry"**
 >   (default; disabled while an inner node or group is selected) + **Cancel**; Esc closes; no OK,
 >   no Close. Tab order: tree → Go to entry → Cancel; initial focus on the first top-level node.
 >   The landed row speaks in full and Cancel speaks the restored focus (measured, ticket 16
@@ -759,6 +765,16 @@ that constraint asks; round three's provenance is stated in its own entry:
   confirmed live on the same run: Alt+Down moved entry 1 and it read back as `2`, Up read `1` as
   the *other* entry, Del renumbered the rest up, Ctrl+Z restored both. No count compensation
   appeared and none was added.
+- **Round four** ([impl ticket 07](../pathmaster-v0-2-0-impl/issues/07-tree-view.md),
+  2026-08-27): the Tree View measured on the built application. **Provenance is rounds one and
+  two's** — the user at the keyboard, not the harness. It discharges on the real dialog the
+  three obligations round two took against a prototype: a compressed node's joined label and a
+  three-part leaf both speak in full, and the landed row after Go to entry speaks in full with
+  Esc returning focus where the command was given from. Enter on an inner node speaks the
+  expanded/collapsed state and does not commit; the tab order and the disabled "Go to entry" on
+  a non-leaf read as designed. **No contract amended by what was heard** — §6's two amendments
+  above came from the toolkit rather than from NVDA, and were found by a cross-process mouse
+  probe before this session.
 
 The deaf-list risk posture (§19 of the v0.1.0 spec) is unchanged: v0.2.0 ships zero deaf-state
 code, the Sanity Check gates every measurement, and in-app detection stays deferred (§20).
