@@ -355,6 +355,46 @@ pub const MENU_EXPANDED_VALUES: &str = "&Expanded Values";
 pub const MENU_FILTER: &str = "&Filter";
 pub const MENU_TOGGLE_ISSUES_FILTER: &str = "Toggle &Issues Filter";
 
+/// The View menu's last item (v0.2.0 §6, §12): Ctrl+T's menu home, and the one
+/// item in that menu that opens a dialog rather than changing the list — which
+/// is what the `…` says and why it closes the menu.
+///
+/// The mnemonic is **T**, not the P of PATH: §12 fixes the View menu's set at
+/// S, F, I, E, T, and P would be free today only to collide with the next
+/// item someone adds. The accelerator is appended by the code (ADR-0004).
+pub const MENU_PATH_TREE: &str = "PATH &Tree…";
+
+/// The Tree View's dialog titles (v0.2.0 §6, §14).
+///
+/// Two whole strings rather than one frame with the Scope filled in, for
+/// [`APPLIED_USER`]'s reason: «Дерево PATH — PATH користувача» agrees with its
+/// subject, and a Scope name dropped into a shared frame would not. The title
+/// is also the whole of what NVDA speaks of a dialog on open (spec §10), which
+/// is why it names the Scope at all — nothing else in the modal says which
+/// PATH is being looked at.
+pub const DIALOG_TREE_USER: &str = "PATH Tree — User PATH";
+pub const DIALOG_TREE_SYSTEM: &str = "PATH Tree — System PATH";
+
+/// The Tree View's own button (v0.2.0 §6, §14): the visible, readable form of
+/// the Enter-on-a-leaf gesture, disabled while the selection is an inner node
+/// or a group. Cancel beside it is [`BUTTON_DIALOG_CANCEL`] — "do not commit",
+/// which is exactly what it means here.
+///
+/// No mnemonic, like every other button in the application: the Tab order is
+/// the map, and a button's `&` would race the menu bar's.
+pub const BUTTON_GO_TO_ENTRY: &str = "Go to entry";
+
+/// The Tree View's two group nodes (v0.2.0 §6, §14): where the Entries no
+/// drive root can hold are gathered, rather than dropped from a tree that
+/// claims to show the whole view.
+///
+/// Plural, and named for the Entries rather than for the fault: these are
+/// places in a tree, not diagnoses — the Status column's own words still ride
+/// each leaf's label, and a group that repeated them would say the same thing
+/// twice.
+pub const TREE_UNRESOLVED_VARIABLES: &str = "Unresolved variables";
+pub const TREE_RELATIVE_ENTRIES: &str = "Relative entries";
+
 /// The File menu's items (spec §15). Apply is here because Ctrl+S can only
 /// live on a menu item's label — wxdragon binds no accelerator table at any
 /// level, so **every shortcut has a menu home** (ADR-0004) — and Exit is here
@@ -684,6 +724,7 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::menu_item(MENU_FILTER, MENU_GROUP_VIEW),
     CatalogueEntry::menu_item(MENU_TOGGLE_ISSUES_FILTER, MENU_GROUP_VIEW),
     CatalogueEntry::menu_item(MENU_EXPANDED_VALUES, MENU_GROUP_VIEW),
+    CatalogueEntry::menu_item(MENU_PATH_TREE, MENU_GROUP_VIEW),
     CatalogueEntry::menu_item(MENU_APPLY, MENU_GROUP_FILE),
     CatalogueEntry::menu_item(MENU_EXIT, MENU_GROUP_FILE),
     CatalogueEntry::menu_item(MENU_ADD_ENTRY, MENU_GROUP_EDIT),
@@ -713,6 +754,11 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::text(BUTTON_APPLY),
     CatalogueEntry::text(BUTTON_CANCEL),
     CatalogueEntry::text(BUTTON_RESTORE),
+    CatalogueEntry::text(BUTTON_GO_TO_ENTRY),
+    CatalogueEntry::text(DIALOG_TREE_USER),
+    CatalogueEntry::text(DIALOG_TREE_SYSTEM),
+    CatalogueEntry::text(TREE_UNRESOLVED_VARIABLES),
+    CatalogueEntry::text(TREE_RELATIVE_ENTRIES),
     CatalogueEntry::text(DIALOG_EDIT_ENTRY),
     CatalogueEntry::text(DIALOG_ADD_ENTRY),
     CatalogueEntry::text(BUTTON_BROWSE),

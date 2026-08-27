@@ -23,6 +23,7 @@ use std::borrow::Cow;
 use std::cell::Cell;
 
 use pathmaster_core::expansion::Mode;
+use pathmaster_core::normalize::Environment;
 use pathmaster_platform::diagnostics::ProcessEnvironment;
 
 /// How the application is rendering Entries right now.
@@ -63,5 +64,17 @@ impl Rendering {
     /// (v0.2.0 §3).
     pub fn render<'a>(&self, raw: &'a str) -> Cow<'a, str> {
         self.mode.get().render(raw, &self.env)
+    }
+
+    /// The environment `%VAR%` resolves against, for the one reading that is
+    /// **not** a rendering: the Tree View's shape is the expanded reading
+    /// whatever the mode says (v0.2.0 §6).
+    ///
+    /// Handed out from here rather than built afresh at the call site so the
+    /// window keeps one environment — the same one the diagnostic pass reads,
+    /// which is what stops a tree from placing an Entry somewhere its Status
+    /// column disagrees with.
+    pub fn environment(&self) -> &dyn Environment {
+        &self.env
     }
 }

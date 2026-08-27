@@ -25,6 +25,7 @@ mod question;
 mod rendering;
 mod scope_page;
 mod settings_dialog;
+mod tree_dialog;
 
 use std::cell::{Cell, RefCell};
 use std::path::Path;
@@ -35,9 +36,10 @@ use pathmaster_core::diagnostics::{Diagnosis, Findings};
 use pathmaster_core::filtered::{self, Criteria, Filter};
 use pathmaster_core::logfmt::{FailureCause, Record};
 use pathmaster_core::msgids;
-use pathmaster_core::normalize::has_variable_reference;
+use pathmaster_core::normalize::{has_variable_reference, Environment};
 use pathmaster_core::session::{EntryId, Operation, Scope, Session, ValueType};
 use pathmaster_core::settings::SettingsFile;
+use pathmaster_core::tree::Tree;
 use pathmaster_platform::apply::{self, ApplyRun, Ask, ExternalChange, ScopeInput, ScopeOutcome};
 use pathmaster_platform::args::StartTab;
 use pathmaster_platform::datadir::ReadOnlyReason;
@@ -293,6 +295,38 @@ impl ScopeTab {
                     catalogue,
                     &self.rendering,
                     &visible,
+                )
+            })
+        })
+    }
+
+    /// This Scope's Filtered View shaped as the filesystem — the snapshot the
+    /// Tree View opens over and never updates (v0.2.0 §6).
+    ///
+    /// Composed inside the scoped access and handed out owned, like
+    /// [`rows`](Self::rows) and for its reason: the dialog it feeds runs a
+    /// nested event loop, and nothing may carry a borrow into one (ADR-0011).
+    ///
+    /// The Issues are the last completed pass's, read by Entry id exactly as
+    /// the Status column reads them — so a leaf says what its row says. They
+    /// are frozen here: no pass reaches the modal, which is what keeps every
+    /// Timer out of its event loop.
+    fn tree(&self, env: &dyn Environment) -> Tree {
+        let visible = self.visible();
+        self.session.with(|session| {
+            self.findings.with(|findings| {
+                Tree::of(
+                    visible.iter().map(|&index| {
+                        let entry = &session.entries()[index];
+                        (
+                            entry.id(),
+                            entry.raw(),
+                            findings
+                                .as_ref()
+                                .map_or(&[][..], |findings| findings.issues(entry)),
+                        )
+                    }),
+                    env,
                 )
             })
         })
@@ -855,7 +889,8 @@ impl App {
             | Command::Search
             | Command::Filter(_)
             | Command::ToggleIssuesFilter
-            | Command::ExpandedValues => {}
+            | Command::ExpandedValues
+            | Command::PathTree => {}
         }
         let Some(tab) = active else { return };
         match command {
@@ -880,6 +915,7 @@ impl App {
             // the command is a Scope tab's all the same: reaching here is what
             // "disabled on Backups, like every other View item" means.
             Command::ExpandedValues => self.toggle_expansion(),
+            Command::PathTree => self.open_tree(tab),
             // Answered above, before there was a Scope to answer them over.
             Command::Settings
             | Command::OpenBackupsFolder
@@ -1067,6 +1103,39 @@ impl App {
         tab.count_due.set(true);
         let delay = self.settings.with(SettingsFile::filtered_count_delay_ms) as i32;
         tab.page.debounce.start(delay, true);
+    }
+
+    /// View → "PATH Tree…", Ctrl+T: the modal comprehension surface over this
+    /// Scope's Filtered View, snapshotted at open (v0.2.0 §6).
+    ///
+    /// The snapshot is taken here and nothing refreshes it: the dialog reads a
+    /// [`Tree`] and has no way back to a Session, so no pass, no edit and no
+    /// narrowing can reach it while it is up. **The criteria are never
+    /// touched** — wanting the whole PATH's shape is clearing the narrowing
+    /// first, which is the user's own gesture and not this command's (v0.2.0
+    /// §2).
+    ///
+    /// What comes back is an Entry id and never a path: two Entries can read
+    /// identically, and the row this lands on has to be the leaf's own. Focus
+    /// goes to the list with the row marked, which is how the landed row
+    /// speaks in full — the same rule every other operation ends by. Cancel
+    /// answers `None` and moves nothing, so wx hands focus back where the
+    /// command came from and NVDA speaks that.
+    ///
+    /// An Entry the view no longer shows lands nowhere. Nothing can move one
+    /// while the modal is up, so this is the unreachable case answered rather
+    /// than assumed away.
+    fn open_tree(&self, tab: &ScopeTab) {
+        let title = self.catalogue.tree_title(tab.scope);
+        let tree = tab.tree(self.rendering.environment());
+        let Some(id) =
+            tree_dialog::ask_for_entry_to_go_to(&self.frame, &self.catalogue, &title, tree)
+        else {
+            return;
+        };
+        if let Some(row) = tab.view_row_of(id) {
+            tab.page.focus_row(row);
+        }
     }
 
     /// ESC in the Search field: clears the text and returns focus to the list

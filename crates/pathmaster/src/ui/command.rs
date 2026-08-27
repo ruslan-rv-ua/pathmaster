@@ -1,4 +1,4 @@
-//! The twenty-six commands the window carries, and the menus they live in
+//! The twenty-seven commands the window carries, and the menus they live in
 //! (spec §15, §5, §6; v0.2.0 §12).
 //!
 //! One enum is the whole map: it names the menu items, the menu each belongs
@@ -24,7 +24,7 @@ use crate::catalog::translate;
 
 /// One user-visible command.
 ///
-/// Twenty-one of them are about a Scope; the last five are not, and are here for
+/// Twenty-two of them are about a Scope; the last five are not, and are here for
 /// the reason the enum exists at all: they are menu items, and a menu item's
 /// id, label and enabled state are answered in one place or in three.
 ///
@@ -64,6 +64,11 @@ pub enum Command {
     /// marks are the state; this is only a gesture.
     ToggleIssuesFilter,
     ExpandedValues,
+    /// Ctrl+T: opens the Tree View over the active Scope (v0.2.0 §6). The one
+    /// View command that opens a dialog rather than changing the list — which
+    /// is why its label carries the `…` and why it still lives here: what it
+    /// shows is a reading of the list, snapshotted.
+    PathTree,
     Settings,
     OpenBackupsFolder,
     RestartAsAdministrator,
@@ -144,7 +149,7 @@ impl Command {
     /// Every command, in **button** order — §15's Add, Edit, Delete, Move Up,
     /// Move Down, Apply, Cancel — which is also the order each menu takes its
     /// own items in, since [`menu`](Self::menu) preserves it.
-    pub const ALL: [Command; 26] = [
+    pub const ALL: [Command; 27] = [
         Command::Add,
         Command::Edit,
         Command::Delete,
@@ -174,6 +179,9 @@ impl Command {
         Command::Filter(Filter::ALL[6]), // Empty
         Command::ToggleIssuesFilter,
         Command::ExpandedValues,
+        // The dialog closes the View menu: §12's order is the two narrowing
+        // criteria, then the rendering, then this.
+        Command::PathTree,
         Command::Settings,
         Command::OpenBackupsFolder,
         Command::RestartAsAdministrator,
@@ -233,7 +241,8 @@ impl Command {
             Command::Search
             | Command::Filter(_)
             | Command::ToggleIssuesFilter
-            | Command::ExpandedValues => msgids::MENU_GROUP_VIEW,
+            | Command::ExpandedValues
+            | Command::PathTree => msgids::MENU_GROUP_VIEW,
             Command::Settings | Command::OpenBackupsFolder | Command::RestartAsAdministrator => {
                 msgids::MENU_GROUP_TOOLS
             }
@@ -268,6 +277,7 @@ impl Command {
             | Command::Search
             | Command::ToggleIssuesFilter
             | Command::ExpandedValues
+            | Command::PathTree
             | Command::Settings
             | Command::OpenBackupsFolder
             | Command::RestartAsAdministrator
@@ -297,6 +307,7 @@ impl Command {
             Command::Filter(filter) => filter.catalogue_msgid(),
             Command::ToggleIssuesFilter => msgids::MENU_TOGGLE_ISSUES_FILTER,
             Command::ExpandedValues => msgids::MENU_EXPANDED_VALUES,
+            Command::PathTree => msgids::MENU_PATH_TREE,
             Command::Settings => msgids::MENU_SETTINGS,
             Command::OpenBackupsFolder => msgids::MENU_OPEN_BACKUPS_FOLDER,
             Command::RestartAsAdministrator => msgids::MENU_RESTART_AS_ADMIN,
@@ -343,6 +354,7 @@ impl Command {
             | Command::Filter(_)
             | Command::ToggleIssuesFilter
             | Command::ExpandedValues
+            | Command::PathTree
             | Command::Settings
             | Command::OpenBackupsFolder
             | Command::RestartAsAdministrator
@@ -388,6 +400,10 @@ impl Command {
             // The coarse Filter axis (v0.2.0 §4, §12). Ctrl+I's "italic"
             // convention belongs to rich-text editors, which this is not.
             Command::ToggleIssuesFilter => Some("Ctrl+I"),
+            // The Tree View (v0.2.0 §6, §12) — the PRD's Alt+T is a recorded
+            // deviation: an Alt+letter shortcut shadows a mnemonic, and this
+            // one would shadow the very menu it lives in.
+            Command::PathTree => Some("Ctrl+T"),
             // The five per-type states are menu-only, and so are the two
             // coarse ones: a radio item carrying a key would fire its own
             // selection rather than the toggle it was meant to be.
@@ -458,7 +474,8 @@ impl Command {
             | Command::Search
             | Command::Filter(_)
             | Command::ToggleIssuesFilter
-            | Command::ExpandedValues => available
+            | Command::ExpandedValues
+            | Command::PathTree => available
                 .session
                 .is_some_and(|session| self.over(session, available)),
         }
@@ -477,10 +494,15 @@ impl Command {
             // nobody may edit is one whose rendering may still be changed.
             // What closes it is the Backups tab, where there is no Session at
             // all — like every other View item (v0.2.0 §5, §12).
+            //
+            // The Tree View is one of them and reads the most: it shows the
+            // Filtered View as it stands, which a run that may edit nothing
+            // still has.
             Command::Search
             | Command::Filter(_)
             | Command::ToggleIssuesFilter
-            | Command::ExpandedValues => true,
+            | Command::ExpandedValues
+            | Command::PathTree => true,
             // Copy answers **above** the writability line for the same reason,
             // and it is the only Entry command that does: it reads the Working
             // Copy and never changes it (v0.2.0 §8, §12). An unelevated System
@@ -544,6 +566,7 @@ impl Command {
             | Command::Refresh
             | Command::Search
             | Command::ToggleIssuesFilter
+            | Command::PathTree
             | Command::Settings
             | Command::OpenBackupsFolder
             | Command::RestartAsAdministrator
@@ -581,6 +604,7 @@ impl Command {
             | Command::Refresh
             | Command::Search
             | Command::ToggleIssuesFilter
+            | Command::PathTree
             | Command::Settings
             | Command::OpenBackupsFolder
             | Command::RestartAsAdministrator

@@ -344,7 +344,13 @@ fn is_missing(path: &str, fs: &dyn Filesystem) -> bool {
 ///
 /// Either separator qualifies — `C:/foo` and `//server/share` are the same
 /// paths to Win32 as their backslash spellings.
-fn is_fully_qualified(path: &str) -> bool {
+///
+/// Public because the Tree View asks the same question of the same text: an
+/// Entry with no filesystem position gets a group node instead of a place
+/// under a drive root (v0.2.0 §6). One rule, one home — a second reading of
+/// "can this path be placed?" is a second answer waiting to disagree with the
+/// `Relative` an Entry's Status column already carries.
+pub fn is_fully_qualified(path: &str) -> bool {
     let mut chars = path.chars();
     match (chars.next(), chars.next(), chars.next()) {
         (Some(first), Some(second), _) if is_separator(first) && is_separator(second) => true,

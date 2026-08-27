@@ -32,6 +32,7 @@ use crate::msgids::{self, fill};
 use crate::path::Rejection;
 use crate::session::{Scope, UndoOutcome};
 use crate::thresholds::{self, Overlength};
+use crate::tree::Node;
 
 /// The Catalogue's lookup — the one thing about a Catalogue that core cannot
 /// do for itself.
@@ -418,6 +419,22 @@ impl Catalogue {
         }
     }
 
+    /// View → "PATH Tree…": the title of the modal opened over `scope`
+    /// (v0.2.0 §6, §14).
+    ///
+    /// Two whole strings picked between rather than one frame with a Scope
+    /// name dropped in, which is §11's rule and [`entry_count`](Self::entry_count)'s
+    /// reason: «PATH користувача» has to agree with the sentence it stands in,
+    /// and a frame cannot make it. The rule lives here because choosing
+    /// between two msgids by a domain value is exactly what this crate holds
+    /// (ADR-0009).
+    pub fn tree_title(&self, scope: Scope) -> String {
+        self.lookup.translate(match scope {
+            Scope::User => msgids::DIALOG_TREE_USER,
+            Scope::System => msgids::DIALOG_TREE_SYSTEM,
+        })
+    }
+
     /// Help → About: what this build is, in the one line NVDA speaks of a
     /// dialog (spec §15, §16).
     ///
@@ -504,6 +521,43 @@ impl Catalogue {
             .map(|issue| self.lookup.translate(issue.catalogue_msgid()))
             .collect::<Vec<String>>()
             .join(", ")
+    }
+
+    /// One Tree View node's label — and for a leaf, **the whole audible
+    /// payload** (v0.2.0 §6).
+    ///
+    /// A native tree item has no columns and no description, and NVDA spends
+    /// `accValue` on the level, so everything a leaf has to say has to be in
+    /// its text. Three parts, in this order and joined here:
+    ///
+    /// * the segment, or the chain a compression joined;
+    /// * **the raw Entry in parentheses, only when it differs** from the
+    ///   expansion the tree was built over — a leaf that reads the same both
+    ///   ways would otherwise say it twice;
+    /// * **the Issue suffix in the exact Status-column words**, only when the
+    ///   snapshot found an Issue. It is [`status_column`](Self::status_column)
+    ///   itself, so one Issue has one name wherever it is read (ADR-0004).
+    ///
+    /// **A branch and a group carry no suffix.** Status belongs to the Entry,
+    /// not to the prefix it shares or the group it was gathered into — a
+    /// parent that repeated its children's findings would be a node the user
+    /// has to hear past on the way down.
+    pub fn tree_label(&self, node: &Node) -> String {
+        let (chain, entry) = match node {
+            Node::Branch { chain, .. } => return chain.clone(),
+            Node::Group { group, .. } => return self.lookup.translate(group.catalogue_msgid()),
+            Node::Leaf { chain, entry } => (chain, entry),
+        };
+        let mut label = chain.clone();
+        if entry.raw != entry.expanded {
+            label.push_str(&format!(" ({})", entry.raw));
+        }
+        let status = self.status_column(&entry.issues);
+        if !status.is_empty() {
+            label.push_str(" — ");
+            label.push_str(&status);
+        }
+        label
     }
 
     /// One Snapshot file in the Backups tab's three columns: when it was

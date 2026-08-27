@@ -376,6 +376,12 @@ msgstr "Фільтр(&F)"
 msgid "Toggle &Issues Filter"
 msgstr "Перемкнути фільтр проблем(&I)"
 
+#. View menu item: opens the PATH Tree dialog over the active Scope (Ctrl+T).
+#. The mnemonic is on the Latin "T", not the P of PATH — the View menu's set is
+#. S, F, I, E, T. The code appends its accelerator.
+msgid "PATH &Tree…"
+msgstr "Дерево PATH(&T)…"
+
 #. File menu item: writes the active Scope's entries to the registry (Ctrl+S).
 #. The code appends its accelerator.
 msgid "&Apply"
@@ -496,6 +502,33 @@ msgstr "Відхилити зміни"
 #. applied, which is why the label promises no more than it does.
 msgid "Restore"
 msgstr "Відновити"
+
+#. Title of the PATH Tree dialog over the User PATH. It is the whole of what a
+#. screen reader speaks when the modal opens, so it names the scope — nothing
+#. else inside the dialog says which PATH is being looked at.
+msgid "PATH Tree — User PATH"
+msgstr "Дерево PATH — PATH користувача"
+
+#. Title of the PATH Tree dialog over the System PATH, as above.
+msgid "PATH Tree — System PATH"
+msgstr "Дерево PATH — PATH системи"
+
+#. Default button of the PATH Tree dialog: selects the chosen entry's row in
+#. the main list and closes. Disabled while the selection is a folder node or a
+#. group. No mnemonic, like every other button here.
+msgid "Go to entry"
+msgstr "Перейти до запису"
+
+#. PATH Tree group node: gathers the entries that begin with a %VAR% this run
+#. does not define, which have no place under any drive. Plural, and named for
+#. the entries rather than for the fault.
+msgid "Unresolved variables"
+msgstr "Нерозв'язані змінні"
+
+#. PATH Tree group node: gathers the entries that are not fully qualified, as
+#. above.
+msgid "Relative entries"
+msgstr "Відносні записи"
 
 #. Dialog title when an existing entry is edited, and the operation name in
 #. "Undone: {operation}" — hence a verbal noun. It keeps its capital because
