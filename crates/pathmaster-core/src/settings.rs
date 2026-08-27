@@ -117,16 +117,21 @@ impl Window {
     }
 }
 
-/// The two settings the Settings dialog offers (spec §13): what it opens on,
-/// and what it answers with.
+/// The settings the Settings dialog offers (spec §13, v0.2.0 spec §15): what
+/// it opens on, and what it answers with.
 ///
 /// Geometry is deliberately not here. It is a setting in the file and nothing
 /// the user sets — the window records where they left it — so a dialog that
-/// carried it would be offering to type in a position.
+/// carried it would be offering to type in a position. The three Filtered View
+/// fields are here for the opposite reason: each is a verdict the user is
+/// meant to revise, and a control is what spares them a hand edit.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Choices {
     pub language: LanguageChoice,
     pub max_backups: u32,
+    pub speak_filtered_count: bool,
+    pub filtered_count_delay_ms: u32,
+    pub search_escape_returns_focus: bool,
 }
 
 /// One known field whose stored value was invalid, and the default that stands
@@ -311,13 +316,17 @@ impl SettingsFile {
         self.search_escape_returns_focus
     }
 
-    /// The two settings the Settings dialog opens on — what this run is using,
+    /// The settings the Settings dialog opens on — what this run is using,
     /// never the raw values the file kept for what it could not read. A
-    /// `language` this version cannot do is not a language to show as done.
+    /// `language` this version cannot do is not a language to show as done,
+    /// and a `filteredCountDelayMs` of `99999` is not a delay to show as set.
     pub fn choices(&self) -> Choices {
         Choices {
             language: self.language,
             max_backups: self.max_backups,
+            speak_filtered_count: self.speak_filtered_count,
+            filtered_count_delay_ms: self.filtered_count_delay_ms,
+            search_escape_returns_focus: self.search_escape_returns_focus,
         }
     }
 
@@ -348,6 +357,18 @@ impl SettingsFile {
             self.set_max_backups(choices.max_backups);
             changed = true;
         }
+        if choices.speak_filtered_count != self.speak_filtered_count {
+            self.set_speak_filtered_count(choices.speak_filtered_count);
+            changed = true;
+        }
+        if choices.filtered_count_delay_ms != self.filtered_count_delay_ms {
+            self.set_filtered_count_delay_ms(choices.filtered_count_delay_ms);
+            changed = true;
+        }
+        if choices.search_escape_returns_focus != self.search_escape_returns_focus {
+            self.set_search_escape_returns_focus(choices.search_escape_returns_focus);
+            changed = true;
+        }
         changed
     }
 
@@ -368,6 +389,31 @@ impl SettingsFile {
         self.max_backups = max_backups;
         self.document
             .insert(MAX_BACKUPS.to_owned(), max_backups.into());
+    }
+
+    /// Records whether the filtered count Announcements speak (v0.2.0 §15).
+    pub fn set_speak_filtered_count(&mut self, speak: bool) {
+        self.speak_filtered_count = speak;
+        self.document
+            .insert(SPEAK_FILTERED_COUNT.to_owned(), speak.into());
+    }
+
+    /// Records a new count delay. Callers pass a value already in the valid
+    /// domain (0–5000), the same way the budget's setter is passed one: the
+    /// field layer's job is reading a file, not policing the dialog that
+    /// writes one.
+    pub fn set_filtered_count_delay_ms(&mut self, delay_ms: u32) {
+        self.filtered_count_delay_ms = delay_ms;
+        self.document
+            .insert(FILTERED_COUNT_DELAY_MS.to_owned(), delay_ms.into());
+    }
+
+    /// Records whether ESC in the Search field returns focus to the list
+    /// (v0.2.0 §15).
+    pub fn set_search_escape_returns_focus(&mut self, returns_focus: bool) {
+        self.search_escape_returns_focus = returns_focus;
+        self.document
+            .insert(SEARCH_ESCAPE_RETURNS_FOCUS.to_owned(), returns_focus.into());
     }
 
     /// Records where the window was. Written on clean shutdown only (spec
@@ -402,19 +448,38 @@ impl SettingsFile {
 /// accept a budget the file would reject — which would be a value the user
 /// chose, saw written, and lost on the next start with a `WARN` line as the
 /// only trace.
+pub fn parse_max_backups(typed: &str) -> Option<u32> {
+    in_backup_budget(typed_number(typed)?)
+}
+
+/// Reads what was typed into the Settings dialog's count-delay field (v0.2.0
+/// spec §15), which is the same domain the file's own field layer accepts:
+/// whole, and 0–5000.
 ///
-/// Surrounding whitespace is not part of a number: this field holds a count,
+/// The second field the dialog types a number into, and the same rule read
+/// twice for the same reason the budget's is — with one difference worth
+/// naming. An out-of-domain delay does not merely fail to persist: it falls
+/// back to a default that *speaks sooner*, so a dialog that took `9000` would
+/// leave the user believing they had slowed a count that is still snapping
+/// past them.
+pub fn parse_count_delay(typed: &str) -> Option<u32> {
+    in_count_delay(typed_number(typed)?)
+}
+
+/// A number as a dialog field carries it, before either domain has an opinion.
+///
+/// Surrounding whitespace is not part of a number: these fields hold counts,
 /// not text that has to survive a round trip the way an Entry does. Everything
 /// else the file would not accept is refused here too — a sign, a decimal
 /// point, an exponent — because JSON does not accept them either.
-pub fn parse_max_backups(typed: &str) -> Option<u32> {
+fn typed_number(typed: &str) -> Option<u64> {
     let typed = typed.trim();
     if typed.is_empty() || !typed.chars().all(|c| c.is_ascii_digit()) {
         return None;
     }
     // A digit string too long for `u64` fails here rather than wrapping, and
-    // is out of the domain either way.
-    in_backup_budget(typed.parse().ok()?)
+    // is out of every domain either way.
+    typed.parse().ok()
 }
 
 /// The backup budget this application accepts, wherever the number came from:

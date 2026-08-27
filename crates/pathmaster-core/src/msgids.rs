@@ -428,17 +428,39 @@ pub const SETTINGS_LANGUAGE: &str = "Language (takes effect after restart)";
 pub const SETTINGS_LANGUAGE_FOLLOWS_SYSTEM: &str = "Follow the system language";
 pub const SETTINGS_SNAPSHOTS_TO_KEEP: &str = "Snapshots to keep per PATH";
 
+/// The dialog's three Filtered View controls (v0.2.0 §15), which are how the
+/// narrowing behaviour is tuned without hand-editing `settings.json`.
+///
+/// Two of them are checkboxes, and a checkbox's own label **is** its
+/// accessible name on the free native path — there is no `StaticText` before
+/// one, and adding a second name would be the label read twice. The delay is a
+/// typed number and is labelled the way the budget is.
+///
+/// Each label says what the setting *does when it is on*, never what it is
+/// called in the file: "Speak filtered entry counts" is a sentence a user can
+/// answer yes or no to, where "speakFilteredCount" is an identifier. The
+/// delay's carries its unit, because a number with no unit is one the user has
+/// to guess at, and carries it as "(ms)" so the label stays the width of a
+/// label.
+pub const SETTINGS_SPEAK_FILTERED_COUNT: &str = "Speak filtered entry counts";
+pub const SETTINGS_COUNT_DELAY: &str = "Delay before speaking the count (ms)";
+pub const SETTINGS_SEARCH_ESCAPE_RETURNS_FOCUS: &str = "Escape returns focus to the list";
+
 /// Validation's error dialog, whose **title is the message** — NVDA never
 /// speaks a `MessageDialog`'s body (spec §6, §10). Its single OK is the one
 /// stock button left in the application.
 ///
-/// The budget's rejection is the second of them and is worded like the first
-/// two: what was wanted, never what was typed. The field keeps the text, so
-/// repeating it back would say nothing the user cannot already read there.
+/// The two typed numbers' rejections are worded like the first two: what was
+/// wanted, never what was typed. The field keeps the text, so repeating it
+/// back would say nothing the user cannot already read there. Each opens with
+/// its own control's words, because the dialog now has two fields a number can
+/// be wrong in and the message is the only thing said about which.
 pub const REJECTED_FORBIDDEN_CHARACTER: &str =
     "The entry contains a forbidden character: {character}";
 pub const REJECTED_EMPTY: &str = "The entry cannot be empty";
 pub const REJECTED_SNAPSHOTS_TO_KEEP: &str = "Snapshots to keep must be a whole number, 1 or more";
+pub const REJECTED_COUNT_DELAY: &str =
+    "Delay before speaking the count must be a whole number, 0 to 5000";
 
 /// The convert-or-keep dialog: the single occasion a Value Type changes, and
 /// only ever by asking (spec §5, §6). `%VAR%` and `REG_SZ` are data, not
@@ -649,9 +671,13 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::text(SETTINGS_LANGUAGE),
     CatalogueEntry::text(SETTINGS_LANGUAGE_FOLLOWS_SYSTEM),
     CatalogueEntry::text(SETTINGS_SNAPSHOTS_TO_KEEP),
+    CatalogueEntry::text(SETTINGS_SPEAK_FILTERED_COUNT),
+    CatalogueEntry::text(SETTINGS_COUNT_DELAY),
+    CatalogueEntry::text(SETTINGS_SEARCH_ESCAPE_RETURNS_FOCUS),
     CatalogueEntry::text(REJECTED_FORBIDDEN_CHARACTER),
     CatalogueEntry::text(REJECTED_EMPTY),
     CatalogueEntry::text(REJECTED_SNAPSHOTS_TO_KEEP),
+    CatalogueEntry::text(REJECTED_COUNT_DELAY),
     CatalogueEntry::text(DIALOG_VAR_IN_REG_SZ),
     CatalogueEntry::text(BUTTON_CHANGE_VALUE_TYPE),
     CatalogueEntry::text(BUTTON_KEEP_LITERAL),

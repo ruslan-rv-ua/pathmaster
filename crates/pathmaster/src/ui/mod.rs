@@ -1217,8 +1217,8 @@ impl App {
             .unwrap_or(StartTab::User)
     }
 
-    /// Tools → Settings…: the two settings the user may change while the
-    /// application runs (spec §13, §11).
+    /// Tools → Settings…: the settings the user may change while the
+    /// application runs (spec §13, §11; v0.2.0 §15).
     ///
     /// The order is the whole of it. What the dialog opens on is read out
     /// **before** it is shown, and what it answers is recorded and written
@@ -1226,11 +1226,14 @@ impl App {
     /// tick reads it too), whose closures nothing can escape: everything the
     /// dialog needs is owned before its modal loop starts (ADR-0011).
     ///
-    /// **`maxBackups` is in force the moment this returns**: the settings the
-    /// window holds are what the next Apply Run reads its rotation budget from
-    /// (ADR-0010), so there is nothing further to apply. The language is not,
-    /// and says so on its own label — nothing is re-translated and nothing is
-    /// announced.
+    /// **Everything but the language is in force the moment this returns**:
+    /// the settings the window holds are what the next Apply Run reads its
+    /// rotation budget from (ADR-0010), what every keystroke in a Search field
+    /// reads its debounce from, and what every count and every ESC asks before
+    /// it speaks or moves — each read where it is needed rather than cached,
+    /// so there is nothing further to apply. The language is the one exception
+    /// and says so on its own label: nothing is re-translated, and nothing
+    /// here is announced.
     ///
     /// Escape and [Cancel] leave the file untouched, and so does an OK over
     /// controls the user only looked at: `record_choices` compares, and a

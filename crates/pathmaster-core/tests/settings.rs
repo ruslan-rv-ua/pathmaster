@@ -10,7 +10,8 @@
 use pathmaster_core::language::LanguageChoice;
 use pathmaster_core::logfmt::{line, Timestamp};
 use pathmaster_core::settings::{
-    parse_max_backups, Choices, Parsed, Rejected, SettingsFile, Window, DEFAULT_MAX_BACKUPS,
+    parse_count_delay, parse_max_backups, Choices, Parsed, Rejected, SettingsFile, Window,
+    DEFAULT_MAX_BACKUPS,
 };
 
 /// The successful half of [`SettingsFile::parse`], for the tests whose subject
@@ -424,15 +425,23 @@ fn defaults_are_the_values_the_spec_names() {
 
 #[test]
 fn the_dialog_opens_on_the_settings_this_run_is_using() {
-    let (file, _) = read(r#"{"language": "fr", "maxBackups": 7}"#);
+    let (file, _) = read(
+        r#"{"language": "fr", "maxBackups": 7,
+            "speakFilteredCount": false, "filteredCountDelayMs": 99999}"#,
+    );
 
     // The values in memory, never the raw ones the file kept: `fr` is not
-    // something this version can do, so it is not something to show as done.
+    // something this version can do, so it is not something to show as done,
+    // and `99999` is not a delay to show as set — the dialog opens on the 250
+    // this run is actually waiting.
     assert_eq!(
         file.choices(),
         Choices {
             language: LanguageChoice::Auto,
             max_backups: 7,
+            speak_filtered_count: false,
+            filtered_count_delay_ms: 250,
+            search_escape_returns_focus: true,
         }
     );
 }
@@ -441,9 +450,11 @@ fn the_dialog_opens_on_the_settings_this_run_is_using() {
 fn recording_the_answer_changes_only_the_settings_the_user_changed() {
     let (mut file, _) = read(r#"{"language": "fr", "maxBackups": 0}"#);
 
+    // The dialog's answer is what it opened on with one control moved — which
+    // is what a user who changed one setting hands back.
     assert!(file.record_choices(Choices {
-        language: LanguageChoice::Auto,
         max_backups: 12,
+        ..file.choices()
     }));
 
     // The budget moves; the language the user left alone keeps the raw value
@@ -462,7 +473,7 @@ fn changing_that_very_setting_is_what_replaces_a_value_the_file_kept() {
 
     assert!(file.record_choices(Choices {
         language: LanguageChoice::Ukrainian,
-        max_backups: 7,
+        ..file.choices()
     }));
 
     let rewritten = file.to_json();
@@ -494,13 +505,20 @@ fn a_first_run_records_the_setting_that_was_changed_and_not_the_one_that_was_not
     let mut file = SettingsFile::defaults();
 
     assert!(file.record_choices(Choices {
-        language: LanguageChoice::Auto,
         max_backups: 10,
+        ..file.choices()
     }));
 
     let rewritten = file.to_json();
     assert!(rewritten.contains("maxBackups"), "{rewritten}");
     assert!(!rewritten.contains("language"), "{rewritten}");
+    // Nor the three the dialog also carries: five controls, one of them moved.
+    assert!(!rewritten.contains("speakFilteredCount"), "{rewritten}");
+    assert!(!rewritten.contains("filteredCountDelayMs"), "{rewritten}");
+    assert!(
+        !rewritten.contains("searchEscapeReturnsFocus"),
+        "{rewritten}"
+    );
 }
 
 #[test]
@@ -531,6 +549,37 @@ fn the_backup_budget_field_rejects_everything_the_file_would_have_rejected() {
         "99999999999999999999999999",
     ] {
         assert_eq!(parse_max_backups(typed), None, "{typed:?}");
+    }
+}
+
+#[test]
+fn the_count_delay_field_takes_a_whole_number_in_the_files_own_domain() {
+    // Zero is legal here and outlawed in the budget beside it: "speak on the
+    // next tick" is a choice, "keep no backups" is a trap (v0.2.0 §15).
+    assert_eq!(parse_count_delay("0"), Some(0));
+    assert_eq!(parse_count_delay("250"), Some(250));
+    assert_eq!(parse_count_delay("5000"), Some(5000));
+    assert_eq!(parse_count_delay("  1400  "), Some(1400));
+}
+
+#[test]
+fn the_count_delay_field_rejects_everything_the_file_would_have_rejected() {
+    for typed in [
+        "",
+        "   ",
+        // The ceiling, and one past it. Nothing is clamped: a dialog that took
+        // 5001 as 5000 would record a delay the user never chose.
+        "5001",
+        "9000",
+        "-1",
+        "2.5",
+        "abc",
+        "250 ms",
+        "1e3",
+        "+250",
+        "99999999999999999999999999",
+    ] {
+        assert_eq!(parse_count_delay(typed), None, "{typed:?}");
     }
 }
 
@@ -620,4 +669,79 @@ fn a_rejected_filtered_view_field_keeps_its_raw_text_in_the_document() {
     // rewrite hands back the raw value the run could not read.
     let (file, _) = read(r#"{"filteredCountDelayMs": 99999}"#);
     assert!(file.to_json().contains("99999"), "{}", file.to_json());
+}
+
+// -------------------------- the three Filtered View fields, through the dialog
+
+#[test]
+fn the_dialog_records_each_filtered_view_field_the_user_moved() {
+    let mut file = SettingsFile::defaults();
+
+    assert!(file.record_choices(Choices {
+        speak_filtered_count: false,
+        filtered_count_delay_ms: 1400,
+        search_escape_returns_focus: false,
+        ..file.choices()
+    }));
+
+    assert!(!file.speak_filtered_count());
+    assert_eq!(file.filtered_count_delay_ms(), 1400);
+    assert!(!file.search_escape_returns_focus());
+    let rewritten = file.to_json();
+    assert!(
+        rewritten.contains(r#""speakFilteredCount": false"#),
+        "{rewritten}"
+    );
+    assert!(
+        rewritten.contains(r#""filteredCountDelayMs": 1400"#),
+        "{rewritten}"
+    );
+    assert!(
+        rewritten.contains(r#""searchEscapeReturnsFocus": false"#),
+        "{rewritten}"
+    );
+}
+
+#[test]
+fn a_filtered_view_field_left_alone_is_not_written_beside_one_that_moved() {
+    // Three flat fields rather than one record, so that turning the count off
+    // is one field written and not three (v0.2.0 §15): the two the user did
+    // not touch stay absent, still defaulting, still free to change default.
+    let mut file = SettingsFile::defaults();
+
+    assert!(file.record_choices(Choices {
+        speak_filtered_count: false,
+        ..file.choices()
+    }));
+
+    let rewritten = file.to_json();
+    assert!(rewritten.contains("speakFilteredCount"), "{rewritten}");
+    assert!(!rewritten.contains("filteredCountDelayMs"), "{rewritten}");
+    assert!(
+        !rewritten.contains("searchEscapeReturnsFocus"),
+        "{rewritten}"
+    );
+}
+
+#[test]
+fn a_delay_the_user_did_not_retype_leaves_the_raw_value_the_file_kept() {
+    // The dialog opens on 250 — the default standing in for a delay this run
+    // could not read — and an OK over that untouched field must not write the
+    // 250 back over what the hand wrote. The same rule the language has: what
+    // is recorded is the setting the user *changed* (spec §13).
+    let (mut file, _) = read(r#"{"filteredCountDelayMs": 99999}"#);
+
+    assert!(!file.record_choices(file.choices()));
+
+    let rewritten = file.to_json();
+    assert!(rewritten.contains("99999"), "{rewritten}");
+
+    // Retyping it is what replaces it, exactly as choosing a language is.
+    assert!(file.record_choices(Choices {
+        filtered_count_delay_ms: 1400,
+        ..file.choices()
+    }));
+    let rewritten = file.to_json();
+    assert!(!rewritten.contains("99999"), "{rewritten}");
+    assert!(rewritten.contains("1400"), "{rewritten}");
 }

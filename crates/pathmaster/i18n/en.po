@@ -503,6 +503,13 @@ msgstr "The entry cannot be empty"
 msgid "Snapshots to keep must be a whole number, 1 or more"
 msgstr "Snapshots to keep must be a whole number, 1 or more"
 
+#. Validation error in the Settings dialog: the "Delay before speaking the
+#. count" field held something that is not a whole number of 0 to 5000. Zero is
+#. legal — speak on the next tick; the ceiling keeps a typo from silently
+#. muting a feature the user believes is on.
+msgid "Delay before speaking the count must be a whole number, 0 to 5000"
+msgstr "Delay before speaking the count must be a whole number, 0 to 5000"
+
 #. Settings dialog title (Tools -> Settings…).
 msgid "Settings"
 msgstr "Settings"
@@ -523,6 +530,24 @@ msgstr "Follow the system language"
 #. "Snapshot" (знімок), not "backup" — the latter names the directory.
 msgid "Snapshots to keep per PATH"
 msgstr "Snapshots to keep per PATH"
+
+#. Label of a Settings dialog checkbox: whether the spoken counts of a narrowed
+#. list are made at all. The label is the checkbox's own — a checkbox carries
+#. its accessible name, so there is no separate caption to keep in step.
+msgid "Speak filtered entry counts"
+msgstr "Speak filtered entry counts"
+
+#. Label of the Settings dialog's count-delay field: how long typing must pause
+#. before the count of matching entries is spoken. "(ms)" is milliseconds, kept
+#. short so the label stays the width of a label.
+msgid "Delay before speaking the count (ms)"
+msgstr "Delay before speaking the count (ms)"
+
+#. Label of a Settings dialog checkbox: whether the Escape key in the search
+#. field moves focus back to the entry list. Escape clears the field either
+#. way. "Escape" is the key's name as Windows and NVDA speak it.
+msgid "Escape returns focus to the list"
+msgstr "Escape returns focus to the list"
 
 #. Dialog title: an entry using %VAR% is being committed into a Scope stored
 #. as REG_SZ, which does not expand it. %VAR% and REG_SZ are literal data.
