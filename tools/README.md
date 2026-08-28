@@ -9,6 +9,18 @@ wayfinding effort's accessibility tickets and promoted to the repo root by ticke
 Checklist is a permanent document. The ticket-24 `WM_GETOBJECT` watcher joins this directory when
 built.
 
+## Encoding
+
+**Every `.ps1` here is UTF-8 with a BOM, and the BOM is load-bearing.** `just` runs these through
+`powershell.exe`, which is Windows PowerShell 5.1, and 5.1 reads a BOM-less script in the machine's
+ANSI code page rather than as UTF-8. On a Ukrainian Windows that code page is 1251, where the first
+two bytes of «Відновити» read back as `Р’` — and `’` is U+2019, which PowerShell accepts as a
+single-quote delimiter. The literal ends in the middle of itself and the file does not parse at all.
+
+Comments survive it, because a comment runs to the end of its line whatever its bytes decode to.
+That is why only the one script carrying a Ukrainian string in *code* ever sprang the trap, and why
+the BOM is declared on all three instead: the next non-ASCII string will not announce itself.
+
 ## `make-icon.ps1`
 
 Rasterises `crates/pathmaster/resources/icon.svg` into the multi-resolution

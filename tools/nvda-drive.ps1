@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Drive a prototype with synthetic keystrokes and read back what NVDA said.
 

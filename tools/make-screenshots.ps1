@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Regenerates docs/images/main-window-en.png and main-window-uk.png for the READMEs.
 

@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Regenerates crates/pathmaster/resources/app.ico from crates/pathmaster/resources/icon.svg.
 
