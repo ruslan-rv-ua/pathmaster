@@ -6,7 +6,7 @@
 
 **Blocked by:** 04 (copy-what-is-shown needs Expansion Mode to exist).
 
-**Status:** in review — built, gated, and verified against live NVDA in both languages; **§8's clipboard mechanism is one measured deviation** (wx's own error dialog), see Comments
+**Status:** done — built, gated, and verified against live NVDA in both languages; **§8’s clipboard mechanism is one measured deviation** (wx’s own error dialog), **accepted by the user 2026-08-28**, see Comments
 
 - [x] Menu home Edit → Copy `\tCtrl+C`, joining the per-Entry group after Delete Entry; `session: None` disables it on the Backups tab exactly as Edit/Delete; msgid "Copy" («Копіювати») shipped
 - [x] Copies the focused visible Entry's currently displayed rendering with exact text fidelity — no quotes added, an Entry's own quotes are content; always exactly one Entry (single-select reaffirmed)
@@ -98,3 +98,16 @@ it is remembered.
 
 The README's keyboard table and the Release Checklist's Copy steps are ticket 12's by its own
 checklist, and are left to it.
+
+**2026-08-28 (review closed)** — The deviation is **accepted**: the Win32 road is what §8 asked for
+(a `bool` and no second channel), the wx road cannot be made quiet from Rust at any pin, and the
+five failure roads through `clipboard::copy` each close the clipboard and free the block, so a
+refused `SetClipboardData` leaks nothing. The supersession of §8's last two bullets was checked
+against what still reads them and is contained: §13/§14's catalogue audit sees Announcements 13 and
+14 unchanged, and §17's Copy group names neither `set_text` nor `flush()`.
+
+One gap found and handed to **ticket 12**: §17's Copy group tests success, both Expansion modes, the
+Search field, the Backups tab and the outlives-the-Run property — and has **no failure-path row at
+all**, which is the one road this deviation exists for. A regression back to `wxdragon::Clipboard`
+would restore the «Pathmaster Error» box and pass every release gate. Ticket 12 writes the group, so
+the row goes there.
