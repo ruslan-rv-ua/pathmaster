@@ -38,3 +38,7 @@ windows-sys = { version = "0.61", features = [
 
 [build-dependencies]
 polib = "0.3"
+# The User Guide's Markdown → the page the exe carries (v0.2.0 §9). Default
+# features off drops `getopts`, which exists for the crate's own CLI binary and
+# has no business in this build.
+pulldown-cmark = { version = "0.13.4", default-features = false, features = ["html"] }

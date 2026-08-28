@@ -50,11 +50,16 @@ use pathmaster_platform::datadir::ReadOnlyReason;
 use pathmaster_platform::diagnostics::{LocalFilesystem, ProcessEnvironment};
 use pathmaster_platform::elevation::{self, RelaunchFailure};
 use pathmaster_platform::geometry::{self, Placement};
+// The User Guide's file in the Data Directory, and the address below it.
+// `crate::help` — the pages the executable carries — is the other half, and
+// the two are named alike because they are one feature (v0.2.0 §9).
+use pathmaster_platform::help;
 use pathmaster_platform::logwriter;
 use pathmaster_platform::registry::{RawValue, ScopeKey};
 // The file in the Data Directory. `pathmaster_core::settings` above contributes
 // the type it holds; this contributes the atomic replace that rewrites it.
 use pathmaster_platform::settings;
+use pathmaster_platform::shell;
 use pathmaster_platform::snapshots;
 use pathmaster_platform::startup::Run;
 use wxdragon::prelude::*;
@@ -944,6 +949,7 @@ impl App {
             Command::Settings => return self.open_settings(),
             Command::OpenBackupsFolder => return self.open_backups_folder(),
             Command::RestartAsAdministrator => return self.restart_as_administrator(),
+            Command::UserGuide => return self.open_user_guide(),
             Command::About => return self.about(),
             // `false`, never `true`: a forced close would be a way past the
             // very dialog the close-confirm exists to ask (spec §5).
@@ -996,6 +1002,7 @@ impl App {
             | Command::OpenBackupsFolder
             | Command::RestartAsAdministrator
             | Command::Exit
+            | Command::UserGuide
             | Command::About => {}
         }
     }
@@ -1561,6 +1568,57 @@ impl App {
         // and this is what that `None` means.
         if let Some(data_dir) = self.run.data_dir() {
             snapshots::open_folder(data_dir);
+        }
+    }
+
+    /// Help → User Guide, and F1: the page this build carries, written into the
+    /// Data Directory and handed to the browser — which *is* the help viewer
+    /// (v0.2.0 §9). The browser is the only reading surface that offers browse
+    /// mode: navigation by heading, a headings list, and find.
+    ///
+    /// **The page is rewritten unconditionally, every time.** Staleness is
+    /// structurally impossible rather than merely unlikely: scoop persists
+    /// `data\` as a junction across upgrades, so a "write only if missing" rule
+    /// would show v0.1.0's guide out of a v0.2.0 binary forever.
+    ///
+    /// **The failure ladder, and no Announcement on any rung** (§9). Written →
+    /// the file. Not written, for any reason including a Run that has nowhere
+    /// to write at all → the version-pinned copy on GitHub, plus the `WARN`
+    /// line that is the only record of which page the user actually read. No
+    /// network → the browser's own offline page, which is visible. Nothing is
+    /// announced because nothing is silent: every rung opens the browser and
+    /// the screen reader names the window. The one rung that opens nothing —
+    /// a machine with no program registered for `.html` — takes the
+    /// [`open_backups_folder`](Self::open_backups_folder) precedent, silence,
+    /// with a log line added because it is the rung the user cannot see they
+    /// are on.
+    fn open_user_guide(&self) {
+        let language = self.run.language();
+        // The error side is the log line's own parameter: `Some(cause)` is a
+        // write that was attempted and failed, `None` a Run with nowhere to
+        // attempt one. Both are the ladder's second rung, and the line is what
+        // says which of the two it was.
+        let written = match self.run.data_dir() {
+            Some(dir) => help::write_page(dir, crate::help::page(language)).map_err(|error| {
+                Some(FailureCause::Io {
+                    os_error: error.raw_os_error(),
+                })
+            }),
+            None => Err(None),
+        };
+        let target = match written {
+            Ok(path) => path.into_os_string(),
+            Err(cause) => {
+                self.run.log(&Record::help_write_failed(cause));
+                // The version is Cargo's, as About's is: one version in the
+                // build and no second place to forget. In a development build
+                // the tag does not exist yet and this 404s — named in §9, not a
+                // bug; the Release Checklist runs on a tagged build.
+                help::source_url(env!("CARGO_PKG_VERSION"), language.code()).into()
+            }
+        };
+        if !shell::open(&target) {
+            self.run.log(&Record::help_not_opened());
         }
     }
 

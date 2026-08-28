@@ -1,5 +1,5 @@
-//! The twenty-eight commands the window carries, and the menus they live in
-//! (spec §15, §5, §6; v0.2.0 §12).
+//! The twenty-nine commands the window carries, and the menus they live in
+//! (spec §15, §5, §6; v0.2.0 §9, §12).
 //!
 //! One enum is the whole map: it names the menu items, the menu each belongs
 //! to, the ids the menu events arrive under, the accelerators, the per-Scope
@@ -24,7 +24,7 @@ use crate::catalog::translate;
 
 /// One user-visible command.
 ///
-/// Twenty-three of them are about a Scope; the last five are not, and are here
+/// Twenty-three of them are about a Scope; the last six are not, and are here
 /// for the reason the enum exists at all: they are menu items, and a menu item's
 /// id, label and enabled state are answered in one place or in three.
 ///
@@ -78,6 +78,10 @@ pub enum Command {
     OpenBackupsFolder,
     RestartAsAdministrator,
     Exit,
+    /// F1: the User Guide, written into the Data Directory and handed to the
+    /// browser (v0.2.0 §9). Enabled in every state this application can be in
+    /// — how to use it is true on the Backups tab and in Read-only Data alike.
+    UserGuide,
     About,
 }
 
@@ -86,10 +90,12 @@ pub enum Command {
 /// The active Scope's Editing Session answers for the ten that edit one, and
 /// `None` — the Backups tab, which is not a Scope — closes every one of them.
 /// The Run's own facts answer for Open Backups Folder and for Restart as
-/// Administrator, and nothing at all answers for Exit or for Settings: a way
-/// out of the application is available on every tab and in every state, dirty
-/// Sessions included — that is what the close-confirm is for — and the
-/// settings belong to the Run, not to whichever tab happens to be showing.
+/// Administrator, and nothing at all answers for Exit, for Settings, for About
+/// or for the User Guide: a way out of the application is available on every
+/// tab and in every state, dirty Sessions included — that is what the
+/// close-confirm is for — the settings belong to the Run rather than to
+/// whichever tab happens to be showing, and how to use the application is true
+/// in every state it can be in (v0.2.0 §9).
 pub struct Availability<'a> {
     pub session: Option<&'a Session>,
     /// Whether this Scope's Filtered View is active — a non-empty Search text
@@ -165,7 +171,7 @@ impl Command {
     /// Every command, in **button** order — §15's Add, Edit, Delete, Move Up,
     /// Move Down, Apply, Cancel — which is also the order each menu takes its
     /// own items in, since [`menu`](Self::menu) preserves it.
-    pub const ALL: [Command; 28] = [
+    pub const ALL: [Command; 29] = [
         Command::Add,
         Command::Edit,
         Command::Delete,
@@ -203,6 +209,8 @@ impl Command {
         Command::OpenBackupsFolder,
         Command::RestartAsAdministrator,
         Command::Exit,
+        // Help, in §12's order: the guide first, About last.
+        Command::UserGuide,
         Command::About,
     ];
 
@@ -264,7 +272,7 @@ impl Command {
             Command::Settings | Command::OpenBackupsFolder | Command::RestartAsAdministrator => {
                 msgids::MENU_GROUP_TOOLS
             }
-            Command::About => msgids::MENU_GROUP_HELP,
+            Command::UserGuide | Command::About => msgids::MENU_GROUP_HELP,
         }
     }
 
@@ -301,6 +309,7 @@ impl Command {
             | Command::OpenBackupsFolder
             | Command::RestartAsAdministrator
             | Command::Exit
+            | Command::UserGuide
             | Command::About => None,
         }
     }
@@ -331,6 +340,7 @@ impl Command {
             Command::Settings => msgids::MENU_SETTINGS,
             Command::OpenBackupsFolder => msgids::MENU_OPEN_BACKUPS_FOLDER,
             Command::RestartAsAdministrator => msgids::MENU_RESTART_AS_ADMIN,
+            Command::UserGuide => msgids::MENU_USER_GUIDE,
             Command::About => msgids::MENU_ABOUT,
         });
         match self.accelerator() {
@@ -380,6 +390,7 @@ impl Command {
             | Command::OpenBackupsFolder
             | Command::RestartAsAdministrator
             | Command::Exit
+            | Command::UserGuide
             | Command::About => return None,
         };
         Some(translate(msgid))
@@ -425,6 +436,13 @@ impl Command {
             // deviation: an Alt+letter shortcut shadows a mnemonic, and this
             // one would shadow the very menu it lives in.
             Command::PathTree => Some("Ctrl+T"),
+            // The User Guide (v0.2.0 §9, §12). **In a dialog F1 does nothing**,
+            // as a decision: a frame's accelerators do not reach a modal's own
+            // event loop, and the alternative is an `EVT_CHAR_HOOK` in every
+            // dialog as a standing obligation no gate would catch a future one
+            // breaking. The against-silence rule governs commands that
+            // *failed*; F1 in a dialog is an unbound key.
+            Command::UserGuide => Some("F1"),
             // The five per-type states are menu-only, and so are the two
             // coarse ones: a radio item carrying a key would fire its own
             // selection rather than the toggle it was meant to be.
@@ -485,7 +503,12 @@ impl Command {
             // the build, which is true in every state this application can be
             // in — and a user checking what they are running is likeliest to
             // do it when something else has gone wrong.
-            Command::Exit | Command::Settings | Command::About => true,
+            //
+            // The User Guide is the fourth and the least conditional of all:
+            // how to use the application is true in every state it can be in,
+            // Backups tab and Read-only Data included (v0.2.0 §9) — and a run
+            // that cannot write its own guide still opens the online copy.
+            Command::Exit | Command::Settings | Command::About | Command::UserGuide => true,
             Command::Add
             | Command::Edit
             | Command::Delete
@@ -570,6 +593,7 @@ impl Command {
             | Command::OpenBackupsFolder
             | Command::RestartAsAdministrator
             | Command::Exit
+            | Command::UserGuide
             | Command::About => false,
         }
     }
@@ -606,6 +630,7 @@ impl Command {
             | Command::OpenBackupsFolder
             | Command::RestartAsAdministrator
             | Command::Exit
+            | Command::UserGuide
             | Command::About => MenuItemKind::Plain,
         }
     }
@@ -645,6 +670,7 @@ impl Command {
             | Command::OpenBackupsFolder
             | Command::RestartAsAdministrator
             | Command::Exit
+            | Command::UserGuide
             | Command::About => None,
         }
     }

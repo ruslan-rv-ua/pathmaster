@@ -17,17 +17,15 @@
 
 use std::fs;
 use std::io;
-use std::os::windows::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 
 use pathmaster_core::backups::{self, SnapshotFile};
 use pathmaster_core::rotation;
 use pathmaster_core::session::Scope;
 use pathmaster_core::snapshot::{self, Decoded, Snapshot, SnapshotName};
-use windows_sys::Win32::UI::Shell::ShellExecuteW;
-use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
 use crate::datadir;
+use crate::shell;
 
 /// The Snapshots' own directory, inside the Data Directory (TC-file-structure).
 /// Never translated — a directory name is outside the Catalogue (spec §11).
@@ -91,25 +89,12 @@ pub fn load(dir: &Path) -> io::Result<Vec<SnapshotFile>> {
 /// Folder (spec §15). An open, never a file dialog: this shows a folder, it
 /// does not ask for one.
 ///
-/// A shell that will not open it is silence. There is no Announcement for it —
-/// the catalogue is closed at seven — and none to give: the only run this can
-/// happen in is one whose Data Directory does not exist either.
+/// A shell that will not open it is silence, and the answer is dropped here on
+/// purpose. There is no Announcement for it — the catalogue is closed at
+/// fourteen — and none to give: the only run this can happen in is one whose
+/// Data Directory does not exist either.
 pub fn open_folder(data_dir: &Path) {
-    let folder = nul_terminated_wide(&ensure_folder(data_dir));
-    let open: Vec<u16> = OPEN.encode_utf16().chain(std::iter::once(0)).collect();
-    // SAFETY: both pointers are NUL-terminated UTF-16 buffers that outlive the
-    // call, and the three nulls are the documented "no parameters, no working
-    // directory, no window to own the error" arguments.
-    unsafe {
-        ShellExecuteW(
-            std::ptr::null_mut(),
-            open.as_ptr(),
-            folder.as_ptr(),
-            std::ptr::null(),
-            std::ptr::null(),
-            SW_SHOWNORMAL,
-        );
-    }
+    let _ = shell::open(ensure_folder(data_dir).as_os_str());
 }
 
 /// **Creates** `data\backups\` if it is not there, and answers the folder
@@ -133,10 +118,6 @@ pub fn ensure_folder(data_dir: &Path) -> PathBuf {
         Err(_) => data_dir.to_owned(),
     }
 }
-
-/// The shell verb: open the thing, whatever the user has set to open it. Not
-/// `explore`, which names one program — this is the shell's own answer.
-const OPEN: &str = "open";
 
 /// Writes one Snapshot under the name it was built for, creating `data\backups\`
 /// if this is the run's first.
@@ -167,11 +148,4 @@ pub fn rotate(dir: &Path, listing: &[SnapshotName], scope: Scope, max_backups: u
     for name in rotation::overflow(listing, scope, max_backups) {
         let _ = fs::remove_file(dir.join(name.file_name()));
     }
-}
-
-fn nul_terminated_wide(path: &Path) -> Vec<u16> {
-    path.as_os_str()
-        .encode_wide()
-        .chain(std::iter::once(0))
-        .collect()
 }

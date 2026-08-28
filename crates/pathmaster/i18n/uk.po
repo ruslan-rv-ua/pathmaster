@@ -481,6 +481,13 @@ msgstr "Відкрити теку резервних копій(&O)"
 msgid "&Restart as Administrator"
 msgstr "Перезапустити від імені адміністратора(&R)"
 
+#. Help menu item, first in the menu: opens the User Guide in the browser, and
+#. carries F1. No "…" — what follows is a browser window, not a dialog of ours.
+#. The mnemonic letter is Latin in every language, and U must stay distinct
+#. from About's A within this menu.
+msgid "&User Guide"
+msgstr "Посібник користувача(&U)"
+
 #. Help menu item: opens the About dialog. No "…" — it states rather than
 #. asks. The mnemonic letter is Latin in every language.
 msgid "&About"

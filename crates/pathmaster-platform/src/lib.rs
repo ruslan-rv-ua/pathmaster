@@ -3,7 +3,8 @@
 //! Modules land with their tickets: `registry` (key path as a constructor parameter),
 //! `datadir`, `diagnostics`, `elevation`, `geometry` (where the window opens), `locale`,
 //! `logwriter`, `panic_hook`, `settings`, `broadcast`, `snapshots`, `apply`, `startup`,
-//! `args` (what the command line says, and how a self-relaunch writes one).
+//! `args` (what the command line says, and how a self-relaunch writes one),
+//! `shell` and `help` (the User Guide's file, and handing it to the browser).
 
 #[cfg(windows)]
 pub mod apply;
@@ -20,6 +21,8 @@ pub mod elevation;
 #[cfg(windows)]
 pub mod geometry;
 #[cfg(windows)]
+pub mod help;
+#[cfg(windows)]
 pub mod locale;
 #[cfg(windows)]
 pub mod logwriter;
@@ -29,6 +32,8 @@ pub mod panic_hook;
 pub mod registry;
 #[cfg(windows)]
 pub mod settings;
+#[cfg(windows)]
+pub mod shell;
 #[cfg(windows)]
 pub mod snapshots;
 #[cfg(windows)]

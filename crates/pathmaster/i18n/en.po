@@ -476,6 +476,13 @@ msgstr "&Open Backups Folder"
 msgid "&Restart as Administrator"
 msgstr "&Restart as Administrator"
 
+#. Help menu item, first in the menu: opens the User Guide in the browser, and
+#. carries F1. No "…" — what follows is a browser window, not a dialog of ours.
+#. The mnemonic letter is Latin in every language, and U must stay distinct
+#. from About's A within this menu.
+msgid "&User Guide"
+msgstr "&User Guide"
+
 #. Help menu item: opens the About dialog. No "…" — it states rather than
 #. asks. The mnemonic letter is Latin in every language.
 msgid "&About"

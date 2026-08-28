@@ -483,12 +483,26 @@ pub const MENU_SETTINGS: &str = "&Settings…";
 pub const MENU_OPEN_BACKUPS_FOLDER: &str = "&Open Backups Folder";
 pub const MENU_RESTART_AS_ADMIN: &str = "&Restart as Administrator";
 
-/// The Help menu's one item, and the dialog it opens (spec §15, §16).
+/// The Help menu's first item (v0.2.0 §9, §12): the User Guide, and F1.
+///
+/// **First in the menu, About last** — how to use the application is what the
+/// Help menu is for, and what someone opening it is looking for. No `…`,
+/// because the `…` here marks a dialog that *asks* something and this opens a
+/// browser; no separator, because two items do not make two groups. The
+/// accelerator is appended by the code, never typed into the Catalogue
+/// (ADR-0004).
+///
+/// The mnemonic is **U**, and the Ukrainian carries it in the parenthesised
+/// form every menu item here uses — «Посібник користувача(&U)», fixed by the
+/// ticket rather than left to the translator, because U and A are the pair the
+/// per-menu uniqueness gate reads.
+pub const MENU_USER_GUIDE: &str = "&User Guide";
+
+/// The Help menu's second item, and the dialog it opens (spec §15, §16).
 ///
 /// No `…` on the item: §15 spells it "About", and the `…` in this application
 /// marks the two items that open a dialog *asking* something — About states
-/// and is dismissed. Its mnemonic is A, and being alone in its menu it cannot
-/// collide.
+/// and is dismissed. Its mnemonic is A, unique beside the User Guide's U.
 ///
 /// The dialog is one sentence because it is one title, which is all NVDA
 /// speaks of a dialog (§10, D6). It carries the three things §16 makes it
@@ -797,6 +811,7 @@ pub const REGISTRY: &[CatalogueEntry] = &[
     CatalogueEntry::menu_item(MENU_SETTINGS, MENU_GROUP_TOOLS),
     CatalogueEntry::menu_item(MENU_OPEN_BACKUPS_FOLDER, MENU_GROUP_TOOLS),
     CatalogueEntry::menu_item(MENU_RESTART_AS_ADMIN, MENU_GROUP_TOOLS),
+    CatalogueEntry::menu_item(MENU_USER_GUIDE, MENU_GROUP_HELP),
     CatalogueEntry::menu_item(MENU_ABOUT, MENU_GROUP_HELP),
     CatalogueEntry::text(DIALOG_ABOUT),
     CatalogueEntry::text(DIALOG_DISCARD_AND_RESTART),

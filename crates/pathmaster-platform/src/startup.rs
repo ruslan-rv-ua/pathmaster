@@ -105,16 +105,33 @@ pub struct Run {
     /// from this, never from a Session's writability, which the Read-only
     /// Data and failed-read runs both fold for other reasons (spec §9).
     elevated: bool,
+    /// The Interface Language, resolved once from the stored choice and the
+    /// system's (spec §11). Like Read-only Data it is a property of the Run
+    /// and never changes while the application is running — which is why it
+    /// lives here rather than being re-derived from the held [`SettingsFile`],
+    /// where a language changed in the dialog would answer for a Run that is
+    /// still speaking the old one.
+    ///
+    /// Two readers: `main` installs the Catalogue for it, and F1 picks the
+    /// User Guide's page by it (v0.2.0 §9).
+    language: Language,
 }
 
 impl Run {
-    fn new(logger: Logger, data_dir: Option<PathBuf>, location: Location, elevated: bool) -> Run {
+    fn new(
+        logger: Logger,
+        data_dir: Option<PathBuf>,
+        location: Location,
+        elevated: bool,
+        language: Language,
+    ) -> Run {
         Run {
             log_path: logger.path().map(Path::to_path_buf),
             logger: RefCell::new(logger),
             data_dir,
             location,
             elevated,
+            language,
         }
     }
 
@@ -138,6 +155,10 @@ impl Run {
 
     pub fn elevated(&self) -> bool {
         self.elevated
+    }
+
+    pub fn language(&self) -> Language {
+        self.language
     }
 }
 
@@ -164,9 +185,12 @@ pub struct LoadedScope {
 ///
 /// Deliberately **not** `Startup`: `CONTEXT.md`'s **Run** entry keeps that word
 /// for *when* a Run's properties are decided rather than for a thing, and this
-/// is a thing. One struct rather than a tuple because eight positions are seven
+/// is a thing. One struct rather than a tuple because seven positions are six
 /// chances to swap two of them — and one of those pairs, `user` and `system`,
 /// shares a type, so the compiler would not catch that one.
+///
+/// The Interface Language is deliberately **not** among them: it is a property
+/// of the Run, and so it travels inside [`Run`] with the rest of them.
 pub struct Decisions {
     /// The facts the window holds for as long as the Run lasts.
     pub run: Run,
@@ -175,8 +199,6 @@ pub struct Decisions {
     /// log still earns them; writing them is `main`'s line, and dropping them
     /// is the [`Logger`]'s decision, not this module's.
     pub records: Vec<Record>,
-    /// The Interface Language, decided once per Run and never again (spec §11).
-    pub language: Language,
     /// The reason this Run cannot write its Data Directory, for the UI that
     /// names it (spec §10.1 item 7, §12) — `None` in Writable Data.
     pub readonly: Option<ReadOnlyReason>,
@@ -298,9 +320,9 @@ pub fn decide(
             data.dir().map(Path::to_path_buf),
             location,
             elevated,
+            language,
         ),
         records,
-        language,
         readonly,
         settings: loaded.file,
         settings_unreadable,

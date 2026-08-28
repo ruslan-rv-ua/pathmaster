@@ -232,6 +232,42 @@ fn a_raw_value_with_newlines_still_yields_one_record_per_line() {
     assert!(text.ends_with('\n'), "{text:?}");
 }
 
+/// The User Guide's failure ladder is silent on screen by design (v0.2.0 §9):
+/// every rung opens the browser, so no Announcement carries it and this line
+/// is the only record of which rung the user landed on.
+#[test]
+fn a_user_guide_that_could_not_be_written_names_the_code_and_the_fallback() {
+    assert_eq!(
+        line(
+            &spec_timestamp(),
+            &Record::help_write_failed(Some(FailureCause::Io { os_error: Some(5) })),
+        ),
+        "2026-08-19T15:36:31+03:00 WARN  help: \
+         help.html could not be written (os error 5), opening the online copy\n",
+    );
+}
+
+/// The Run with no Data Directory at all — a different fact from a write that
+/// was attempted, and one no error code can express.
+#[test]
+fn a_run_with_nowhere_to_write_the_user_guide_says_so_rather_than_naming_an_error() {
+    let text = line(&spec_timestamp(), &Record::help_write_failed(None));
+
+    assert!(text.contains("(no data directory)"), "{text:?}");
+    assert!(text.contains("opening the online copy"), "{text:?}");
+}
+
+/// The bottom rung: the shell was handed something and opened nothing. Silence
+/// on screen (the `open_backups_folder` precedent), one line here.
+#[test]
+fn a_shell_that_opened_nothing_for_the_user_guide_still_earns_a_line() {
+    assert_eq!(
+        line(&spec_timestamp(), &Record::help_not_opened()),
+        "2026-08-19T15:36:31+03:00 WARN  help: \
+         the shell opened nothing for the User Guide\n",
+    );
+}
+
 #[test]
 fn a_panic_message_with_newlines_still_yields_one_record_per_line() {
     let record = Record::panic("assertion failed:\nleft != right", "y.rs", 7);

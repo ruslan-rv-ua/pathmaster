@@ -14,6 +14,7 @@
 mod announce;
 mod catalog;
 mod clipboard;
+mod help;
 mod pump;
 mod scoped;
 mod ui;
@@ -78,7 +79,6 @@ fn main() -> std::process::ExitCode {
     let Decisions {
         run,
         records,
-        language,
         readonly,
         settings,
         settings_unreadable,
@@ -108,7 +108,10 @@ fn main() -> std::process::ExitCode {
     // No console to print to (windows subsystem) — a failed toolkit init can
     // only surface as a nonzero exit code (and the panic line, if it panics).
     match wxdragon::main(move |_| {
-        catalog::install(language);
+        // The Interface Language travels inside the Run, which is where every
+        // other property of it travels (ADR-0010) — and the window needs it
+        // too, for the User Guide's page (v0.2.0 §9).
+        catalog::install(run.language());
         let frame = ui::build_main_window(
             SharedScope::from(user),
             SharedScope::from(system),

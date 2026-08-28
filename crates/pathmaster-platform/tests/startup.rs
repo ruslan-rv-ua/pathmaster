@@ -381,7 +381,7 @@ fn the_stored_choice_beats_the_system_language_and_the_startup_line_says_so() {
         SystemLanguage::Other,
     );
 
-    assert_eq!(decided.language, Language::Ukrainian);
+    assert_eq!(decided.run.language(), Language::Ukrainian);
     assert_eq!(
         decided.records,
         vec![startup_record(
@@ -403,7 +403,7 @@ fn auto_follows_the_system_language() {
         SystemLanguage::Ukrainian,
     );
 
-    assert_eq!(decided.language, Language::Ukrainian);
+    assert_eq!(decided.run.language(), Language::Ukrainian);
 }
 
 // ---------------------------------------------------------------------------
@@ -733,7 +733,7 @@ fn an_override_run_reads_the_settings_it_was_pointed_at() {
 
     let decided = world.decide_from(Location::Override(elsewhere), false, SystemLanguage::Other);
 
-    assert_eq!(decided.language, Language::Ukrainian);
+    assert_eq!(decided.run.language(), Language::Ukrainian);
 }
 
 // ---------------------------------------------------------------------------

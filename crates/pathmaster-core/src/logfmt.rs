@@ -371,6 +371,48 @@ impl Record {
         }
     }
 
+    /// The User Guide could not be put in the Data Directory, so the
+    /// version-pinned copy on GitHub was opened instead (v0.2.0 §9).
+    ///
+    /// `WARN` and not `ERROR` because the Run survives it whole and so does
+    /// the command: every rung of §9's ladder opens the browser, which is why
+    /// none of them is announced. This line is what makes the rung the user
+    /// landed on reconstructable afterwards — the page they read came off the
+    /// network, and a page from the network is the tagged release's, not this
+    /// build's.
+    ///
+    /// `None` is the Run that has nowhere to write at all
+    /// (`ReadOnlyReason::OwnLocationUnknown`), which is a different fact from
+    /// a write that was attempted and failed, and the only one of the two a
+    /// raw error code cannot express.
+    pub fn help_write_failed(cause: Option<FailureCause>) -> Self {
+        let reason = match cause {
+            Some(cause) => cause.describe(),
+            None => "no data directory".to_string(),
+        };
+        Record {
+            level: Level::Warn,
+            area: "help",
+            message: format!("help.html could not be written ({reason}), opening the online copy"),
+        }
+    }
+
+    /// The shell was handed the User Guide and opened nothing (v0.2.0 §9) —
+    /// a machine with no program registered for `.html`, or none for `https`
+    /// on the rung below.
+    ///
+    /// Silence on screen, a line here: the `open_backups_folder` precedent,
+    /// with the line added because this rung is the one the user cannot see
+    /// they are on. Nothing is announced — the Announcement catalogue is
+    /// closed at fourteen and this is not one of them.
+    pub fn help_not_opened() -> Self {
+        Record {
+            level: Level::Warn,
+            area: "help",
+            message: "the shell opened nothing for the User Guide".to_string(),
+        }
+    }
+
     /// A Scope whose startup read failed (spec never names this state, so the
     /// run takes the degraded road: an empty, non-writable Session — nothing
     /// can be written over a value that was never read). This line is the
