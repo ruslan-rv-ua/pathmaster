@@ -31,15 +31,22 @@ PathMaster reports.*
 
 - **Both PATHs in one place.** Yours and the machine's, each as a plain list you can read,
   reorder and correct. Nothing reaches the registry until you apply it.
+- **Find your way around a long PATH.** Search as you type, filter the list down to the entries
+  with a given problem, or open the whole PATH as a tree to see its shape. `Ctrl+E` reads every
+  entry with its `%VARIABLES%` expanded, and `Ctrl+C` copies an entry exactly as shown.
 - **It tells you what is broken.** Folders that do not exist, relative paths, entries wrapped in
   quotes, duplicates — across both PATHs, not just within one — empty entries, and a combined
   PATH longer than `cmd.exe` can use.
+- **And it offers to fix it.** Fix Issues proposes one action per broken entry — delete it, or
+  take the quotes off — you tick the ones you agree with, and a single `Ctrl+Z` takes the whole
+  batch back.
 - **Nothing is irreversible.** Full undo and redo, and a copy of a PATH is saved before that PATH
   is changed. The Backups tab loads any saved copy back as an ordinary, undoable edit.
 - **Accessibility first.** Universal design throughout, not a mode: every action has a keyboard
   route and a home in the menus, every message is shown as well as spoken, and the application
   sets no colours of its own — so your Windows theme, including High Contrast, simply applies.
-  Tested with NVDA.
+  `F1` opens a full user guide in your browser, where your screen reader's own browse mode,
+  heading navigation and find all work. Tested with NVDA.
 - **Portable.** One executable. Everything it writes lives in a `data` folder beside it.
 - **English and Ukrainian**, chosen in Settings or followed from Windows.
 
@@ -84,12 +91,21 @@ to PathMaster, and each one also names itself on its own menu item:
 
 | Keys | What it does |
 |---|---|
+| `F1` | Open the user guide in your browser |
 | `F2` | Edit the entry the cursor is on (`Enter` and double-click do the same) |
 | `Del` | Delete it — no confirmation, because `Ctrl+Z` brings it back |
 | `Alt+↑` / `Alt+↓` | Move it one place earlier / later |
+| `Ctrl+C` | Copy it, exactly as the list is showing it |
 | `Ctrl+Z` / `Ctrl+Y` | Undo / redo, saying what was undone |
 | `Ctrl+S` | Apply — write this PATH to the registry, after saving a copy of it |
 | `F5` | Refresh — re-read this PATH from the registry |
+| `Ctrl+F` | Move to the search field and select what is already in it |
+| `↓` or `Tab` | From the search field into the list |
+| `Esc` | In the search field: clear it and return to the list |
+| `Ctrl+I` | Coarse filter switch: *All* → *With issues*, anything else → *All* |
+| `Ctrl+E` | Switch between expanded and stored values |
+| `Ctrl+T` | Open the PATH Tree |
+| `Space` | In Fix Issues: tick or untick the row |
 
 Apply and Cancel Changes are unavailable while a list has no unsaved changes, and every menu item
 reads as unavailable when it cannot be used.
@@ -100,8 +116,9 @@ PathMaster is portable, and that is a claim worth being precise about.
 
 **The application writes to two places and nowhere else:**
 
-- `data\` beside the executable — `settings.json`, `backups\`, and `pathmaster.log`. There is no
-  setting that moves this folder.
+- `data\` beside the executable — `settings.json`, `backups\`, `pathmaster.log`, and `help.html`,
+  the user guide, rewritten every time you press `F1`. There is no setting that moves this
+  folder.
 - The two `PATH` values, when you apply: `HKCU\Environment` → `Path` for your own, and
   `HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment` → `Path` for the machine's.
 
@@ -130,8 +147,8 @@ PathMaster cannot prevent it. If you never press Browse, it never happens.
 ## Settings
 
 `data\settings.json` is plain JSON and you may edit it by hand. It holds the interface language,
-how many saved copies to keep per PATH, and where the window was last left. Tools → Settings…
-changes the first two.
+how many saved copies to keep per PATH, three settings for the search field and the counts it
+speaks, and where the window was last left. Tools → Settings… changes all of those but the last.
 
 If the file cannot be read at all, PathMaster **does not overwrite it**: it renames it to
 `settings.json.bad` (one copy; the next incident replaces it), starts on defaults, and says so in
