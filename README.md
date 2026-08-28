@@ -78,11 +78,19 @@ That warning means "nobody has vouched for this file", not "this file is broken"
 file yourself. The published `.sha256` holds the exact fingerprint of that release:
 
 ```powershell
-(Get-FileHash .\PathMaster-v0.1.0-x64.exe -Algorithm SHA256).Hash -eq ((Get-Content .\PathMaster-v0.1.0-x64.exe.sha256) -split ' ')[0]
+$exe = Get-Item .\PathMaster-v*-x64.exe
+$want = ((Get-Content "$exe.sha256") -split ' ')[0]
+$got = (Get-FileHash $exe -Algorithm SHA256).Hash
+if ($want -and $got -and $want -eq $got) { 'MATCHES the published fingerprint' } else { 'DOES NOT MATCH - do not run it' }
 ```
 
-`True` means the file is byte-for-byte the one that was published. Anything else means do not run
-it.
+It prints **MATCHES the published fingerprint** when the file is byte-for-byte the one that was
+published. Anything else — including any error above the answer — means do not run it.
+
+The check says the version nowhere, deliberately: it finds whichever `PathMaster-v…-x64.exe` you
+downloaded. And it answers in words rather than with `True`, because the obvious one-line form
+of this check compares nothing to nothing when a file is missing, and `True` is exactly what
+PowerShell says to that.
 
 ## Keyboard
 

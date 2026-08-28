@@ -79,11 +79,20 @@ PathMaster **не підписано цифровим підписом**, том
 перевірте файл самостійно. Опублікований `.sha256` містить точний відбиток цього випуску:
 
 ```powershell
-(Get-FileHash .\PathMaster-v0.1.0-x64.exe -Algorithm SHA256).Hash -eq ((Get-Content .\PathMaster-v0.1.0-x64.exe.sha256) -split ' ')[0]
+$exe = Get-Item .\PathMaster-v*-x64.exe
+$want = ((Get-Content "$exe.sha256") -split ' ')[0]
+$got = (Get-FileHash $exe -Algorithm SHA256).Hash
+if ($want -and $got -and $want -eq $got) { 'MATCHES the published fingerprint' } else { 'DOES NOT MATCH - do not run it' }
 ```
 
-`True` означає, що файл побайтово той самий, який було опубліковано. Будь-яка інша відповідь
-означає: не запускайте його.
+Він друкує **MATCHES the published fingerprint**, якщо файл побайтово той самий, який було
+опубліковано. Будь-яка інша відповідь — зокрема будь-яка помилка над нею — означає: не
+запускайте його.
+
+Перевірка свідомо не називає версію: вона сама знаходить той `PathMaster-v…-x64.exe`, який ви
+завантажили. І відповідає словами, а не `True`, бо очевидний однорядковий варіант цієї
+перевірки за відсутнього файлу порівнює ніщо з нічим — а саме `True` PowerShell на це й
+відповідає.
 
 ## Клавіатура
 
