@@ -6,7 +6,7 @@
 
 **Blocked by:** 03 (the fields and the behaviour they gate).
 
-**Status:** in review — built and driven live in both languages; the NVDA reading **measured and passed at B12a** (2026-08-28), leaving only B18’s disabled-checkbox half to the Release Checklist pass, see Comments
+**Status:** done — built and driven live in both languages; B12a **measured and passed** (2026-08-28), and B18, the half this ticket could not close on its own, passed in the v0.2.0 Release Checklist pass the same day, see Comments
 
 - [x] Three controls with the assembly labels (amendable at implementation like v0.1.0's dialog strings were): "Speak filtered entry counts" («Озвучувати кількість відфільтрованих записів»), "Delay before speaking the count (ms)" («Затримка перед озвученням кількості (мс)»), "Escape returns focus to the list" («Escape повертає фокус до списку») — taken unamended
 - [x] The dialog's existing rules extend unchanged: only changed settings are written, domains are one rule read twice (0–5000 for the delay, 0 legal), Read-only Data disables the controls and OK
@@ -104,3 +104,13 @@ reading, and it needs that run staged. Its failure mode is worth naming in advan
 could be fixed from this side, since ADR-0003 forbids the accessibility call that would be the fix,
 so a miss amends the step's expectation the way ticket 02's measurement amended §2.1, rather than
 opening code work.
+
+**2026-08-28 (B18 measured, ticket closed)** — The v0.2.0 Release Checklist pass was walked by the
+user on the tagged build, and **everything passed**, B18 among it. So the disabled checkboxes do
+still speak their checked state in the unwritable-`data\` run: the reading this ticket deferred
+because it needed that run staged, and the last thing standing between 06 and done.
+
+The failure mode named in advance did not arrive, and nothing has to be amended. Worth recording
+that it was the *good* outcome rather than the silent one: had those checkboxes gone quiet while
+disabled, ADR-0003 forbids the accessibility call that would have been the fix, so the step's
+expectation would have moved instead of the code. It did not have to.
