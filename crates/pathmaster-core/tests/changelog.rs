@@ -38,7 +38,11 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// Written out rather than derived from the file being checked, for the reason
 /// `versioninfo.rs` gives about `CompanyName`: a link block lifted from
 /// another project's changelog would be perfectly consistent with itself and
-/// still point at somebody else's releases.
+/// still point at somebody else's releases. That the same string also stands
+/// in `pathmaster-platform`'s `help.rs`, carrying the User Guide's fallback
+/// URL, is the point rather than a duplication to remove — one shared constant
+/// would make the two agree by construction, and agreeing by construction is
+/// the one thing a gate cannot check.
 const REPOSITORY: &str = "https://github.com/ruslan-rv-ua/pathmaster";
 
 /// The heading over the changes that have not been released yet — the one
@@ -54,12 +58,30 @@ const UNRELEASED: &str = "Unreleased";
 /// where a section *ends* (at the next such line, or at the end of the file).
 /// One grammar read in two places: a second one would be a way for the test
 /// and the release to disagree about which section a tag publishes.
+///
+/// Which is why a heading that never closes its `]` **panics** rather than
+/// being passed over. The extractor ends a section at `## [` and never looks
+/// for the `]` at all, so a line quietly dropped here would be a heading to
+/// the release and not to the gate — precisely the disagreement the shared
+/// grammar exists to prevent.
+///
+/// **Fenced code blocks are deliberately not skipped**, unlike the reader
+/// `help.rs` keeps next door: a fence carrying a `## [` line would be a
+/// heading to both readers, which is wrong together rather than wrong apart.
+/// Buying the rule costs writing it twice, in Rust and in PowerShell, which is
+/// the second grammar this one exists to avoid — and the entries here are
+/// prose, so the file holds no fences to walk into.
 fn version_headings(changelog: &'static str) -> impl Iterator<Item = &'static str> {
     changelog
         .lines()
         .filter_map(|line| line.strip_prefix("## ["))
-        .filter_map(|rest| rest.split_once(']'))
-        .map(|(version, _)| version)
+        .map(|rest| {
+            rest.split_once(']')
+                .unwrap_or_else(|| {
+                    panic!("CHANGELOG.md's heading `## [{rest}` never closes its `]`")
+                })
+                .0
+        })
 }
 
 #[test]
@@ -85,6 +107,23 @@ fn the_reading_the_gate_is_built_on_sees_what_it_claims_to() {
     )
     .collect();
     assert_eq!(headings, ["Unreleased", "0.2.0"]);
+}
+
+#[test]
+#[should_panic(expected = "never closes its")]
+fn a_heading_that_never_closes_its_bracket_fails_rather_than_being_skipped() {
+    // The other half of the shared grammar, and the half the extractor cannot
+    // see: it ends a section at `## [` without ever looking for the `]`, so
+    // this line is a heading to the release whatever this reader does with it.
+    // Passing over it here is how the two would come to disagree about where a
+    // section starts, with nothing saying so.
+    let _: Vec<&str> = version_headings(
+        "## [Unreleased]
+
+## [0.2.0 - 2026-09-01
+",
+    )
+    .collect();
 }
 
 #[test]

@@ -30,7 +30,7 @@ release page publishes as its body.
   action — delete for Missing, Duplicate and Empty, remove the quotes for Quoted — applied as a
   single Checkpoint one Ctrl+Z takes back.
 - **Copy entry**, `Ctrl+C`: the focused Entry's currently displayed rendering onto the clipboard,
-  flushed so it outlives the Run.
+  where it outlives the Run.
 - **The User Guide** (Help → User Guide, `F1`): one page per Interface Language carried in the
   executable, written into the Data Directory as `help.html` on every open and handed to the
   default browser; the source is `docs/help/<code>.md`, gated for heading parity.

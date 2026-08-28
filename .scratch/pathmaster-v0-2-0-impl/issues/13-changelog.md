@@ -45,22 +45,29 @@ brackets exactly as a heading does. Both gates were then mutated to confirm they
 `the_newest_released_section_carries_the_crate_version`, and pointing `[Unreleased]`'s compare base
 at a version that is not the newest reddens `every_version_heading_carries_its_link_reference`.
 
-**One assertion beyond the ticket's two:** the test asserts the **first** version heading is
-`[Unreleased]`. It is what turns "the newest heading that is not `[Unreleased]`" from a search into a
-reading — and it is the only thing holding F2's "a fresh empty `[Unreleased]` opened above it", which
-otherwise fails silently and leaves the next change nowhere to be written. Deliberately **not**
-added: a non-empty-section assertion. The section for the version being released does not exist
+**Two assertions beyond the ticket's two.** The test asserts the **first** version heading is
+`[Unreleased]`, which turns "the newest heading that is not `[Unreleased]`" from a search into a
+reading and is the only thing holding F2's "a fresh empty `[Unreleased]` opened above it" — that
+otherwise fails silently and leaves the next change nowhere to be written. And a heading that never
+closes its `]` **panics** rather than being passed over, with a `#[should_panic]` guard on it: the
+extractor ends a section at `## [` and never looks for the `]`, so a line this reader dropped
+quietly would be a heading to the release and not to the gate. That is the divergence the shared
+grammar exists to prevent, and skipping was how it got in. Deliberately **not** added: a
+non-empty-section assertion. The section for the version being released does not exist
 until F2 creates it, so during development the check could only look at `[0.1.0]`, whose body picks
 up the foot's link references and is therefore never empty — a green that measures nothing. The
 workflow's throw is where that guard belongs, and it is there.
 
-**The extractor was exercised in `pwsh` against the real file, in four cases**, since the workflow
-step itself cannot be run without cutting a release: the file as it stands with `VERSION=0.1.0`
-(extracts, and shows the tail below); `VERSION=0.2.0` with no such section (throws, named); the file
-after a simulated F2 rename with `VERSION=0.2.0` (extracts 41 lines, stopping cleanly at
-`## [0.1.0]` and dropping the link references); and the same with the section blanked (throws). What
-no local run can press is the release page — that the body arrives, in UTF-8, with the section's
-markdown intact — and it is F4's, where the ticket put it.
+**The extractor was exercised in `pwsh` in six cases**, since the workflow step itself cannot be run
+without cutting a release: the real file with `VERSION=0.1.0` (extracts); `VERSION=0.2.0` with no
+such section (throws, named); the file after a simulated F2 rename (extracts 41 lines, stopping
+cleanly at `## [0.1.0]` and dropping the link references); the same with the section blanked
+(throws); a one-line file, which `Get-Content` hands back as a bare string — hence the `@()`, without
+which indexing walks characters and the failure is a method-not-found rather than the message; and
+the output's first bytes, confirming `Set-Content -Encoding utf8` writes no BOM under the job's
+`pwsh` (it would under Windows PowerShell 5.1). It is one pass, with `## [` written once, so the
+grammar is stated rather than repeated. What no local run can press is the release page itself —
+that the body arrives with the section's markdown intact — and it is F4's, where the ticket put it.
 
 **The one wart in the grammar, named rather than papered over.** A section runs to the next `## [`
 or to the end of the file, so the **oldest** section's body carries the link-reference block at the
@@ -72,6 +79,14 @@ workflow comment says so where a reader of that step will find it.
 `docs/agents/issue-tracker.md` begins with the next implementation ticket; the back-fill above is
 fixed by the delta-spec's feature list, and a changelog is not one of that list's entries. Ticket 12,
 which predates the rule and changes no product behaviour, is in the same position.
+
+**Two corrections came out of the review, both real.** The Copy entry line claimed the rendering was
+"flushed so it outlives the Run" — §8's words, and superseded: impl ticket 08 landed a plain Win32
+write precisely because wx could not be quiet on that road, `crates/pathmaster/src/clipboard.rs`
+says "**it needs no flush**", and there is no flush call in the shipped binary. The outcome is true
+and the mechanism was not, so the mechanism is gone from the line. The second is the grammar
+divergence above. Neither would have been caught by any gate in this ticket, which is the argument
+for the review rather than against the gates.
 
 **F2 and F4 are the only Checklist rows touched**, both in section F, which is where the ticket
 placed the split with ticket 12 (A/B). F3's description of the workflow's step order was left as it

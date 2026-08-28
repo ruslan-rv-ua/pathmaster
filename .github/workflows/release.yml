@@ -98,29 +98,32 @@ jobs:
         # which this replaces, lists merged pull requests — this repository has none, so it
         # produced nothing: v0.1.0's page is a bare "Full Changelog" link and no text.
         #
-        # The heading grammar is the one crates/pathmaster-core/tests/changelog.rs gates —
-        # a version heading is a line beginning `## [`, and its section runs to the next
-        # such line or to the end of the file. One grammar read in two places; a second one
-        # would be a way for the gate and the release to disagree about which section a tag
-        # publishes. (The link references at the foot follow the *oldest* section, which is
-        # never the one being released.)
+        # One pass, and the heading grammar written once inside it: a version heading is a
+        # line beginning `## [`, and a section runs from one to the next or to the end of
+        # the file. crates/pathmaster-core/tests/changelog.rs gates that same rule over the
+        # same file — a second grammar would be a way for the gate and the release to
+        # disagree about which section a tag publishes, so the `## [` here and the `## [`
+        # there are the contract. (The link references at the foot follow the *oldest*
+        # section, which is never the one being released.)
         #
         # It throws on a missing or blank section rather than publishing an empty page: a
         # failed release is noticed and an empty release page is not. And it runs here,
         # before anything is compiled, for the reason the Verify step puts `fmt` first — an
         # unwritten entry is worth finding in seconds rather than after a wxWidgets build.
         run: |
-          $lines = Get-Content CHANGELOG.md
-          $start = -1
-          for ($i = 0; $i -lt $lines.Count; $i++) {
-            if ($lines[$i].StartsWith("## [$env:VERSION]")) { $start = $i + 1; break }
-          }
-          if ($start -lt 0) { throw "CHANGELOG.md has no '## [$env:VERSION]' section" }
+          # @() because Get-Content hands back a bare string for a one-line file, and
+          # indexing that walks characters.
           $body = @()
-          for ($i = $start; $i -lt $lines.Count; $i++) {
-            if ($lines[$i].StartsWith('## [')) { break }
-            $body += $lines[$i]
+          $found = $false
+          foreach ($line in @(Get-Content CHANGELOG.md)) {
+            if ($line.StartsWith('## [')) {
+              if ($found) { break }
+              $found = $line.StartsWith("## [$env:VERSION]")
+              continue
+            }
+            if ($found) { $body += $line }
           }
+          if (-not $found) { throw "CHANGELOG.md has no '## [$env:VERSION]' section" }
           $notes = ($body -join "`n").Trim()
           if (-not $notes) {
             throw "CHANGELOG.md's [$env:VERSION] section is empty - the release page would be blank"

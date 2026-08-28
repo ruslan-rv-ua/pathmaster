@@ -10,7 +10,7 @@ There is no remote issue tracker for this project.
 - Implementation issues are one file per ticket at `.scratch/<feature-slug>/issues/<NN>-<slug>.md`, numbered from `01` — never a single combined tickets file
 - Triage state is recorded as a `Status:` line near the top of each issue file
 - Comments and conversation history append to the bottom of the file under a `## Comments` heading
-- Every **implementation** ticket carries a `- [ ] CHANGELOG.md's [Unreleased] gains its line` checkbox, and that line is written as part of the work — the root `CHANGELOG.md` is never reconstructed from `git log`, whose subjects here are deliberately oblique. Nothing else holds this: there is no CI gate requiring a `crates/` commit to touch the file (it would noise on refactors and test-only commits, and with no pull requests there is no label to opt out with), and Release Checklist step F2 only renames `[Unreleased]` to the version being released
+- Every **implementation** ticket carries a `- [ ] CHANGELOG.md's [Unreleased] gains its line` checkbox, written as part of the work — nothing else holds it, and the root `CHANGELOG.md` is never reconstructed from `git log`, whose subjects here are deliberately oblique
 
 ## When a skill says "publish to the issue tracker"
 
