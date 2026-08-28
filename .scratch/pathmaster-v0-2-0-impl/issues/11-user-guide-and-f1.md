@@ -6,7 +6,7 @@
 
 **Blocked by:** 03, 04, 05, 07, 08, 09, 10 (the features the guide documents).
 
-**Status:** done — driven live in both languages, both the file rung and the write-failure rung measured; F1 **as a keystroke** is unproven from the implementation harness and is the one reading left for the Release Checklist, see Comments
+**Status:** done — driven live in both languages, both the file rung and the write-failure rung measured, and **verified against live NVDA by the user at the keyboard** (2026-08-28), which closed the F1 keystroke the implementation harness could not reach; nothing amended, see Comments
 
 - [x] Two purpose-written Markdown documents, `docs/help/en.md` and `docs/help/uk.md` — not the README; content per the contract: what PATH is; the window; editing; what each of the six Status words means; Backups and restore; what v0.2.0 adds; the full keyboard table (mirroring §12's map); Settings; the System PATH and administrator rights; what is written where; troubleshooting; a "Command line" subsection covering `--data-dir`, `--tab`, `--help`. Deliberately absent: installation, release verification, contributing, the licence; no screenshots, zero external requests
 - [x] Build: `pulldown-cmark` as a build-dependency converts `docs/help/<code>.md` → `OUT_DIR/help-<code>.html`, embedded via the same `include_bytes!` pattern as the `.mo` files
@@ -58,15 +58,23 @@ page open with no sharing, which logged
 online copy. The generated pages were grepped for `src=`/`href=`/`<script`/`<link`/`@import`/`url(`
 — zero external requests, asserted rather than assumed.
 
-**F1 as a keystroke could not be measured from this harness.** Synthetic keyboard input reached
-nothing in the session: with the window confirmed foreground and a row landed by posted mouse
-messages, a plain Down did not move the focused row of the **main window's own list**, so the finding
-was the harness's and not the accelerator's — the standing rule is to confirm against a known-good
-surface first and stop reporting keyboard findings when it fails. What *was* measured is that the
-item carries `\tF1`, which is the only mechanism by which any accelerator in this application
-exists (there is no `wxAcceleratorTable` in wxdragon at any level), and that the command behind it
-does the right thing. **F1 belongs in the Release Checklist's User Guide steps (ticket 12) as an
-ear-verified reading.**
+**F1 as a keystroke could not be measured from this harness, and the user closed it the same day.**
+Synthetic keyboard input reached nothing in the implementation session: with the window confirmed
+foreground and a row landed by posted mouse messages, a plain Down did not move the focused row of
+the **main window's own list**, so the finding was the harness's and not the accelerator's — the
+standing rule is to confirm against a known-good surface first and stop reporting keyboard findings
+when it fails. What that session *could* measure is that the item carries `\tF1`, which is the only
+mechanism by which any accelerator in this application exists (there is no `wxAcceleratorTable` in
+wxdragon at any level), and that the command behind it does the right thing.
+
+**Verified against live NVDA on this machine (2026-08-28), the user at the keyboard** — rounds one,
+two, four and five's provenance, and recorded as **round six** in delta-spec §19. The readings the
+session was asked for all held: F1 opens the browser on the page, NVDA speaks the `<title>` first,
+`NVDA+F7` lists the guide's headings, **F1 inside a dialog does nothing** as §9 decides, and a
+deleted `data\help.html` returns on the next press. **Nothing amended** — no contract, no string, no
+line of code. The round is recorded as a confirmed set rather than reading by reading, because that
+is how the session was reported; the Release Checklist's User Guide steps (ticket 12) are where each
+one becomes a numbered step with its expected speech.
 
 **Three things outside the checklist, each with its reason.** The Interface Language moved into
 `Run`: F1 picks its page by it, and re-deriving it from the held `SettingsFile` would answer for a

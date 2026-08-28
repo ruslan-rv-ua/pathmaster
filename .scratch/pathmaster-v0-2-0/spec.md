@@ -788,6 +788,19 @@ that constraint asks; round three's provenance is stated in its own entry:
   keyboard input reached nothing from that harness, on the main window's own list either — so this
   round is what carries §7's Space clause rather than probe 7 alone.
 
+- **Round six** ([impl ticket 11](../pathmaster-v0-2-0-impl/issues/11-user-guide-and-f1.md),
+  2026-08-28): the User Guide and F1 measured on the built application. **Provenance is rounds one,
+  two, four and five's** — the user at the keyboard, not the harness. It closes the one reading the
+  implementation session could not reach at all: **F1 as a keystroke**, which no synthetic input
+  from that harness could deliver — a plain Down did not move the main window's own list either, so
+  until this round the accelerator stood on the menu item's `\tF1` label alone. Confirmed with it,
+  as the set the session was asked for: the browser opens on the page, NVDA speaks the `<title>`
+  first, `NVDA+F7` lists the guide's headings, **F1 inside a dialog does nothing** as §9 decides,
+  and a deleted `data\help.html` returns on the next press. **No contract amended.** Recorded as a
+  confirmed set rather than reading by reading, which is how the session was reported — the
+  Checklist's eight User Guide steps (§17) are where each becomes a numbered reading with its
+  expected speech.
+
 The deaf-list risk posture (§19 of the v0.1.0 spec) is unchanged: v0.2.0 ships zero deaf-state
 code, the Sanity Check gates every measurement, and in-app detection stays deferred (§20).
 
