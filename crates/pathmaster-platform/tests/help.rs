@@ -12,6 +12,7 @@
 use std::fs;
 use std::path::Path;
 
+use pathmaster_core::language::Language;
 use pathmaster_platform::help;
 
 /// One writable directory per test, removed with it.
@@ -83,13 +84,13 @@ fn a_directory_that_is_not_there_fails_rather_than_creating_one() {
 #[test]
 fn the_online_copy_is_pinned_to_the_build_that_opens_it() {
     assert_eq!(
-        help::source_url("0.2.0", "uk"),
+        help::source_url("0.2.0", Language::Ukrainian),
         "https://github.com/ruslan-rv-ua/pathmaster/blob/v0.2.0/docs/help/uk.md"
     );
     // The tag carries a `v`, the way the releases do; the path under it is the
     // repository's own, which is what the heading-parity gate reads.
     assert_eq!(
-        help::source_url("0.1.0", "en"),
+        help::source_url("0.1.0", Language::English),
         "https://github.com/ruslan-rv-ua/pathmaster/blob/v0.1.0/docs/help/en.md"
     );
 }

@@ -1042,11 +1042,16 @@ ever links wxWidgets.
   ticket 13,
   [ADR-0008](../../docs/adr/0008-apply-sequence-lives-in-platform.md)), `startup` (everything a Run
   is, decided in one place — impl ticket 20,
-  [ADR-0010](../../docs/adr/0010-run-properties-decided-in-one-place.md)).
+  [ADR-0010](../../docs/adr/0010-run-properties-decided-in-one-place.md)),
+  `shell` (one spelling of `ShellExecuteW`, for the folder and the page handed to it — v0.2.0
+  impl ticket 11), `help` (the User Guide's file in the Data Directory and the address below it —
+  v0.2.0 impl ticket 11).
 - **`crates/pathmaster`** — **bin-only, no lib target**: `ui/*`, `announce`, `pump` (Timer drain),
-  `catalog` (TranslationsLoader), `main.rs` (the composition root: the located directory,
+  `catalog` (TranslationsLoader), `help` (the User Guide's embedded pages, beside the embedded
+  catalogues — v0.2.0 impl ticket 11), `main.rs` (the composition root: the located directory,
   `startup::decide`, the Catalogue, the window),
-  `build.rs` (polib → `.mo`; llvm-rc → icon/VERSIONINFO), `i18n/*.po`,
+  `build.rs` (polib → `.mo`; pulldown-cmark → the User Guide's pages; llvm-rc → icon/VERSIONINFO),
+  `i18n/*.po`,
   `resources/` (`icon.svg` — the design, embedded for the frame; `app.ico` — generated from it;
   `app.rc` — the one ICON statement and the VERSIONINFO — impl ticket 18).
   `[[bin]] name = "PathMaster"` — no CI rename step.
@@ -1060,6 +1065,10 @@ ever links wxWidgets.
 ticket), `make-icon.ps1` (the icon generator — impl ticket 18) and, when built, the ticket-24
 `WM_GETOBJECT` watcher. **`packaging/`** joins it as a permanent root directory: the winget and
 scoop manifests, which are submitted elsewhere and consumed by nothing here (impl ticket 18).
+**`docs/help/<code>.md`** joins them: the User Guide's source, one document per Interface Language,
+which `build.rs` converts and the exe carries — at the repository root and not beside the binary
+because the failing rung of its ladder points a browser at that very path under the release's own
+tag (v0.2.0 §9, v0.2.0 impl ticket 11).
 
 ## 18. Test and verification strategy
 

@@ -1523,7 +1523,7 @@ impl App {
         // the whole of what they get for pressing OK is a dialog closing. The
         // one stock [OK] and the whole message in the title, like every other
         // dialog here — and not an Announcement: that catalogue is closed at
-        // seven, and this belongs beside the startup dialog its unreadable
+        // fourteen, and this belongs beside the startup dialog its unreadable
         // twin already earns.
         if !self.record_settings(data_dir, amended) {
             question::warn(&self.frame, &translate(msgids::DIALOG_SETTINGS_UNWRITABLE));
@@ -1614,7 +1614,7 @@ impl App {
                 // build and no second place to forget. In a development build
                 // the tag does not exist yet and this 404s — named in §9, not a
                 // bug; the Release Checklist runs on a tagged build.
-                help::source_url(env!("CARGO_PKG_VERSION"), language.code()).into()
+                help::source_url(env!("CARGO_PKG_VERSION"), language).into()
             }
         };
         if !shell::open(&target) {
@@ -1658,7 +1658,7 @@ impl App {
     /// Re-reads `data\backups\` and puts it on screen.
     ///
     /// A directory that cannot be read reads as no Snapshots, and says nothing
-    /// about it: the Announcement catalogue is closed at seven and none of
+    /// about it: the Announcement catalogue is closed at fourteen and none of
     /// them is about a list, and the only run that can reach it is one whose
     /// Data Directory the user has taken away underneath it.
     fn reload_backups(&self) {
@@ -1853,7 +1853,7 @@ impl App {
     /// A re-read that fails leaves the Session exactly as it was: an
     /// unreadable value is not an Absent one, and blanking a Scope over a
     /// transient failure would be the one unrecoverable thing this screen can
-    /// do. The Announcement catalogue is closed at seven, so nothing is
+    /// do. The Announcement catalogue is closed at fourteen, so nothing is
     /// spoken; the §9 taxonomy that will name it arrives with Apply.
     fn refresh(&self, tab: &ScopeTab) {
         let dirty = tab.session.with(Session::is_dirty);
@@ -2115,7 +2115,7 @@ impl App {
     /// **A failed write is not the user's problem to hear about.** They asked
     /// to close, and that is happening; the window is already going, so a
     /// dialog would outlive what it is about, and the Announcement catalogue
-    /// is closed at seven. The log is the only witness there is room for, and
+    /// is closed at fourteen. The log is the only witness there is room for, and
     /// it is the one a developer asked "why does it not remember where I put
     /// it?" would reach for — which is why this is the caller that drops the
     /// answer the Settings dialog acts on.

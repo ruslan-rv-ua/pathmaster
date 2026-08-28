@@ -20,23 +20,52 @@
 
 use std::path::{Path, PathBuf};
 
-use pathmaster_core::language::Language;
-
-/// The languages that ship a guide — the same set that ships a catalogue,
-/// because "one page per Interface Language" (v0.2.0 §9) is a claim about
-/// this enum and not about whatever happens to be in the directory.
-const LANGUAGES: [Language; 2] = [Language::English, Language::Ukrainian];
+/// The language the guide is written in first, and the one every other is
+/// measured against — the same source language `catalogue.rs` gates the msgids
+/// as (ADR-0004).
+const SOURCE_LANGUAGE: &str = "en";
 
 /// The documents live at the repository root, beside the rest of `docs/`, and
-/// the failure rung of §9's ladder points a browser at exactly this path under
+/// the failing rung of §9's ladder points a browser at exactly this path under
 /// the version's own tag — so the location is part of the contract, not a
 /// convenience.
 fn help_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/help")
 }
 
-fn document(language: Language) -> String {
-    let path = help_dir().join(format!("{}.md", language.code()));
+/// The catalogues live with the binary that embeds them (spec §17), and
+/// **they are what says which languages ship**: `build.rs` builds one page per
+/// `i18n/<code>.po` and refuses a code with no document, so reading the same
+/// directory here is what makes a language that ships a language that is
+/// gated — the rule `catalogue.rs` states next door, applied to the guide.
+/// Naming the two codes instead would leave a third language building fine and
+/// never heading-checked.
+///
+/// The enumeration is deliberately repeated from `build.rs` rather than
+/// shared, for the reason that file already gives about the same directory:
+/// sharing it would mean either giving the pure core a filesystem or letting a
+/// build script depend on a test.
+fn shipped_languages() -> Vec<String> {
+    let i18n = Path::new(env!("CARGO_MANIFEST_DIR")).join("../pathmaster/i18n");
+    let mut codes: Vec<String> = std::fs::read_dir(&i18n)
+        .expect("the i18n directory")
+        .filter_map(|entry| {
+            let path = entry.expect("an i18n directory entry").path();
+            (path.extension().and_then(|e| e.to_str()) == Some("po"))
+                .then(|| path.file_stem()?.to_str().map(str::to_owned))
+                .flatten()
+        })
+        .collect();
+    assert!(
+        codes.contains(&SOURCE_LANGUAGE.to_owned()),
+        "{SOURCE_LANGUAGE} ships a catalogue, and every other guide is measured against its own"
+    );
+    codes.sort();
+    codes
+}
+
+fn document(language_code: &str) -> String {
+    let path = help_dir().join(format!("{language_code}.md"));
     std::fs::read_to_string(&path)
         .unwrap_or_else(|e| panic!("{} could not be read: {e}", path.display()))
 }
@@ -115,13 +144,9 @@ fn the_reading_the_gate_is_built_on_sees_what_it_claims_to() {
 
 #[test]
 fn every_interface_language_ships_a_guide_with_something_in_it() {
-    for language in LANGUAGES {
-        let text = document(language);
-        assert!(
-            !text.trim().is_empty(),
-            "docs/help/{}.md is empty",
-            language.code()
-        );
+    for code in shipped_languages() {
+        let text = document(&code);
+        assert!(!text.trim().is_empty(), "docs/help/{code}.md is empty");
     }
 }
 
@@ -131,26 +156,21 @@ fn both_guides_carry_the_same_headings_at_the_same_levels() {
     // share a heading's words, and the shape is what says a section is
     // missing. Zipped rather than compared whole so the failure names the
     // first place they diverge instead of printing both documents.
-    let english = headings(&document(Language::English));
-    for language in LANGUAGES {
-        let other = headings(&document(language));
+    let english = headings(&document(SOURCE_LANGUAGE));
+    for code in shipped_languages() {
+        let other = headings(&document(&code));
         for (position, (mine, theirs)) in english.iter().zip(&other).enumerate() {
             assert_eq!(
-                mine.level,
-                theirs.level,
-                "heading {position} differs in depth: en {:?} (level {}) against {} {:?} (level {})",
-                mine.text,
-                mine.level,
-                language.code(),
-                theirs.text,
-                theirs.level,
+                mine.level, theirs.level,
+                "heading {position} differs in depth: {SOURCE_LANGUAGE} {:?} (level {}) \
+                 against {code} {:?} (level {})",
+                mine.text, mine.level, theirs.text, theirs.level,
             );
         }
         assert_eq!(
             english.len(),
             other.len(),
-            "docs/help/{}.md carries {} headings against English's {}",
-            language.code(),
+            "docs/help/{code}.md carries {} headings against {SOURCE_LANGUAGE}'s {}",
             other.len(),
             english.len(),
         );
@@ -162,25 +182,21 @@ fn every_guide_opens_on_one_title_and_never_skips_a_level() {
     // The guide's whole navigation is the browser's heading list (§9), which
     // is a list of levels as much as of words: a document that jumps from `#`
     // to `###` reads to a screen reader as a section with a missing parent.
-    for language in LANGUAGES {
-        let headings = headings(&document(language));
+    for code in shipped_languages() {
+        let headings = headings(&document(&code));
         let (first, rest) = headings
             .split_first()
-            .unwrap_or_else(|| panic!("docs/help/{}.md carries no heading", language.code()));
+            .unwrap_or_else(|| panic!("docs/help/{code}.md carries no heading"));
         assert_eq!(
-            first.level,
-            1,
-            "docs/help/{}.md opens on {:?} at level {} rather than on one title",
-            language.code(),
-            first.text,
-            first.level,
+            first.level, 1,
+            "docs/help/{code}.md opens on {:?} at level {} rather than on one title",
+            first.text, first.level,
         );
         let mut previous = first.level;
         for heading in rest {
             assert!(
                 heading.level <= previous + 1,
-                "docs/help/{}.md jumps from level {previous} to {} at {:?}",
-                language.code(),
+                "docs/help/{code}.md jumps from level {previous} to {} at {:?}",
                 heading.level,
                 heading.text,
             );

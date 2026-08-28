@@ -113,8 +113,8 @@ There is a sixth problem, and it belongs to the PATHs as a whole rather than to
 any one entry, so it has no word in this column: **the merged PATH can be too
 long**. The status bar's second field always shows its length. Past 8,191
 characters, `cmd.exe` ignores the variable entirely — inside a command prompt
-your `PATH` is simply absent — and PathMaster warns at Apply. Past 32,767 it
-cannot be stored at all, and Apply refuses.
+your `PATH` is simply absent — and PathMaster warns at Apply. At 32,767
+characters it cannot be stored at all, and Apply refuses.
 
 ## Backups and restore
 
@@ -128,7 +128,7 @@ and **Apply** is still what makes it real. That is deliberate — you can look a
 what you restored before committing to it.
 
 A copy that cannot be read, or that is not a valid saved copy any more, reads as
-**Corrupted** and cannot be restored. It is still listed, because the file is
+**[Corrupted]** and cannot be restored. It is still listed, because the file is
 still there.
 
 How many copies to keep per PATH is a setting; the oldest are removed past that
@@ -137,8 +137,9 @@ opens the folder they live in, if you want to keep one somewhere else.
 
 ## What version 0.2.0 adds
 
-Everything above was in the first release. These are the newer surfaces, and
-each has its own key in the table below.
+Some of what is described above arrived with this version too — the `#` column,
+the search field over each list, and the extra `Tab` stop it adds. These are the
+rest of it, and each has its own key in the table below.
 
 - **Search** (`Ctrl+F`) — the field above each list narrows it to the entries
   containing what you type. It matches what the list is currently showing,
@@ -147,7 +148,8 @@ each has its own key in the table below.
   search and puts you back in the list.
 - **Filter** (**View → Filter**) — narrows the list to one kind of problem: all
   entries, entries with any problem, or exactly one of the five Status words.
-  `Ctrl+I` switches between *All* and *With issues* without opening the menu.
+  `Ctrl+I` is the coarse switch, without opening the menu: from *All* it goes to
+  *With issues*, and from any other state back to *All*.
 - **Expanded values** (`Ctrl+E`) — shows every `%VARIABLE%` resolved to what it
   currently stands for, throughout the list. It changes only what is displayed:
   editing always works on the text as stored, and a variable that stands for
@@ -192,7 +194,7 @@ itself on its own menu item.
 | `Ctrl+F` | Move to the search field and select what is already in it |
 | `↓` or `Tab` | From the search field into the list |
 | `Esc` | In the search field: clear it and return to the list |
-| `Ctrl+I` | Switch the filter between *All* and *With issues* |
+| `Ctrl+I` | Coarse filter switch: *All* → *With issues*, anything else → *All* |
 | `Ctrl+E` | Switch between expanded and stored values |
 | `Ctrl+T` | Open the PATH Tree |
 | `Space` | In Fix Issues: tick or untick the row |

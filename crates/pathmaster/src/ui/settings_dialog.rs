@@ -14,7 +14,7 @@
 //!
 //! **The restart notice is the selector's own label.** FR-i18n-runtime says the
 //! Interface Language applies after a restart, and the Announcement catalogue
-//! is closed at seven, so the only place left to say so is the label of the
+//! is closed at fourteen, so the only place left to say so is the label of the
 //! control that changes it: "Language (takes effect after restart)". Nothing
 //! here re-translates a running window, and pressing OK speaks nothing.
 //!

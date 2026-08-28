@@ -560,7 +560,7 @@ pub const BUTTON_NO: &str = "No";
 ///
 /// **The restart notice rides the language selector's own label**, which is
 /// why that label is a sentence: FR-i18n-runtime says the language applies
-/// after a restart, and the Announcement catalogue is closed at seven, so the
+/// after a restart, and the Announcement catalogue is closed at fourteen, so the
 /// one place left to say so is the label of the control that changes it.
 ///
 /// The auto choice is Catalogue text because it names a rule rather than a
@@ -684,7 +684,7 @@ pub const DIALOG_OVER_HARD_CAP: &str =
 /// The cancelled dialog answers a declined UAC prompt — `ShellExecuteEx`
 /// reports `ERROR_CANCELLED`, and silence after a security prompt is treated
 /// as a defect (ADR-0005). A dialog and not an Announcement: it answers an
-/// explicit user action, and the Announcement catalogue is closed at seven.
+/// explicit user action, and the Announcement catalogue is closed at fourteen.
 ///
 /// The window title is the cmd.exe convention, and it is Catalogue text
 /// because Alt+Tab speaks the title first — the cheapest always-available

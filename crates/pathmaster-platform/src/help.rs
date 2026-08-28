@@ -15,6 +15,8 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
+use pathmaster_core::language::Language;
+
 use crate::datadir;
 
 /// The page's name in the Data Directory — **one file, no language suffix**.
@@ -45,8 +47,8 @@ pub fn write_page(data_dir: &Path, page: &[u8]) -> io::Result<PathBuf> {
     Ok(target)
 }
 
-/// The address of the source document for `version`, in `language_code` — the
-/// rung below the file (v0.2.0 §9).
+/// The address of the source document for `version`, in `language` — the rung
+/// below the file (v0.2.0 §9).
 ///
 /// **Version-pinned, never `main`.** A guide that describes a build the reader
 /// is not running is worse than no guide, and `blob/v{version}/` is the one
@@ -56,8 +58,11 @@ pub fn write_page(data_dir: &Path, page: &[u8]) -> io::Result<PathBuf> {
 ///
 /// The Markdown source rather than a rendered page, because it is what the
 /// repository actually holds; GitHub renders it on arrival, headings and all.
-pub fn source_url(version: &str, language_code: &str) -> String {
-    format!("{REPOSITORY}/blob/v{version}/docs/help/{language_code}.md")
+pub fn source_url(version: &str, language: Language) -> String {
+    format!(
+        "{REPOSITORY}/blob/v{version}/docs/help/{}.md",
+        language.code()
+    )
 }
 
 /// The repository the release is cut from — the same one the README's badges

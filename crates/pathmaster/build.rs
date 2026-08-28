@@ -272,9 +272,15 @@ pre { overflow-x: auto; }
 fn title(markdown: &str) -> String {
     const PRODUCT: &str = "PathMaster";
 
+    // The document's **opening** line rather than the first `# ` anywhere:
+    // the heading-parity gate already refuses a guide that does not open on
+    // one title, and reading only that line is what keeps this from mistaking
+    // a `#` inside the "Command line" subsection's fenced example for a
+    // heading without repeating that gate's fence tracking here.
     let heading = markdown
         .lines()
-        .find_map(|line| line.strip_prefix("# "))
+        .find(|line| !line.trim().is_empty())
+        .and_then(|line| line.strip_prefix("# "))
         .expect("a User Guide opens on a level-one heading")
         .trim();
     let rest = heading
@@ -287,8 +293,11 @@ fn title(markdown: &str) -> String {
     format!("{PRODUCT} {version}{rest}")
 }
 
-/// The three characters that would otherwise close the `<title>` element early.
-/// Everything else on the page came out of an HTML renderer already escaped.
+/// The `<title>` element's text is the one string on the page this file writes
+/// rather than the renderer, so it is the one string this file has to escape:
+/// `<` would close the element early, and `&` would open an entity reference
+/// that swallowed what followed. Everything else came out of an HTML renderer
+/// already escaped.
 fn escaped(text: &str) -> String {
     text.replace('&', "&amp;")
         .replace('<', "&lt;")
