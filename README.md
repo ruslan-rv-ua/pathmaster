@@ -9,7 +9,7 @@ Portable editor and diagnostics for the Windows `PATH` environment variable.
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
 ![Windows 10 and 11, 64-bit](https://img.shields.io/badge/Windows-10%20%7C%2011%20x64-blue)
 
-![The PathMaster main window: a message line reading "User PATH: 10 entries", three tabs (User PATH, System PATH, Backups), and a two-column list of Path and Status. Healthy entries leave Status empty; the flagged ones read Missing, "Missing, Quoted", Relative, Duplicate and Empty. A row of buttons follows — Add, Edit, Delete, Move Up, Move Down, Apply, Cancel Changes — and the status bar counts entries and issues for each PATH and gives the merged PATH length.](docs/images/main-window-en.png)
+![The PathMaster main window: a message line reading "User PATH: 10 entries", three tabs (User PATH, System PATH, Backups), an empty search field, and a three-column list of #, Path and Status, its rows numbered 1 to 10. Healthy entries leave Status empty; the flagged ones read Missing, "Missing, Quoted", Relative, Duplicate and Empty. A row of buttons follows — Add, Edit, Delete, Move Up, Move Down, Apply, Cancel Changes — and the status bar counts entries and issues for each PATH and gives the merged PATH length.](docs/images/main-window-en.png)
 
 *The PATH in that picture is a deliberately broken example: it carries one of every problem
 PathMaster reports.*
