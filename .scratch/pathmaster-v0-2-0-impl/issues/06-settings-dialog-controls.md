@@ -6,13 +6,14 @@
 
 **Blocked by:** 03 (the fields and the behaviour they gate).
 
-**Status:** in review — built and driven live in both languages; the NVDA reading is **deferred to the Release Checklist by the user's decision** (2026-08-27), not left undone, see Comments
+**Status:** in review — built and driven live in both languages; the NVDA reading **measured and passed at B12a** (2026-08-28), leaving only B18’s disabled-checkbox half to the Release Checklist pass, see Comments
 
 - [x] Three controls with the assembly labels (amendable at implementation like v0.1.0's dialog strings were): "Speak filtered entry counts" («Озвучувати кількість відфільтрованих записів»), "Delay before speaking the count (ms)" («Затримка перед озвученням кількості (мс)»), "Escape returns focus to the list" («Escape повертає фокус до списку») — taken unamended
 - [x] The dialog's existing rules extend unchanged: only changed settings are written, domains are one rule read twice (0–5000 for the delay, 0 legal), Read-only Data disables the controls and OK
 - [x] Changing the delay in the dialog demonstrably changes when the count speaks; turning `speakFilteredCount` off demonstrably silences items 9/10/11 without touching anything else
 - [x] New dialog msgids shipped in both languages, i18n gate green
-- [ ] NVDA reads the three controls and their states on the free native path — **deferred to the Release Checklist (B12a, B18) by decision, 2026-08-27**
+- [x] NVDA reads the three controls and their states on the free native path — **measured at B12a by the user at the keyboard, 2026-08-28**, discharging the 2026-08-27 deferral on that step; see Comments
+- [ ] B18's half, which is a different reading rather than a repeat: the same two checkboxes **disabled**, in the unwritable-`data\` run, still speaking their checked state. Needs that run staged, so it goes with the Release Checklist pass
 
 ## Comments
 
@@ -85,3 +86,21 @@ ticket 12, which is not told to touch them: B12a's Tab list now names the three 
 states, B18's disabled list grows the two checkboxes, and B14a (the delay's rejection and the
 two-field order), B22 (the delay in force with no restart), B23 (the count silenced and nothing
 else) and B24 (ESC either way) are new. Ticket 12 re-runs them with the rest.
+
+**2026-08-28 (B12a measured)** — The reading deferred on 2026-08-27 was taken by the user at the
+keyboard against real NVDA, and **passed**: the dialog, the Tab order through the selector, both
+fields and both checkboxes, the checked state spoken with each checkbox, our own [OK] and [Cancel],
+and Space toggling with the new state spoken in place. Recorded as a **confirmed set** rather than
+reading by reading, because that is how the session was reported — ticket 11's precedent — and the
+entry says so where the next reader looks.
+
+So ADR-0003's free native path holds for a stock `wxCheckBox`: no accessibility call anywhere, and
+NVDA reads the state anyway. That was the prediction the ticket refused to bank on, and it is
+measured now.
+
+**What is left is B18's half alone.** It is not a repeat of what passed: whether those checkboxes
+still speak their checked state while **disabled**, in the unwritable-`data\` run, is its own
+reading, and it needs that run staged. Its failure mode is worth naming in advance — nothing there
+could be fixed from this side, since ADR-0003 forbids the accessibility call that would be the fix,
+so a miss amends the step's expectation the way ticket 02's measurement amended §2.1, rather than
+opening code work.
