@@ -3,6 +3,9 @@
 The canonical, manual verification script that gates every release. Defined by tickets 09 (D8),
 10 (D8), 12, 17 (D5), 18/24, 19 (D6) and 22 of the v0.1.0 wayfinder map; the spec
 ([.scratch/pathmaster-v0-1-0/spec.md](../.scratch/pathmaster-v0-1-0/spec.md), §10.2/§18) points here.
+Steps 34–86, and the amendments to steps 2–4, 15 and 31, are the v0.2.0 delta
+([.scratch/pathmaster-v0-2-0/spec.md](../.scratch/pathmaster-v0-2-0/spec.md), §17) folded in here:
+this is the document that gets filled, and a delta left in the spec is one nobody walks with.
 
 **How it is used.** Run personally, on real NVDA, before each release, filling a **copy** of this
 document — every step marked pass / fail / void / skipped-with-reason, plus the header below. The
@@ -38,9 +41,9 @@ interface expect the Catalogue's Ukrainian equivalents.
 | # | Step | Expected speech | ✓ |
 |---|------|-----------------|---|
 | 1 | Launch the app | Window title "PathMaster" | |
-| 2 | Arrow to a healthy Entry | Path text only — no "Status:" | |
-| 3 | Arrow to an Entry with one Issue | "{path}; Status: {type}" — type one of Missing / Relative / Quoted / Duplicate / Empty | |
-| 4 | Arrow to an Entry with several Issues | All types, comma-joined, in the order Missing > Relative > Quoted > Duplicate > Empty | |
+| 2 | Arrow to a healthy Entry | "{#}; Path: {path}" — the position, then the path under its column header, and no "Status:". The `#` is the Entry's place in the **full** list and never renumbers under a narrowing | |
+| 3 | Arrow to an Entry with one Issue | "{#}; Path: {path}; Status: {type}" — type one of Missing / Relative / Quoted / Duplicate / Empty | |
+| 4 | Arrow to an Entry with several Issues | The same "{#}; Path: {path}; Status: …" opening, then all types, comma-joined, in the order Missing > Relative > Quoted > Duplicate > Empty | |
 | 5 | Ctrl+Tab to the other Scope | Tab label, then "System PATH: {n} entries" | |
 | 6 | Activate an empty Scope | "…: no entries" | |
 | 7 | Refresh (F5) | "{scope}: {n} entries"; `NVDA+Tab` confirms focus kept the Entry | |
@@ -51,7 +54,7 @@ interface expect the Catalogue's Ukrainian equivalents.
 | 12 | Cancel | "Changes discarded" | |
 | 13 | Close with a dirty Session | Dialog title names the dirty Scopes ("Unsaved changes in: …"); its three buttons spoken as [Save] [Discard] [Cancel], focus starting on Cancel | |
 | 14 | Menu with a clean Session | Apply/Cancel items read as unavailable ("недоступно") | |
-| 15 | Full Tab cycle | Every control reached and spoken; cycle returns to start, no trap | |
+| 15 | Full Tab cycle | Every control reached and spoken, in the order tabs → **Search field** → list → buttons; cycle returns to start, no trap | |
 | 16 | `NVDA+End` | Both status bar fields spoken on demand (entry/issue counts; merged PATH length) | |
 | 17 | Start with an unwritable `data\` | Read-only Data Announcement at startup, reason named | |
 | 18 | Ctrl+Tab to the Backups tab | The tab label, and **nothing else** — it is not a Scope, so no entry count and no other Announcement | |
@@ -67,7 +70,7 @@ interface expect the Catalogue's Ukrainian equivalents.
 | 28 | Dirty **both** Scopes (elevated — see section C), close, answer [Save] | The title names both, User first; "User PATH applied" then "System PATH applied"; the application closes and `data\backups\` holds one new file per Scope | |
 | 29 | Stage B11's unwritable `data\backups\`, dirty a Session, close, answer [Save] | "Apply failed — could not write a backup, no changes were made."; the **window stays open** on the failed Scope's tab, `NVDA+Tab` confirms focus is on that tab's list, the Session is still dirty, and the log has no `shutdown: clean` line | |
 | 30 | File → Exit, and Alt+F4 | Each is spoken as a menu item carrying `Alt+F4`, and each reaches the same close-confirm as the title bar's [X] | |
-| 31 | `Alt+H`, then arrow through the Help menu | One item, **About**, spoken and carrying no accelerator; the menu is the last on the bar | |
+| 31 | `Alt+H`, then arrow through the Help menu | **Two** items: **User Guide** first, carrying `F1`, then **About**, carrying no accelerator. Neither is separated from the other, and the menu is still the last on the bar | |
 | 32 | Activate Help → About | Dialog whose **title** is "PathMaster {version} — MIT License" («PathMaster {version} — ліцензія MIT»), with the version of the build under test; a single [OK] which Escape also answers; `NVDA+Tab` afterwards confirms focus is back where it was | |
 | 33 | Open Help → About in the step-17 unwritable-`data\` run, and again on the Backups tab | The item is **available** in both: it names the build, which is true in every state | |
 
@@ -76,6 +79,108 @@ files in `data\backups\`: `YYYY-MM-DDTHH-MM-SS-User.json` holding
 `{"timestamp":"…","scope":"User","valueType":"REG_EXPAND_SZ","entries":["C:\\one"]}` for step 21,
 and the same name with a truncated body for step 20. A file named anything else — and the `.tmp`
 of a write in progress — must not appear in the list at all.
+
+### The v0.2.0 surfaces (spec v0.2.0 §17)
+
+The same pass, continuing the same numbering. Gate zero still stands over every step that
+speaks, and the expected speech is still the Catalogue's — the Command line group is the one
+that mostly does not speak, and its column header says so. Each group is one surface, so a
+voided group can be repeated on its own without re-running the whole section.
+
+#### Search (v0.2.0 §3)
+
+| # | Step | Expected speech | ✓ |
+|---|------|-----------------|---|
+| 34 | Type a few characters into the Search field | Only the typing echo while the rows rebuild — no chatter, and no deaf signature — then the count **once**, after the pause: "{n} of {m} entries". Re-run gate zero if the echo itself stops | |
+| 35 | Type a query nothing matches | "No matching entries", over a list with no rows | |
+| 36 | From the field press `Tab`; from the field again press `↓` | Each lands on a row, and NVDA reads that row in full | |
+| 37 | Press `Enter` in the field | Nothing at all: no Announcement, no default button, and the focus does not move | |
+| 38 | Press `ESC` in a field with text | The field clears and focus returns to the list. With "Escape returns focus to the list" cleared (B24) the field clears and focus **stays** in it; either way, ESC on an already-empty field says nothing | |
+| 39 | Press `Ctrl+F` from the list, from a button, and with the menu bar just closed | Focus lands in that Scope's Search field with its text **selected**, from every one of them | |
+| 40 | Narrow one Scope, then `Ctrl+Tab` onto it from the other | "User PATH: {n} of {m} entries" — Announcement 10, the Scope named; never step 5's bare count. Narrow it to nothing and repeat: "User PATH: no matching entries", the Scope still named | |
+| 41 | View → Search on the Backups tab | The item reads as unavailable, and `Ctrl+F` does nothing | |
+| 42 | `NVDA+End` while a Scope is narrowed | Field 0 reads the narrowed form — "User PATH: {n} of {m} entries ({k} issues)" — and the parenthetical is still that **Scope's** issue count, not the view's. Then Delete a visible row, and Ctrl+Z it back: the visible set recomputes and **nothing is spoken** either time. A Working-Copy change is not a change of criteria, and only criteria speak | |
+
+#### Filter (v0.2.0 §4)
+
+| # | Step | Expected speech | ✓ |
+|---|------|-----------------|---|
+| 43 | View → Filter, and arrow through the submenu | Seven items, and NVDA names the selected one **as selected** — a radio group, walked with the arrow keys | |
+| 44 | Choose a type, `Ctrl+Tab` to the other Scope, and open the submenu there | The checked item is that Scope's own: each Editing Session keeps its own Filter, and the mark follows the tab | |
+| 45 | Choose a type, e.g. Missing | "Missing: {n} of {m} entries" — one Announcement composed with the Search text, never two; a type that matches nothing speaks "Missing: no matching entries", the state still named. `NVDA+End` then reads field 0 as "User PATH: Missing — {n} of {m} entries ({k} issues)" | |
+| 46 | `Ctrl+I` from All, from With issues, and from a type state | All → With issues, With issues → All, and any type state → All; each speaks its own count, and the submenu's mark follows every one of them | |
+| 47 | Clear both narrowings — ESC in the field, Filter → All | Announcement 1, the plain "{scope}: {n} entries": the view is no longer filtered, and `NVDA+End` confirms field 0 is back to its unnarrowed form | |
+
+#### Expansion Mode (v0.2.0 §5)
+
+| # | Step | Expected speech | ✓ |
+|---|------|-----------------|---|
+| 48 | View → Expanded Values with the mode off, and again with it on | The item reads its **checked state** both ways — the mark is what says which way it went, and the label itself never changes | |
+| 49 | `Ctrl+E`, then `Ctrl+E` again | "Showing expanded values", then "Showing raw values" | |
+| 50 | Narrow a Scope, then `Ctrl+E` | **Both**, in order and through the same debounced path: the mode message, then the count one `filteredCountDelayMs` later. Neither swallows the other at the 250 ms default | |
+| 51 | With expanded values showing, `F2` on an Entry holding `%VAR%` | The dialog's field carries the **raw** text: the expansion is a rendering, never the Working Copy | |
+
+#### Tree View (v0.2.0 §6)
+
+| # | Step | Expected speech | ✓ |
+|---|------|-----------------|---|
+| 52 | `Ctrl+T` on the User tab | A dialog titled "PATH Tree — User PATH", and its first node speaks on open | |
+| 53 | Arrow to a compressed chain node | Its whole joined label in one reading, with the level and position — never the head segment alone | |
+| 54 | Arrow to a three-part leaf | Segment, raw parenthetical **and** Issue suffix, all three, untruncated | |
+| 55 | Arrow to the group nodes | "Unresolved variables" and "Relative entries", each spoken by name | |
+| 56 | `Enter` on a leaf | The dialog closes, and the landed row speaks in full — "{#}; Path: {path}; Status: …" | |
+| 57 | Reopen, select a leaf, and press [Go to entry] | The same as `Enter`: closes, lands, and the row speaks | |
+| 58 | Move to an inner node or a group node and Tab to [Go to entry] | It reads as **unavailable** — there is no Entry to go to | |
+| 59 | Reopen and answer with `Esc`; reopen and answer with [Cancel] | Each closes, and `NVDA+Tab` confirms focus is back where it was. View → PATH Tree… on the Backups tab reads as unavailable, and `Ctrl+T` there does nothing | |
+
+#### Fix Issues (v0.2.0 §7)
+
+| # | Step | Expected speech | ✓ |
+|---|------|-----------------|---|
+| 60 | Edit → Fix Issues… on a Scope with no fixable row | Reads as unavailable | |
+| 61 | The same on the Backups tab, on the System tab **unelevated**, and in the step-17 unwritable-`data\` run | Unavailable in all three | |
+| 62 | Open it on a Scope that has fixable rows | A dialog titled "Fix issues — User PATH"; arrowing the rows reads each as "checked" / "not checked" with its `#`, Path, Issue and Action columns | |
+| 63 | Arrow to a Missing row whose Entry carries `%VAR%` | It starts **not checked**: an unresolved variable is not proof the directory is absent | |
+| 64 | `Space` on a row, twice | The new state is announced **in place** each time | |
+| 65 | Check a known number of rows and press [Fix selected] | Focus lands first, then "Fixed {n} entries" **last** — and {n} is the number that was checked | |
+| 66 | One `Ctrl+Z` after step 65 | "Undone: Fixing issues", and **every** fixed Entry is back: one Checkpoint for the whole apply. Reopen, check nothing, press [Fix selected] — it closes in silence, and `Ctrl+Z` has nothing new to undo | |
+
+#### Copy (v0.2.0 §8)
+
+| # | Step | Expected speech | ✓ |
+|---|------|-----------------|---|
+| 67 | `Ctrl+C` on a row, then paste into a text editor | "Copied to clipboard", and what pastes is exactly what the list is showing | |
+| 68 | `Ctrl+E`, then `Ctrl+C` on an Entry holding `%VAR%` | The clipboard holds the **expansion**: the copy follows the rendering, not the stored text | |
+| 69 | Put focus in the Search field, select its text, `Ctrl+C` | The **query** is copied, not the Entry, and nothing is announced — wxMSW's text-entry preprocessing claims Ctrl+C, which is intended | |
+| 70 | `Ctrl+C` on the Backups tab, and Edit → Copy there | The item reads as unavailable and the keystroke does nothing. Then close the application entirely and paste again — the clipboard still holds what step 67 put there | |
+| 71 | **Failure path.** Hold the clipboard open from another process (one that opens it and does not close it), then `Ctrl+C` on a row | "Could not copy to clipboard" — Announcement 14 — and **nothing else**: no dialog of any kind, in either language. This row is why Copy writes through Win32 directly rather than through `wxdragon::Clipboard`, which raised its own untranslated «Pathmaster Error» box on exactly this path; with no such row, a regression back to it passes every other gate | |
+
+#### User Guide and F1 (v0.2.0 §9)
+
+| # | Step | Expected speech | ✓ |
+|---|------|-----------------|---|
+| 72 | `Alt+H`, then arrow the menu | Two items: **User Guide** first, carrying `F1`, then **About** — step 31 read from the other side | |
+| 73 | `F1` | The browser opens the guide; NVDA speaks "PathMaster {version} — User Guide" as the document title, and `H` walks its headings | |
+| 74 | Look in `data\` afterwards | `help.html` is there, in the Interface Language | |
+| 75 | Change the Interface Language, restart, `F1` | The **one** file is rewritten in the new language — no second file, and no orphan of the old one | |
+| 76 | Delete `data\help.html`, then `F1` | It returns, and the guide opens as before | |
+| 77 | `F1` in the step-17 unwritable-`data\` run | The browser opens the **online** copy, pinned to this build's tag, and nothing is announced. That run has no log to record it (L6); to read the `WARN` line itself, use a run whose `data\` is writable but whose `help.html` is not — hold the file open, or put a directory of that name in its place — where `F1` goes online just the same and `data\pathmaster.log` gains exactly one line | |
+| 78 | `F1` with the Edit dialog open | Nothing at all: no Announcement, the dialog stays open, and focus does not move | |
+| 79 | Help → User Guide on the Backups tab, and in the unwritable-`data\` run | **Available** in both — how to use the application is true in every state | |
+
+#### Command line (v0.2.0 §10)
+
+Launch checks: each starts the application afresh, from a shell, with the switch under test.
+
+| # | Step | Expected result | ✓ |
+|---|------|-----------------|---|
+| 80 | `--data-dir` pointing at a path that does not exist yet | The directory is created **there** and used; `data\` beside the exe is untouched — no new file in it, and none created if there was none | |
+| 81 | A **relative** `--data-dir`, from a shell whose current directory is somewhere known | It resolves against that shell's current directory, never against the exe's | |
+| 82 | `--data-dir` pointing somewhere unusable — a *file* of that name, or a directory that denies writes | Announcement 7 with the **fourth** reason: "Read-only: the --data-dir location cannot be used". Nothing is written anywhere — not there, and not beside the exe | |
+| 83 | In an override Run whose path contains a space, Tools → Restart as Administrator | The elevated instance comes up on the **same** Data Directory: the switch and its spaced path survive the relaunch | |
+| 84 | An unknown argument, e.g. `--colour` | The dialog "Unknown argument --colour was ignored", the usage line in its body; the application **continues** after [OK], and the log gains one `WARN` line | |
+| 85 | `--help` | The dialog titled "PathMaster command line", the usage line in its body, and the application **exits** when it is answered — no main window at all | |
+| 86 | Read `data\pathmaster.log` after an override Run and after a default Run | The startup line carries `dataDir:` on the override Run, and does not on the default one | |
 
 ## B. Dialog steps (ticket 10)
 

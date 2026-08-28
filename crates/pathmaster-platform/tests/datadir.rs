@@ -1,7 +1,8 @@
 //! Data Directory integration tests (spec §3, ADR-0002; v0.2.0 §10): the locate
 //! rule's path mangling, `--data-dir`'s substitution of that rule, the Writable
-//! / Read-only Data decision against real temp directories, and the
-//! atomic-replace write helper. No mocks — the measured hazards
+//! / Read-only Data decision against real temp directories, the atomic-replace
+//! write helper, and TC-file-structure's whole inventory driven through every
+//! writer that puts something in `data\`. No mocks — the measured hazards
 //! (junction-reporting `current_exe()`, verbatim canonicalize output) are real
 //! filesystem behaviour.
 
@@ -551,4 +552,65 @@ fn each_read_only_reason_names_a_registered_catalogue_string() {
             "{reason:?} names a msgid the Catalogue does not hold"
         );
     }
+}
+
+/// TC-file-structure's whole `data\` inventory, **driven rather than restated**
+/// (spec §3, grown by one file in v0.2.0 §15).
+///
+/// The rule is "nothing else, anywhere", and until now nothing said so in one
+/// place: each writer had tests for its own file and none of them could see a
+/// fourth appear beside it. This performs every write the application makes
+/// into the Data Directory and then reads the directory back, so a module that
+/// starts leaving something behind fails here — rather than in the Process
+/// Monitor session of Release Checklist E2, months later, on a released build.
+///
+/// `data\backups\*.json` and its transient `.tmp` are `snapshots.rs`'s to gate;
+/// what this fixes is the level above them.
+#[test]
+fn a_data_directory_holds_the_file_structure_and_nothing_else() {
+    use pathmaster_core::settings::SettingsFile;
+    use pathmaster_platform::logwriter::{Logger, LOG_FILE_NAME, OLD_FILE_NAME};
+    use pathmaster_platform::{help, settings, snapshots};
+
+    let home = tempfile::tempdir().unwrap();
+    let data = home.path().join("data");
+    assert_eq!(
+        establish(data.clone()),
+        DataDirState::Writable(data.clone())
+    );
+
+    // settings.json.bad, made the only way it is ever made: by a read that
+    // could not parse what was there. The set-aside leaves no settings.json.
+    fs::write(data.join(settings::FILE_NAME), b"{ not json").unwrap();
+    settings::read(&DataDirState::Writable(data.clone()));
+    settings::write(&data, &SettingsFile::defaults()).unwrap();
+
+    snapshots::ensure_folder(&data);
+
+    // Rotation happens at open, over 1 MB, and leaves both generations behind.
+    fs::write(data.join(LOG_FILE_NAME), vec![b'x'; 1_048_577]).unwrap();
+    let _logger = Logger::open(&data);
+
+    // The v0.2.0 addition. Written on every F1, under one name whatever
+    // language it is in.
+    help::write_page(&data, b"<!doctype html>").unwrap();
+
+    let mut found: Vec<String> = dir_names(&data)
+        .iter()
+        .map(|name| name.to_string_lossy().into_owned())
+        .collect();
+    let mut inventory: Vec<String> = [
+        settings::FILE_NAME,
+        settings::BAD_FILE_NAME,
+        snapshots::DIR_NAME,
+        LOG_FILE_NAME,
+        OLD_FILE_NAME,
+        help::FILE_NAME,
+    ]
+    .iter()
+    .map(|name| (*name).to_owned())
+    .collect();
+    found.sort();
+    inventory.sort();
+    assert_eq!(found, inventory);
 }

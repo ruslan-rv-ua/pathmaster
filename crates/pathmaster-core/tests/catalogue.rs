@@ -264,15 +264,18 @@ fn a_translated_menu_keeps_one_mnemonic_letter_per_item() {
     // A translator can break this without the text looking wrong — and unlike
     // the English side, no reviewer of the Ukrainian would notice.
     //
-    // No menu has landed yet: the first is the Edit menu of the entry-editing
-    // ticket, and each menu's labels arrive with the menu. Until then this walks
-    // an empty set — the logic it walks it with is what `msgids.rs` pins against
-    // fixtures, so the first `menu_item` entry to appear is gated on arrival.
+    // v0.2.0 grew the bar by a whole menu and three of the others by an item
+    // each, which voids the v0.1.0 assignments' proof rather than the rule
+    // (§12). This is the re-run: every menu, both languages, one pass.
     for (code, catalog) in catalogues() {
         let menus: BTreeSet<&str> = REGISTRY.iter().filter_map(|entry| entry.menu).collect();
         for menu in menus {
+            let siblings: Vec<&CatalogueEntry> = REGISTRY
+                .iter()
+                .filter(|entry| entry.menu == Some(menu))
+                .collect();
             let mut labels = Vec::new();
-            for entry in REGISTRY.iter().filter(|entry| entry.menu == Some(menu)) {
+            for entry in &siblings {
                 let Some(message) = catalog.find_message(None, entry.msgid, None) else {
                     continue;
                 };
@@ -283,6 +286,16 @@ fn a_translated_menu_keeps_one_mnemonic_letter_per_item() {
                 );
                 labels.push(label);
             }
+            // The skip above is how a label a catalogue lacks stays another
+            // test's report — but a skipped label is also an *unchecked* one,
+            // and uniqueness proved over four of five siblings is not proved.
+            // Absence is reported there and counted here.
+            assert_eq!(
+                labels.len(),
+                siblings.len(),
+                "{code}.po leaves {} of the {menu} menu's labels unchecked",
+                siblings.len() - labels.len()
+            );
             assert_eq!(
                 duplicate_mnemonic(labels.iter().copied()),
                 None,
