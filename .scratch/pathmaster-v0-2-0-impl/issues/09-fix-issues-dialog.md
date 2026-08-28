@@ -6,7 +6,7 @@
 
 **Blocked by:** 01 (retrofit), 02 (the `#` column meaning the dialog reuses).
 
-**Status:** done — driven live in both languages; the **Space toggle alone could not be re-measured in this session** (no synthetic keyboard reaches the app here) and stands on wayfinder ticket 16 probe 7, see Comments
+**Status:** done — driven live in both languages and **verified against live NVDA by the user at the keyboard** (2026-08-28), which closed the Space toggle the implementation session could not reach; nothing amended, see Comments
 
 - [x] Fixable = three deletions + one repair: Missing, Duplicate, Empty propose **Delete entry**; Quoted proposes **Remove quotes — every `"` in the Entry**; Relative gets no repair and Relative-only Entries are excluded; Over-length is excluded entirely — no row, no reminder text
 - [x] One row per Entry, one computed action: the Issue column carries the comma-joined Status string; the action is Delete entry when any of Missing/Duplicate/Empty is flagged (deletion cures Quoted too), else Remove quotes
@@ -160,17 +160,24 @@ Announcement 4's `Delete entry` msgid**, which §14 requires — so in Ukrainian
 Both strings are the spec's own; changing either would break the reuse §14 asks for or contradict the
 Ukrainian it fixes, so the mix is recorded rather than resolved.
 
-**Space could not be re-measured in this session, and is the one criterion standing on an earlier
-measurement.** Synthetic keyboard input reaches nothing from this harness — neither `keybd_event` nor
-`SendInput`, with the window confirmed foreground and `GetGUIThreadInfo` confirming the list holds the
-focus; a Down arrow does not move the focused row of the **main window's own list** either, so the
-finding is the harness's and not the dialog's (the standing rule: confirm against a known-good surface
-first). What *was* measured is the half that matters for the code: the boxes are live and toggling one
-by mouse changes what `LVM_GETITEMSTATE` reads back at apply time, so "the state the user leaves is
-the state that is applied" is proven end to end. Space itself is comctl32's own `LVS_EX_CHECKBOXES`
-behaviour with no code of ours in the path, measured against real NVDA in wayfinder ticket 16 probe 7,
-which is what §7 cites. The Release Checklist's Fix Issues step (folded in by ticket 12) is where it
-is proven again with NVDA at the keyboard.
+**Space could not be reached from the implementation harness, and the user closed it the next day.**
+Synthetic keyboard input reaches nothing from that harness — neither `keybd_event` nor `SendInput`,
+with the window confirmed foreground and `GetGUIThreadInfo` confirming the list holds the focus; a
+Down arrow does not move the focused row of the **main window's own list** either, so the finding was
+the harness's and not the dialog's (the standing rule: confirm against a known-good surface first).
+What the harness *could* measure is the half that matters for the code: the boxes are live, and
+toggling one by mouse changes what `LVM_GETITEMSTATE` reads back when the dialog closes — "the state
+the user leaves is the state that is applied", proven end to end.
+
+**Verified against live NVDA on this machine (2026-08-28), the user at the keyboard** — rounds one,
+two and four's provenance, and recorded as **round five** in delta-spec §19. The readings enumerated
+for that session all held: the dialog's Scope-named title and first row on open; each row read with
+its checked state and its columns; the `%VAR%`-carrying and non-Fixed-root rows arriving unchecked;
+**Space toggling with the new state announced in place**; Enter answering Cancel, as §7's inverted
+default intends; [Fix selected] landing focus first and speaking "Fixed {n} entries" last; one Ctrl+Z
+restoring every fixed Entry; and zero checked closing silently with nothing to undo. **Nothing
+amended** — no contract, no string, no line of code. Round two had measured the same checkbox
+behaviour against a prototype; this discharges it on the real dialog.
 
 **No `settings.json` field and no state kept**: a fresh `Plan` and a fresh `ListCtrl` per open, so
 "nothing about the dialog persists" is a property of the code rather than a rule kept by hand.

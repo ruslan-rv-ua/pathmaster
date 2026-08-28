@@ -776,6 +776,18 @@ that constraint asks; round three's provenance is stated in its own entry:
   above came from the toolkit rather than from NVDA, and were found by a cross-process mouse
   probe before this session.
 
+- **Round five** ([impl ticket 09](../pathmaster-v0-2-0-impl/issues/09-fix-issues-dialog.md),
+  2026-08-28): the Fix Issues dialog measured on the built application. **Provenance is rounds one,
+  two and four's** — the user at the keyboard, not the harness. It discharges on the real dialog what
+  round two took against a prototype: a native listview row reads its checked state with its columns,
+  **Space toggles with the change announced in place**, and [Fix selected] speaks the summary after
+  focus has landed. The dialog's own readings held too — the Scope-named title and the first row on
+  open, the unchecked defaults on the `%VAR%` and non-Fixed-root rows, Enter answering Cancel as §7's
+  inverted default intends, one Ctrl+Z restoring every fixed Entry, and zero checked closing silently.
+  **No contract amended.** The implementation session could not reach Space at all — synthetic
+  keyboard input reached nothing from that harness, on the main window's own list either — so this
+  round is what carries §7's Space clause rather than probe 7 alone.
+
 The deaf-list risk posture (§19 of the v0.1.0 spec) is unchanged: v0.2.0 ships zero deaf-state
 code, the Sanity Check gates every measurement, and in-app detection stays deferred (§20).
 
