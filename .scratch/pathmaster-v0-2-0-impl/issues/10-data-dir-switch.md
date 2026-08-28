@@ -6,7 +6,7 @@
 
 **Blocked by:** 01 (retrofit lands first).
 
-**Status:** in review — built, gated and driven live in both languages; the **UAC leg** of the elevated relaunch is the Release Checklist's, where the delta-spec put it (see Comments)
+**Status:** done — built, gated and driven live in both languages; the **UAC leg** of the elevated relaunch is the Release Checklist’s, where the delta-spec put it, **accepted by the user 2026-08-28** (see Comments)
 
 - [x] Both spellings work: `--data-dir <path>` and `--data-dir=<path>`; before resolution the value is stripped of trailing `"` and trailing path separators; both handled before elevation forwarding
 - [x] Relative paths resolve against the CWD once at startup, make-absolute — never `fs::canonicalize`; the resolved absolute path is the single truth every downstream surface uses; a missing directory is `create_dir_all`-created like the default one
@@ -114,3 +114,16 @@ returning, which needs a human at the secure desktop.
 **No ADR, no settings field, no new Announcement** — the fourth reason rides Announcement 7 and the
 set stays at fourteen, exactly as §10 specifies. The Release Checklist's "Command line" group is
 ticket 12's; nothing this change touches falsifies an existing step.
+
+**2026-08-28 (review closed)** — The deferral is **accepted**, and it was checked rather than taken
+on the ticket's word. §17's Command line group names the step as its fourth of seven, written before
+implementation began, so the assignment is the spec's and not a retrofit. What is left to a human is
+only `ShellExecuteEx("runas")` returning: the *line* that leg carries is asserted by
+`a_spaced_override_reaches_the_next_instance_unchanged`, and was additionally run live into a fresh
+instance that landed in the same directory.
+
+No gap of ticket 08's kind was found. Everything mechanically checkable sits in `cargo test` on every
+CI run — both spellings, the valueless switch as a broken override rather than an unknown argument,
+the switch typo, ArgvQuote's backslash rule, the splitter against Windows' own, both boundary-crossing
+rules, the quoting artifacts, the root that the separator strip never eats, and drive-relative `C:foo`
+among the values that resolve to nothing — and the remaining six Checklist steps cover the rest.
