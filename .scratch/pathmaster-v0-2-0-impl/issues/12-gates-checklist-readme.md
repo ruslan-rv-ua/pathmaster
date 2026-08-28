@@ -14,4 +14,4 @@
 - [ ] README: the keyboard table gains §12's additions (Ctrl+F, Ctrl+I, Ctrl+E, Ctrl+T, Ctrl+C, F1, Space in Fix Issues, Down/Tab/ESC from the Search field); the `data\` inventory grows `help.html`; the portability section's `--data-dir` documentation (landed in ticket 10) reads consistently with the User Guide
 - [ ] `TC-file-structure`'s `data\` inventory in the test suite covers `help.html`
 - [ ] The wxdragon pin is confirmed still 0.9.18 and the full test gate is green on CI
-- [ ] A spot pass over the release mechanics confirms §18's "nothing to decide": version bump is F2's two files plus the tag; no workflow edit needed for `pulldown-cmark`
+- [ ] A spot pass over the release mechanics: §18’s "nothing to decide" **no longer holds in full** — ticket 13 makes F2 three files and edits the workflow. Confirm the rest of §18 stands (no workflow edit needed for `pulldown-cmark`, scoop’s Excavator needs no manifest edit, winget stays deferred) and leave F2 and `release.yml` to 13
