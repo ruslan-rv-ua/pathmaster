@@ -160,6 +160,30 @@ impl BackupsPage {
         })?
     }
 
+    /// Lands the keyboard focus on this tab's list, on its first row.
+    ///
+    /// The one place anything moves focus into this tab, and it happens once:
+    /// the Run that opens here starts where there is something to read
+    /// (`ui::build_main_window`). A rebuild still moves nobody — `show` is
+    /// driven by a directory, not by anything the user did, which is the
+    /// distinction `list`'s own module doc draws.
+    ///
+    /// The list takes the focus whether or not a row survives to land on, for
+    /// the reason `ScopePage::focus_row` gives: an empty list that holds the
+    /// focus still names itself, and a Run that opened on no Snapshots has
+    /// nothing else to say.
+    pub fn focus_first_row(&self) {
+        self.list.set_focus();
+        if self.list.get_item_count() > 0 {
+            self.list.set_item_state(
+                0,
+                ListItemState::Selected | ListItemState::Focused,
+                ListItemState::Selected | ListItemState::Focused,
+            );
+            self.list.ensure_visible(0);
+        }
+    }
+
     /// Points the Restore button at what the focused row is worth — the same
     /// shape as a Scope tab's `sync_buttons`, over the one button this tab has.
     pub fn sync_button(&self, restorable: bool) {

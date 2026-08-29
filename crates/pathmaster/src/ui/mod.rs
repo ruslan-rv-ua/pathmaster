@@ -700,6 +700,37 @@ pub fn build_main_window(
     }
     frame.show(true);
 
+    // Where the Run starts reading: the open tab's list, on its first row.
+    //
+    // Decided once, like every other property of a Run (ADR-0010), and never
+    // again — activating a tab afterwards still only speaks, because focus
+    // landing in the list on every activation would take the tab strip away
+    // from the arrow keys and cost §3 its "full traversal, no traps".
+    //
+    // **Before the two calls below, and that order is load-bearing.** A focus
+    // change cancels whatever NVDA is saying, so a landing after the
+    // Announcement would cut a Read-only Data run's reason off mid-sentence;
+    // a landing before it leaves the live region to queue behind the row and
+    // be heard whole.
+    //
+    // The row is spoken **without its Status**: no pass has completed, and
+    // waiting for one would tie the window's first words to work that is
+    // allowed to take a minute over a dead network path. The diagnosis is not
+    // lost — it arrives in the column, and any arrow key speaks it.
+    //
+    // `focus_row(0)` over `focus_list()`: the latter lands on the row the user
+    // was last on, and at startup there is none, so the list would take the
+    // focus with no row marked at all. Either call takes the focus whether or
+    // not a row survives to land on, which is what an Absent or empty Scope
+    // needs.
+    match app.active_tab() {
+        Some(tab) => tab.page.focus_row(0),
+        // The Backups tab, which `--tab backups` and an elevated relaunch both
+        // open on. Not a Scope, and its list is the only thing on it that says
+        // anything.
+        None => app.backups.focus_first_row(),
+    }
+
     // The pass at load (spec §7, FR-diag-async). Asked for after show, so the
     // first results land in a window that exists to receive them; until they
     // do, every Status column is empty and StatusBar field 1 is blank — one

@@ -12,6 +12,14 @@ release page publishes as its body.
 
 ## [Unreleased]
 
+### Changed
+
+- The window now opens with the keyboard focus on the first row of the tab it opened on, rather
+  than on the tab strip — including the Backups tab, where `--tab backups` and an elevated
+  relaunch both land. Decided once per run: switching tabs afterwards still leaves the focus on
+  the tab strip. The first row is read before any diagnostic pass has completed, so it is spoken
+  without its Status column.
+
 ## [0.2.0] - 2026-08-28
 
 ### Added

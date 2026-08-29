@@ -40,7 +40,7 @@ interface expect the Catalogue's Ukrainian equivalents.
 
 | # | Step | Expected speech | ✓ |
 |---|------|-----------------|---|
-| 1 | Launch the app | Window title "PathMaster" | |
+| 1 | Launch the app | Window title "PathMaster", then the User list and its **first row**, read without a keystroke — "1; Path: {path}" and **no** "Status:", because no diagnostic pass has completed yet. `NVDA+Tab` confirms focus is on the row, not the tab strip. Record verbatim what is spoken between the title and the row: whether the Scope is named there is what decides if a launch ever needs to say so itself | |
 | 2 | Arrow to a healthy Entry | "{#}; Path: {path}" — the position, then the path under its column header, and no "Status:". The `#` is the Entry's place in the **full** list and never renumbers under a narrowing | |
 | 3 | Arrow to an Entry with one Issue | "{#}; Path: {path}; Status: {type}" — type one of Missing / Relative / Quoted / Duplicate / Empty | |
 | 4 | Arrow to an Entry with several Issues | The same "{#}; Path: {path}; Status: …" opening, then all types, comma-joined, in the order Missing > Relative > Quoted > Duplicate > Empty | |
@@ -56,7 +56,7 @@ interface expect the Catalogue's Ukrainian equivalents.
 | 14 | Menu with a clean Session | Apply/Cancel items read as unavailable ("недоступно") | |
 | 15 | Full Tab cycle | Every control reached and spoken, in the order tabs → **Search field** → list → buttons; cycle returns to start, no trap | |
 | 16 | `NVDA+End` | Both status bar fields spoken on demand (entry/issue counts; merged PATH length) | |
-| 17 | Start with an unwritable `data\` | Read-only Data Announcement at startup, reason named | |
+| 17 | Start with an unwritable `data\` | Read-only Data Announcement at startup, reason named — and **after** the landing row of step 1, spoken **whole**. A reason cut off mid-sentence is a failure: focus landing after the Announcement instead of before it is what cancels it | |
 | 18 | Ctrl+Tab to the Backups tab | The tab label, and **nothing else** — it is not a Scope, so no entry count and no other Announcement | |
 | 19 | Tab into the list and arrow through it | Each row read by its columns: "{date and time}; Scope: {User PATH \| System PATH}; Entries: {n}" — the date spoken as `2026-08-19 14:32:07`, not as the file name spells it | |
 | 20 | Arrow to a Snapshot whose file was corrupted by hand (see below) | The row ends "Entries: \[Corrupted]" — part of the row, never an Announcement; Tab to Restore and it reads as unavailable | |
