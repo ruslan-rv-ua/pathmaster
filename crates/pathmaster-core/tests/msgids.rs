@@ -69,7 +69,9 @@ fn an_unsupplied_placeholder_is_left_alone_rather_than_panicking() {
 fn the_mnemonic_is_the_letter_after_a_single_ampersand() {
     assert_eq!(mnemonic("&File"), Some('F'));
     assert_eq!(mnemonic("Move U&p"), Some('p'));
-    // Ukrainian keeps the Latin letter in parentheses (ADR-0004).
+    // The form the Ukrainian labels took until ADR-0012 dropped them. This
+    // function must still read it: the catalogue gate proves the Ukrainian
+    // carries no mnemonic, and it can only do that by seeing one restored.
     assert_eq!(mnemonic("Файл(&F)"), Some('F'));
     assert_eq!(mnemonic("Path"), None);
 }

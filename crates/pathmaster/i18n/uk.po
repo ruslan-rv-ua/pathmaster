@@ -1,10 +1,13 @@
 # Ukrainian translation of PathMaster.
 #
-# Two rules in this file are load-bearing, not style (ADR-0004):
+# Two rules in this file are load-bearing, not style (ADR-0004, ADR-0012):
 #
-#   * A mnemonic keeps its Latin letter, in parentheses — "Файл(&F)", never
-#     "&Файл". PathMaster edits Latin paths, so its user sits in a Latin
-#     keyboard layout and Alt+Ф is unreachable from there.
+#   * A translation never carries a mnemonic. The "&" in a msgid is English's
+#     alone. The parenthesised form this file once used — "Файл(&F)" — put the
+#     letter into the label itself, where NVDA read it a second time:
+#     "Файл(F) підменю Alt+ f". Ukrainian menus therefore have no Alt+letter
+#     access at all, and a gate in `pathmaster-core/tests/catalogue.rs` fails
+#     the build if a mnemonic comes back.
 #   * A tab character never appears in a translation. Accelerators such as
 #     Ctrl+Z are appended by the code; typing one here would delete the
 #     shortcut rather than misread it.
@@ -351,147 +354,139 @@ msgstr[2] "Об’єднаний PATH: {n} символів"
 msgid " — exceeds 8,191 (cmd.exe limit)"
 msgstr " — перевищує 8 191 (ліміт cmd.exe)"
 
-#. Menu bar title. The mnemonic letter is Latin in every language.
+#. Menu bar title.
 msgid "&Edit"
-msgstr "Редагування(&E)"
+msgstr "Редагування"
 
-#. Menu bar title. The mnemonic letter is Latin in every language.
+#. Menu bar title.
 msgid "&File"
-msgstr "Файл(&F)"
+msgstr "Файл"
 
-#. Menu bar title. The mnemonic letter is Latin in every language.
+#. Menu bar title.
 msgid "&Help"
-msgstr "Довідка(&H)"
+msgstr "Довідка"
 
-#. Menu bar title. The mnemonic letter is Latin in every language.
+#. Menu bar title.
 msgid "&Tools"
-msgstr "Інструменти(&T)"
+msgstr "Інструменти"
 
 #. Menu bar title: commands that change what the list shows, between Edit and
 #. Tools.
 msgid "&View"
-msgstr "Вигляд(&V)"
+msgstr "Вигляд"
 
 #. View menu item: focuses the Search field and selects its contents (Ctrl+F).
 #. The code appends its accelerator.
 msgid "&Search"
-msgstr "Пошук(&S)"
+msgstr "Пошук"
 
 #. View menu item: a check item toggling between raw and expanded rendering
 #. (Ctrl+E). The label never changes — the check mark is what says which way it
-#. went. The code appends its accelerator. Keep the mnemonic on the Latin "E".
+#. went. The code appends its accelerator.
 msgid "&Expanded Values"
-msgstr "Розгорнуті значення(&E)"
+msgstr "Розгорнуті значення"
 
 #. View menu item: the submenu holding the seven exclusive filter states. The
 #. states themselves are the two names above and the five Status column words.
-#. Keep the mnemonic on the Latin "F".
 msgid "&Filter"
-msgstr "Фільтр(&F)"
+msgstr "Фільтр"
 
 #. View menu item: the coarse filter toggle (Ctrl+I) — "All" becomes "With
 #. issues", any narrowing state becomes "All". A plain item with a constant
 #. label: the submenu's radio marks are the state, not this. The code appends
-#. its accelerator. Keep the mnemonic on the Latin "I".
+#. its accelerator.
 msgid "Toggle &Issues Filter"
-msgstr "Перемкнути фільтр проблем(&I)"
+msgstr "Перемкнути фільтр проблем"
 
 #. View menu item: opens the PATH Tree dialog over the active Scope (Ctrl+T).
-#. The mnemonic is on the Latin "T", not the P of PATH — the View menu's set is
-#. S, F, I, E, T. The code appends its accelerator.
+#. The code appends its accelerator.
 msgid "PATH &Tree…"
-msgstr "Дерево PATH(&T)…"
+msgstr "Дерево PATH…"
 
 #. File menu item: writes the active Scope's entries to the registry (Ctrl+S).
 #. The code appends its accelerator.
 msgid "&Apply"
-msgstr "Застосувати(&A)"
+msgstr "Застосувати"
 
 #. File menu item: closes the application, raising the close-confirm dialog
 #. first when a scope has unsaved changes. The code appends its accelerator.
-#. Keep the mnemonic on the Latin "x".
 msgid "E&xit"
-msgstr "Вихід(&X)"
+msgstr "Вихід"
 
 #. Edit menu item: opens the Add dialog. The code appends its accelerator.
 msgid "&Add Entry…"
-msgstr "Додати запис(&A)…"
+msgstr "Додати запис…"
 
 #. Edit menu item: opens the Edit dialog on the focused row (F2).
 msgid "&Edit Entry…"
-msgstr "Змінити запис(&E)…"
+msgstr "Змінити запис…"
 
 #. Edit menu item: deletes the focused entry, with no confirmation (Del).
 msgid "&Delete Entry"
-msgstr "Видалити запис(&D)"
+msgstr "Видалити запис"
 
 #. Edit menu item: puts the focused entry, as the list is showing it, on the
-#. clipboard (Ctrl+C). The mnemonic is p and not the usual C, which "&Cancel
-#. Changes" already holds in this menu.
+#. clipboard (Ctrl+C).
 msgid "Co&py"
-msgstr "Копіювати(&P)"
+msgstr "Копіювати"
 
 #. Edit menu item: moves the focused entry one place earlier (Alt+Up).
 msgid "&Move Up"
-msgstr "Перемістити вгору(&M)"
+msgstr "Перемістити вгору"
 
 #. Edit menu item: moves the focused entry one place later (Alt+Down).
 msgid "Mo&ve Down"
-msgstr "Перемістити вниз(&V)"
+msgstr "Перемістити вниз"
 
 #. Edit menu item: opens the Fix Issues dialog over the active scope. No
-#. accelerator — an occasional bulk-review dialog, like Settings. Keep the
-#. mnemonic on the Latin "I".
+#. accelerator — an occasional bulk-review dialog, like Settings.
 msgid "Fix &Issues…"
-msgstr "Виправити проблеми(&I)…"
+msgstr "Виправити проблеми…"
 
 #. Edit menu item: undoes the last operation (Ctrl+Z). "Скасувати дію" rather
 #. than a bare "Скасувати", which is the Cancel button below.
 msgid "&Undo"
-msgstr "Скасувати дію(&U)"
+msgstr "Скасувати дію"
 
 #. Edit menu item: redoes the operation last undone (Ctrl+Y).
 msgid "&Redo"
-msgstr "Повторити дію(&R)"
+msgstr "Повторити дію"
 
 #. Edit menu item: the Cancel command — discards this Scope's unsaved changes
 #. back to the value last read. Not the Cancel *button* of a dialog, which is
 #. "Cancel" below and means "do not commit" (ADR-0004).
 msgid "&Cancel Changes"
-msgstr "Відхилити зміни(&C)"
+msgstr "Відхилити зміни"
 
 #. Edit menu item: re-reads the active Scope from the registry (F5).
 msgid "Re&fresh"
-msgstr "Оновити(&F)"
+msgstr "Оновити"
 
-#. Tools menu item: opens the Settings dialog. The mnemonic letter is Latin in
-#. every language; the "…" marks a menu item that opens a dialog.
+#. Tools menu item: opens the Settings dialog. The "…" marks a menu item
+#. that opens a dialog.
 msgid "&Settings…"
-msgstr "Налаштування(&S)…"
+msgstr "Налаштування…"
 
 #. Tools menu item: hands the folder the Snapshot files live in to the shell.
 #. "Backups" here is the directory, as in the tab label above.
 msgid "&Open Backups Folder"
-msgstr "Відкрити теку резервних копій(&O)"
+msgstr "Відкрити теку резервних копій"
 
 #. Tools menu item: the one entry point into elevation — relaunches the whole
 #. application via the UAC prompt. Disabled when already elevated. No "…":
-#. what follows is the UAC prompt and a relaunch, not a dialog of ours. The
-#. mnemonic letter is Latin in every language.
+#. what follows is the UAC prompt and a relaunch, not a dialog of ours.
 msgid "&Restart as Administrator"
-msgstr "Перезапустити від імені адміністратора(&R)"
+msgstr "Перезапустити від імені адміністратора"
 
 #. Help menu item, first in the menu: opens the User Guide in the browser, and
 #. carries F1. No "…" — what follows is a browser window, not a dialog of ours.
-#. The mnemonic letter is Latin in every language, and U must stay distinct
-#. from About's A within this menu.
 msgid "&User Guide"
-msgstr "Посібник користувача(&U)"
+msgstr "Посібник користувача"
 
 #. Help menu item: opens the About dialog. No "…" — it states rather than
-#. asks. The mnemonic letter is Latin in every language.
+#. asks.
 msgid "&About"
-msgstr "Про програму(&A)"
+msgstr "Про програму"
 
 #. The About dialog, which is entirely its title. "PathMaster" is the product
 #. name and "MIT" the licence identifier: both are proper nouns and stay as

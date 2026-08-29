@@ -492,10 +492,9 @@ pub const MENU_RESTART_AS_ADMIN: &str = "&Restart as Administrator";
 /// accelerator is appended by the code, never typed into the Catalogue
 /// (ADR-0004).
 ///
-/// The mnemonic is **U**, and the Ukrainian carries it in the parenthesised
-/// form every menu item here uses — «Посібник користувача(&U)», fixed by the
-/// ticket rather than left to the translator, because U and A are the pair the
-/// per-menu uniqueness gate reads.
+/// The mnemonic is **U**, and it belongs to this string alone: no translation
+/// carries one (ADR-0012). U and A are the pair the per-menu uniqueness gate
+/// reads, and the Ukrainian «Посібник користувача» has neither.
 pub const MENU_USER_GUIDE: &str = "&User Guide";
 
 /// The Help menu's second item, and the dialog it opens (spec §15, §16).
@@ -920,8 +919,9 @@ pub fn fill(template: &str, values: &[(&str, &str)]) -> String {
 
 /// The mnemonic letter of a label: the character after its first single `&`.
 ///
-/// `&&` is an escaped ampersand, not a mnemonic. Ukrainian labels carry the
-/// Latin letter in parentheses — `"Файл(&F)"` — so this answers `'F'` there too.
+/// `&&` is an escaped ampersand, not a mnemonic. The parenthesised form
+/// `"Файл(&F)"` answers `'F'` too — the Ukrainian labels shed it with ADR-0012,
+/// and reading it is now how the gate catches one coming back.
 pub fn mnemonic(label: &str) -> Option<char> {
     let mut chars = label.chars();
     while let Some(c) = chars.next() {

@@ -70,7 +70,7 @@ interface expect the Catalogue's Ukrainian equivalents.
 | 28 | Dirty **both** Scopes (elevated — see section C), close, answer [Save] | The title names both, User first; "User PATH applied" then "System PATH applied"; the application closes and `data\backups\` holds one new file per Scope | |
 | 29 | Stage B11's unwritable `data\backups\`, dirty a Session, close, answer [Save] | "Apply failed — could not write a backup, no changes were made."; the **window stays open** on the failed Scope's tab, `NVDA+Tab` confirms focus is on that tab's list, the Session is still dirty, and the log has no `shutdown: clean` line | |
 | 30 | File → Exit, and Alt+F4 | Each is spoken as a menu item carrying `Alt+F4`, and each reaches the same close-confirm as the title bar's [X] | |
-| 31 | `Alt+H`, then arrow through the Help menu | **Two** items: **User Guide** first, carrying `F1`, then **About**, carrying no accelerator. Neither is separated from the other, and the menu is still the last on the bar | |
+| 31 | `Alt+H` on an English interface — on a Ukrainian one `F10`, then `→` to «Довідка», which carries no mnemonic (ADR-0012), then arrow through the Help menu | **Two** items: **User Guide** first, carrying `F1`, then **About**, carrying no accelerator. Neither is separated from the other, and the menu is still the last on the bar | |
 | 32 | Activate Help → About | Dialog whose **title** is "PathMaster {version} — MIT License" («PathMaster {version} — ліцензія MIT»), with the version of the build under test; a single [OK] which Escape also answers; `NVDA+Tab` afterwards confirms focus is back where it was | |
 | 33 | Open Help → About in the step-17 unwritable-`data\` run, and again on the Backups tab | The item is **available** in both: it names the build, which is true in every state | |
 
@@ -159,7 +159,7 @@ voided group can be repeated on its own without re-running the whole section.
 
 | # | Step | Expected speech | ✓ |
 |---|------|-----------------|---|
-| 72 | `Alt+H`, then arrow the menu | Two items: **User Guide** first, carrying `F1`, then **About** — step 31 read from the other side | |
+| 72 | `Alt+H` on an English interface — on a Ukrainian one `F10`, then `→` to «Довідка», which carries no mnemonic (ADR-0012), then arrow the menu | Two items: **User Guide** first, carrying `F1`, then **About** — step 31 read from the other side | |
 | 73 | `F1` | The browser opens the guide; NVDA speaks "PathMaster {version} — User Guide" as the document title, and `H` walks its headings | |
 | 74 | Look in `data\` afterwards | `help.html` is there, in the Interface Language | |
 | 75 | Change the Interface Language, restart, `F1` | The **one** file is rewritten in the new language — no second file, and no orphan of the old one | |

@@ -260,49 +260,89 @@ fn no_filter_state_name_carries_a_mnemonic_in_any_language() {
 }
 
 #[test]
-fn a_translated_menu_keeps_one_mnemonic_letter_per_item() {
-    // A translator can break this without the text looking wrong — and unlike
-    // the English side, no reviewer of the Ukrainian would notice.
+fn the_source_menus_keep_one_mnemonic_letter_per_item() {
+    // Half of one rule, whose other half is the test below: the mnemonics are
+    // the source language's alone (ADR-0012), so this side asks that every
+    // menu item has one and that no menu spends a letter twice.
     //
     // v0.2.0 grew the bar by a whole menu and three of the others by an item
     // each, which voids the v0.1.0 assignments' proof rather than the rule
-    // (§12). This is the re-run: every menu, both languages, one pass.
-    for (code, catalog) in catalogues() {
-        let menus: BTreeSet<&str> = REGISTRY.iter().filter_map(|entry| entry.menu).collect();
-        for menu in menus {
-            let siblings: Vec<&CatalogueEntry> = REGISTRY
-                .iter()
-                .filter(|entry| entry.menu == Some(menu))
-                .collect();
-            let mut labels = Vec::new();
-            for entry in &siblings {
-                let Some(message) = catalog.find_message(None, entry.msgid, None) else {
-                    continue;
-                };
-                let label = message.msgstr().expect("a singular message");
-                assert!(
-                    mnemonic(label).is_some(),
-                    "{code}.po drops the mnemonic from {label:?}"
-                );
-                labels.push(label);
-            }
-            // The skip above is how a label a catalogue lacks stays another
-            // test's report — but a skipped label is also an *unchecked* one,
-            // and uniqueness proved over four of five siblings is not proved.
-            // Absence is reported there and counted here.
-            assert_eq!(
-                labels.len(),
-                siblings.len(),
-                "{code}.po leaves {} of the {menu} menu's labels unchecked",
-                siblings.len() - labels.len()
+    // (§12). This is the re-run: every menu, one pass.
+    let catalogues = catalogues();
+    let catalog = catalogues
+        .get(SOURCE_LANGUAGE)
+        .expect("the source catalogue");
+    let menus: BTreeSet<&str> = REGISTRY.iter().filter_map(|entry| entry.menu).collect();
+    for menu in menus {
+        let siblings: Vec<&CatalogueEntry> = REGISTRY
+            .iter()
+            .filter(|entry| entry.menu == Some(menu))
+            .collect();
+        let mut labels = Vec::new();
+        for entry in &siblings {
+            let Some(message) = catalog.find_message(None, entry.msgid, None) else {
+                continue;
+            };
+            let label = message.msgstr().expect("a singular message");
+            assert!(
+                mnemonic(label).is_some(),
+                "{SOURCE_LANGUAGE}.po drops the mnemonic from {label:?}"
             );
-            assert_eq!(
-                duplicate_mnemonic(labels.iter().copied()),
-                None,
-                "{code}.po reuses a mnemonic letter within the {menu} menu"
+            labels.push(label);
+        }
+        // The skip above is how a label a catalogue lacks stays another
+        // test's report — but a skipped label is also an *unchecked* one,
+        // and uniqueness proved over four of five siblings is not proved.
+        // Absence is reported there and counted here.
+        assert_eq!(
+            labels.len(),
+            siblings.len(),
+            "{SOURCE_LANGUAGE}.po leaves {} of the {menu} menu's labels unchecked",
+            siblings.len() - labels.len()
+        );
+        assert_eq!(
+            duplicate_mnemonic(labels.iter().copied()),
+            None,
+            "{SOURCE_LANGUAGE}.po reuses a mnemonic letter within the {menu} menu"
+        );
+    }
+}
+
+#[test]
+fn no_translation_carries_a_mnemonic_outside_the_source_language() {
+    // The other half, and the half that needs a machine. «Файл(&F)» was the
+    // shipped Ukrainian form until ADR-0012, and it is what a translator
+    // following the platform norm would write again — it reads as ordinary
+    // text, so no reviewer of the Ukrainian would catch it. wx strips only the
+    // `&`, leaving the letter standing in the label, and NVDA then reads it a
+    // second time: "Файл(F) підменю Alt+ f". That doubled letter is the whole
+    // reason the form went, and it cost the Ukrainian menus their Alt+letter
+    // access, so nothing may quietly restore it.
+    //
+    // Every message, not only the menu items: an `&` is a defect wherever a
+    // translation puts one, and a menu item is merely where one is tempting.
+    let others = catalogues().len() - 1;
+    let mut checked = 0;
+    each_message(|code, entry, message| {
+        if code == SOURCE_LANGUAGE {
+            return;
+        }
+        checked += 1;
+        for translation in translations_of(message) {
+            assert!(
+                mnemonic(translation).is_none(),
+                "{code}.po gives {:?} a mnemonic: {translation:?}",
+                entry.msgid
             );
         }
-    }
+    });
+    // Self-sensitivity: every registered msgid of every language that is not
+    // the source, or the loop above passed by proving nothing.
+    assert_eq!(
+        checked,
+        others * REGISTRY.len(),
+        "a shipped translation went unchecked"
+    );
 }
 
 #[test]

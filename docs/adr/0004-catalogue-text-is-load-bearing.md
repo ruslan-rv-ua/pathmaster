@@ -1,5 +1,11 @@
 # Catalogue text and markup are load-bearing, not prose
 
+> **Partly superseded by [ADR-0012](0012-ukrainian-menu-labels-carry-no-mnemonic.md).** The mnemonic
+> half of this record no longer describes the application: the Ukrainian labels carry no mnemonic at
+> all, because the measurement below was taken from `&Файл` rather than from the `Файл(&F)` that
+> shipped. The English-text half stands unchanged, and everything is left as it was written — the two
+> places ADR-0012 overturns are marked where they stand.
+
 Two things in PathMaster's Catalogue look like sloppy writing and are not: some English strings are
 phrased awkwardly to stay distinct from each other, and Ukrainian menu labels carry a Latin mnemonic in
 parentheses — `Файл(&F)`, not `&Файл`. Both invite a well-meaning tidy-up that would silently break
@@ -29,13 +35,22 @@ its user sits in a Latin keyboard layout most of the time, and a Cyrillic mnemon
 simply unreachable from there. `Файл(&F)` is an established pattern for a mismatch between script and
 keyboard, and costs nothing audibly — NVDA speaks the access key as a separate utterance.
 
+> **The last clause is wrong, and [ADR-0012](0012-ukrainian-menu-labels-carry-no-mnemonic.md) replaces
+> it.** wx strips the `&` and nothing else, so `Файл(&F)` reaches the screen — and NVDA — as
+> "Файл(F)", and the letter is spoken twice: "Файл(F) підменю Alt+ f". The utterance list cited here
+> is what `&Файл` produces. The rest of the paragraph holds, and is why the answer was to drop the
+> mnemonic rather than to move it onto a Cyrillic letter.
+
 ## Consequences
 
 - **Do not "fix" the English for consistency.** Two Catalogue strings that differ only awkwardly are
   probably differing on purpose. Merging them merges their translations.
-- **Do not "fix" `Файл(&F)` to `&Файл`.** It is not a mis-transcription; reversing it removes keyboard
-  access to the menus whenever the user is in a Latin layout — an accessibility regression that is
-  invisible to anyone testing in a Cyrillic one.
+- ~~**Do not "fix" `Файл(&F)` to `&Файл`.** It is not a mis-transcription; reversing it removes
+  keyboard access to the menus whenever the user is in a Latin layout — an accessibility regression
+  that is invisible to anyone testing in a Cyrillic one.~~ **Superseded by
+  [ADR-0012](0012-ukrainian-menu-labels-carry-no-mnemonic.md):** the Ukrainian labels carry no
+  mnemonic at all, and a gate fails the build if one returns. The reasoning struck through here is
+  why `&Файл` was not the replacement.
 - **A keyboard shortcut may never be typed into a translated string.** Every accelerator is appended by
   code; a `\t` inside a Catalogue entry is a defect.
 - **The completeness gate enforces what a reader cannot see.** It checks placeholder integrity and that

@@ -10,10 +10,14 @@
 # rather than English riding the miss-returns-the-msgid fallback, and so that a
 # new translation starts from one file to copy rather than from the source.
 #
-# Two rules in every catalogue are load-bearing, not style (ADR-0004):
+# Two rules in every catalogue are load-bearing, not style (ADR-0004, ADR-0012):
 #
-#   * A mnemonic keeps its Latin letter. In languages not written in Latin it
-#     goes in parentheses — "Файл(&F)", never "&Файл".
+#   * The mnemonics are English's alone, and a translation carries none. The
+#     parenthesised form a non-Latin script would take — "Файл(&F)" — leaves
+#     the letter standing in the label, where a screen reader reads it a
+#     second time. Every msgstr here repeats its msgid, so this file keeps
+#     its own; the gate in `pathmaster-core/tests/catalogue.rs` holds both
+#     sides of that.
 #   * A tab character never appears in a translation. Accelerators such as
 #     Ctrl+Z are appended by the code; typing one here would delete the
 #     shortcut rather than misread it.
