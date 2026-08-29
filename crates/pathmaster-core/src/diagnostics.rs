@@ -25,7 +25,7 @@
 
 use std::collections::HashSet;
 
-use crate::normalize::{expand, strip_quotes, Environment, Normalised};
+use crate::normalize::{expand, strip_quotes, Environment, Expansion, Normalised};
 use crate::session::{Entry, EntryId, Scope};
 use crate::thresholds::{self, Overlength};
 
@@ -145,9 +145,10 @@ impl ScopeDiagnosis {
     }
 }
 
-/// One Scope's completed pass, held against a Working Copy that may already
-/// have moved on — what the Status column reads between an edit and the next
-/// pass landing (spec §7, FR-diag-async).
+/// What one Scope's Status column reads: the last completed pass, held against
+/// a Working Copy that may already have moved on, plus whatever
+/// [`stamp`](Findings::stamp) has recorded since (spec §7, FR-diag-async;
+/// ADR-0013).
 ///
 /// A [`ScopeDiagnosis`] is indexed by row, and a row is exactly what an edit
 /// changes. So the pass is kept **by Entry id, beside the text it ran over**,
@@ -203,11 +204,39 @@ impl Findings {
             .map_or(&[], |finding| &finding.issues)
     }
 
-    /// Every finding the last pass made — three on one Entry counts three.
+    /// Records one Entry's Issues without a pass, so that the Entry an Add or
+    /// an Edit just gave new text is not Undiagnosed in the one window where
+    /// focus lands on its row and NVDA reads it (ADR-0013).
     ///
-    /// This is the pass's own count, not the screen's: StatusBar field 0 is
-    /// updated after every pass (spec §12), so an Entry edited since still
-    /// counts here while its column waits for the next one.
+    /// Keyed by `(id, raw)` like everything else here, so the ordinary staleness
+    /// rule applies to a stamp exactly as it applies to a pass: edit the Entry
+    /// again and the stamp stops describing it, in the same breath and for the
+    /// same reason. An Entry already recorded is replaced in place; a new one —
+    /// Add's, appended to the Working Copy — goes on the end, which is where it
+    /// sits in the list.
+    ///
+    /// A stamp is worth nothing unless it agrees with the pass that will
+    /// overwrite it, which is why the caller has no say in what it says: the
+    /// Issues handed here come from [`diagnose_one`], which is the pass's own
+    /// rulebook answering about one Entry.
+    pub fn stamp(&mut self, id: EntryId, raw: &str, issues: Vec<Issue>) {
+        let stamped = Finding {
+            id,
+            raw: raw.to_string(),
+            issues,
+        };
+        match self.entries.iter_mut().find(|finding| finding.id == id) {
+            Some(held) => *held = stamped,
+            None => self.entries.push(stamped),
+        }
+    }
+
+    /// Every finding this Scope carries — three on one Entry counts three.
+    ///
+    /// The last pass's, plus whatever has been [`stamped`](Self::stamp) since:
+    /// StatusBar field 0 is updated after every pass (spec §12) and after every
+    /// edit, so an Entry edited since a pass and not stamped still counts here
+    /// while its column waits for the next one.
     pub fn issue_count(&self) -> usize {
         self.entries
             .iter()
@@ -258,26 +287,84 @@ pub fn diagnose(
     fs: &dyn Filesystem,
 ) -> Diagnosis {
     let mut seen = HashSet::new();
+    let mut diagnosed = (Vec::new(), Vec::new());
+    for (scope, _, raw) in in_runtime_order(system, user) {
+        let issues = diagnose_entry(raw, env, fs, &mut seen);
+        match scope {
+            Scope::System => diagnosed.0.push(issues),
+            Scope::User => diagnosed.1.push(issues),
+        }
+    }
     Diagnosis {
-        system: diagnose_scope(system, env, fs, &mut seen),
-        user: diagnose_scope(user, env, fs, &mut seen),
+        system: ScopeDiagnosis {
+            entries: diagnosed.0,
+        },
+        user: ScopeDiagnosis {
+            entries: diagnosed.1,
+        },
         merged_length: thresholds::merged_length(system, user, env),
     }
 }
 
-/// One Scope's Entries, in order, against the duplicate set built so far.
-fn diagnose_scope(
-    entries: &[impl AsRef<str>],
+/// The Issues of the Entry at `index` of `scope`'s Working Copy — the answer a
+/// whole [`diagnose`] pass would give about that one Entry, at the cost of
+/// probing that one Entry (ADR-0013).
+///
+/// It exists because a pass is asynchronous and an Add or an Edit is not: the
+/// Entry whose text has just changed is the one row focus is about to land on,
+/// and the last completed pass cannot describe it. Everything the pass would
+/// have to say about *other* Entries is deliberately not computed here.
+///
+/// The Entries before it are read for their duplicate keys alone — **none of
+/// them is probed**, so the filesystem is asked exactly one question. Which
+/// Entries those are is decided here rather than by the caller: it is the
+/// runtime order, and a caller free to pass the wrong prefix is a caller free
+/// to move a cross-scope duplicate onto the wrong Scope.
+///
+/// An `index` past the end of that Scope's Working Copy has no Issues, for
+/// [`ScopeDiagnosis::issues`]' reason: answering beats panicking in a window
+/// NVDA is reading.
+pub fn diagnose_one(
+    system: &[impl AsRef<str>],
+    user: &[impl AsRef<str>],
+    scope: Scope,
+    index: usize,
     env: &dyn Environment,
     fs: &dyn Filesystem,
-    seen: &mut HashSet<Normalised>,
-) -> ScopeDiagnosis {
-    ScopeDiagnosis {
-        entries: entries
-            .iter()
-            .map(|entry| diagnose_entry(entry.as_ref(), env, fs, seen))
-            .collect(),
+) -> Vec<Issue> {
+    let mut seen = HashSet::new();
+    for (at, position, raw) in in_runtime_order(system, user) {
+        if at == scope && position == index {
+            return diagnose_entry(raw, env, fs, &mut seen);
+        }
+        if let Some(expansion) = reading(raw, env) {
+            seen.insert(key(&expansion));
+        }
     }
+    Vec::new()
+}
+
+/// Both Working Copies as one walk, in the order Windows searches them —
+/// **System first** — each Entry carrying the Scope it belongs to and its
+/// position within that Scope.
+///
+/// One home for that order, and the reason it needs one: it is what decides
+/// which copy of a cross-scope duplicate carries the flag, so a second reading
+/// of it would move every such flag onto the other Scope with nothing failing
+/// to compile.
+fn in_runtime_order<'a>(
+    system: &'a [impl AsRef<str>],
+    user: &'a [impl AsRef<str>],
+) -> impl Iterator<Item = (Scope, usize, &'a str)> {
+    let system = system
+        .iter()
+        .enumerate()
+        .map(|(position, entry)| (Scope::System, position, entry.as_ref()));
+    let user = user
+        .iter()
+        .enumerate()
+        .map(|(position, entry)| (Scope::User, position, entry.as_ref()));
+    system.chain(user)
 }
 
 /// The rules for one Entry, and their coexistence: Empty is exclusive,
@@ -288,30 +375,24 @@ fn diagnose_entry(
     fs: &dyn Filesystem,
     seen: &mut HashSet<Normalised>,
 ) -> Vec<Issue> {
-    // Empty is exclusive, and an Empty Entry is no path at all: it is not
-    // probed, and two of them are not duplicates of each other.
-    if raw.trim().is_empty() {
+    // Empty is exclusive, and an Empty Entry has no reading at all.
+    let Some(expansion) = reading(raw, env) else {
         return vec![Issue::Empty];
-    }
-
-    let expansion = expand(strip_quotes(raw), env);
+    };
     let path = expansion.text.as_str();
 
     let mut flagged = Vec::new();
     if raw.contains('"') {
         flagged.push(Issue::Quoted);
     }
-    // Text that *begins* with an unresolved `%VAR%` is not judged for shape:
-    // what the path would have started with is exactly what is missing, and
-    // the spec sends that case to the existence check, where the literal text
-    // fails (FR-diag-missing, D10). A reference further along leaves the shape
-    // legible, so `tools\%NOPE%` is Relative like any other bare name.
-    if !expansion.starts_unresolved && !is_fully_qualified(path) {
+    if is_probed(&expansion) {
+        if is_missing(path, fs) {
+            flagged.push(Issue::Missing);
+        }
+    } else {
         flagged.push(Issue::Relative);
-    } else if is_missing(path, fs) {
-        flagged.push(Issue::Missing);
     }
-    if !seen.insert(Normalised::of_expanded(path)) {
+    if !seen.insert(key(&expansion)) {
         flagged.push(Issue::Duplicate);
     }
 
@@ -323,6 +404,55 @@ fn diagnose_entry(
         .filter(|issue| flagged.contains(issue))
         .copied()
         .collect()
+}
+
+/// One Entry's reading — quotes stripped, `%VAR%` expanded — or `None` for an
+/// Entry that has none.
+///
+/// The single home of a rule two callers need and neither may spell twice: an
+/// Entry that is zero-length or whitespace-only is no path at all, so it is
+/// never probed and it puts **no key** into the duplicate set — which is why
+/// two Empty Entries are not duplicates of each other.
+fn reading(raw: &str, env: &dyn Environment) -> Option<Expansion> {
+    if raw.trim().is_empty() {
+        return None;
+    }
+    Some(expand(strip_quotes(raw), env))
+}
+
+/// The key a reading puts into the duplicate set. Spelled once, because it is
+/// the whole of "are these two the same path?".
+fn key(expansion: &Expansion) -> Normalised {
+    Normalised::of_expanded(&expansion.text)
+}
+
+/// Whether the existence check runs over a reading, which is the same question
+/// as whether its shape is legible at all.
+///
+/// Text that *begins* with an unresolved `%VAR%` is not judged for shape: what
+/// the path would have started with is exactly what is missing, and the spec
+/// sends that case to the existence check, where the literal text fails
+/// (FR-diag-missing, D10). A reference further along leaves the shape legible,
+/// so `tools\%NOPE%` is Relative like any other bare name.
+///
+/// One home, two readers: the rule above, and [`probe_target`], which exists
+/// so a caller can find out whether a probe is coming **before** paying for
+/// it. Those two may not come to disagree.
+fn is_probed(expansion: &Expansion) -> bool {
+    expansion.starts_unresolved || is_fully_qualified(&expansion.text)
+}
+
+/// The text the existence check would probe for `raw`, or `None` for an Entry
+/// it never reaches — an Empty one, or one whose shape is already Relative.
+///
+/// The question a caller asks when it must decide whether diagnosing this
+/// Entry is affordable *here* — on a thread that must not block, over a root
+/// that may not be there (ADR-0013). It answers what would be probed, never
+/// whether probing it is wise: that is a fact about the machine, and the
+/// rulebook does not hold those.
+pub fn probe_target(raw: &str, env: &dyn Environment) -> Option<String> {
+    let expansion = reading(raw, env)?;
+    is_probed(&expansion).then_some(expansion.text)
 }
 
 /// The existence check: local roots only, directories only.

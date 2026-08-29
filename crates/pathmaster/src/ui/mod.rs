@@ -47,7 +47,7 @@ use pathmaster_core::tree::Tree;
 use pathmaster_platform::apply::{self, ApplyRun, Ask, ExternalChange, ScopeInput, ScopeOutcome};
 use pathmaster_platform::args::StartTab;
 use pathmaster_platform::datadir::ReadOnlyReason;
-use pathmaster_platform::diagnostics::{LocalFilesystem, ProcessEnvironment};
+use pathmaster_platform::diagnostics::{diagnose_one, LocalFilesystem, ProcessEnvironment};
 use pathmaster_platform::elevation::{self, RelaunchFailure};
 use pathmaster_platform::geometry::{self, Placement};
 // The User Guide's file in the Data Directory, and the address below it.
@@ -1725,6 +1725,9 @@ impl App {
                 session.add(&text)
             }
         });
+        if let Some(id) = added {
+            self.stamp_concerned(tab, id);
+        }
         self.after_edit(tab, added);
     }
 
@@ -1762,6 +1765,7 @@ impl App {
                 session.edit(id, &text);
             }
         });
+        self.stamp_concerned(tab, id);
         self.after_edit(tab, Some(id));
     }
 
@@ -2247,6 +2251,51 @@ impl App {
         concerned
             .and_then(|id| tab.view_row_of(id))
             .or_else(|| tab.page.focused_row())
+    }
+
+    /// Diagnoses the one Entry an Add or an Edit has just given new text, so
+    /// that the row focus is about to land on is read **with** its Status
+    /// rather than without it (ADR-0013).
+    ///
+    /// Called by those two commands alone. Move leaves an Entry's text and id
+    /// alone, so its row already carries its own findings; Undo, Redo, Restore
+    /// and Fix Issues change many Entries at once, where one stamp would be an
+    /// arbitrary choice among them — and all four already speak.
+    ///
+    /// Two refusals, and both leave exactly the blank Status the row reads
+    /// today. `diagnose_one` declines where this machine cannot answer without
+    /// a cost the UI thread must not pay; and a Scope no pass has yet described
+    /// is not stamped at all, because one finding in an otherwise empty
+    /// `Findings` would have StatusBar field 0 claim a count for a Scope
+    /// nothing has looked at.
+    ///
+    /// Every scoped access here is entered and left in turn, never nested: the
+    /// two Working Copies are cloned out, the index is read out, and only then
+    /// is `findings` reached for (ADR-0011).
+    fn stamp_concerned(&self, tab: &ScopeTab, id: EntryId) {
+        let system = self.tab_of(Scope::System).raw_entries();
+        let user = self.tab_of(Scope::User).raw_entries();
+        let Some(index) = tab
+            .session
+            .with(|session| session.entries().iter().position(|entry| entry.id() == id))
+        else {
+            return;
+        };
+        let entries = match tab.scope {
+            Scope::System => &system,
+            Scope::User => &user,
+        };
+        let Some(raw) = entries.get(index).cloned() else {
+            return;
+        };
+        let Some(issues) = diagnose_one(&system, &user, tab.scope, index) else {
+            return;
+        };
+        tab.findings.with_mut(|held| {
+            if let Some(findings) = held.as_mut() {
+                findings.stamp(id, &raw, issues);
+            }
+        });
     }
 
     /// Redraws the Scope, lands focus by §2's rule on the Entry the operation

@@ -22,6 +22,21 @@ release page publishes as its body.
 - Minor interface corrections, including keyboard shortcuts for **Add Entry** (`Ctrl+N`) and
   **Fix Issues** (`Ctrl+Shift+I`).
 
+### Fixed
+
+- Adding an entry, or editing one, now leaves that entry diagnosed, so the row the focus lands on is
+  read **with** its Status column instead of without it. The diagnostic pass runs off the UI thread and
+  the row was being spoken before the pass landed, which made a path that does not exist — or one that
+  duplicates an entry already in the list — sound exactly like a healthy one until the user arrowed off
+  the row and back. Under a narrowing Filter the same gap was worse for an edit: the entry matched
+  nothing while it had no findings, so a row edited from one broken path to another dropped out of
+  the narrowed list instead of staying in it, visible and focused.
+- The one entry concerned is diagnosed on the calling thread for this, and only where the answer costs
+  nothing that thread may not pay: an entry on a removable or optical root is still left to the pass and
+  still reads without its Status, because probing one can raise the operating system's own "There is no
+  disk in the drive" dialog. Startup is unchanged for the same reason it always was — no pass has
+  completed yet, so the first row is still read without its Status.
+
 ## [0.2.0] - 2026-08-28
 
 ### Added

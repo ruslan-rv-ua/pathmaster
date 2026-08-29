@@ -8,7 +8,9 @@
 use std::cell::RefCell;
 use std::collections::BTreeSet;
 
-use pathmaster_core::diagnostics::{diagnose, Existence, Filesystem, Findings, Issue, RootKind};
+use pathmaster_core::diagnostics::{
+    diagnose, diagnose_one, probe_target, Existence, Filesystem, Findings, Issue, RootKind,
+};
 use pathmaster_core::msgids;
 use pathmaster_core::normalize::Environment;
 use pathmaster_core::session::{Entry, Scope, ScopeValue, Session, ValueType};
@@ -605,4 +607,197 @@ fn an_issue_type_is_a_catalogue_string() {
     for msgid in msgids {
         assert!(registered.contains(msgid), "{msgid:?} is in the Catalogue");
     }
+}
+
+// ---- One Entry, diagnosed without a pass (ADR-0013) ----
+
+/// A pair of Working Copies chosen to make the prefix walk matter: Empties
+/// that must put no key in the set, a cross-scope duplicate, a case-and-slash
+/// variant, a network root that is never probed, and an undefined reference.
+const SYSTEM: &[&str] = &[
+    r"C:\Windows",
+    "",
+    r"C:/WINDOWS\",
+    r"%SystemRoot%\System32",
+    r"\\server\share\bin",
+];
+const USER: &[&str] = &[
+    r"C:\Java\bin",
+    "   ",
+    r"tools\bin",
+    r"C:\windows",
+    r"%NOPE%\bin",
+    r#""C:\Java\bin""#,
+    r"C:\gone",
+];
+
+fn both() -> Fs {
+    Fs::new()
+        .directory(r"C:\Windows")
+        .directory(r"C:\Windows\System32")
+        .directory(r"C:\Java\bin")
+        .network(r"\\")
+}
+
+#[test]
+fn one_entry_answers_exactly_what_the_whole_pass_answers() {
+    // The load-bearing test. A stamp is only ever right because it is the
+    // pass's own rulebook run over one Entry — so if these two can disagree,
+    // the Status column can say one thing on arrival and another 200 ms later.
+    let pass = diagnose(SYSTEM, USER, &ENV, &both());
+    for (scope, entries) in [(Scope::System, SYSTEM), (Scope::User, USER)] {
+        for (index, raw) in entries.iter().enumerate() {
+            assert_eq!(
+                diagnose_one(SYSTEM, USER, scope, index, &ENV, &both()),
+                pass.scope(scope).issues(index).to_vec(),
+                "{scope:?} entry {index} ({raw:?})"
+            );
+        }
+    }
+}
+
+#[test]
+fn one_entry_past_the_end_has_no_issues() {
+    // `ScopeDiagnosis::issues`' rule, and for its reason: a Working Copy the
+    // caller has already shortened must answer, not panic.
+    assert_eq!(
+        diagnose_one(SYSTEM, USER, Scope::User, USER.len(), &ENV, &both()),
+        healthy()
+    );
+}
+
+#[test]
+fn the_entries_before_it_are_read_but_never_probed() {
+    // The whole affordability claim: the filesystem is asked exactly one
+    // question however long the two Working Copies are.
+    let fs = both();
+    diagnose_one(SYSTEM, USER, Scope::User, 6, &ENV, &fs);
+    assert_eq!(fs.probed(), vec![r"C:\gone".to_string()]);
+}
+
+#[test]
+fn an_entry_that_is_never_probed_asks_the_filesystem_nothing() {
+    let fs = both();
+    // `tools\bin` is Relative, so the existence check never reaches it.
+    diagnose_one(SYSTEM, USER, Scope::User, 2, &ENV, &fs);
+    assert_eq!(fs.probed(), Vec::<String>::new());
+}
+
+#[test]
+fn an_earlier_entry_in_system_makes_a_user_entry_duplicate() {
+    // The cross-scope rule, which is the reason the prefix is the runtime
+    // order and not just this Scope's own Entries.
+    assert_eq!(
+        diagnose_one(SYSTEM, USER, Scope::User, 3, &ENV, &both()),
+        vec![Issue::Duplicate]
+    );
+    // And the System copy it duplicates is itself clean.
+    assert_eq!(
+        diagnose_one(SYSTEM, USER, Scope::System, 0, &ENV, &both()),
+        healthy()
+    );
+}
+
+#[test]
+fn empty_entries_in_the_prefix_put_no_key_in_the_set() {
+    // Two Empties before it, and the Entry is still not a duplicate of them —
+    // the one rule the prefix walk could quietly get wrong, because it is an
+    // exception rather than a check.
+    let fs = Fs::new().directory(r"C:\tools");
+    let user = ["", "   ", r"C:\tools"];
+    assert_eq!(
+        diagnose_one(NONE, &user, Scope::User, 2, &ENV, &fs),
+        healthy()
+    );
+}
+
+#[test]
+fn an_entry_appended_at_the_end_can_only_flag_itself() {
+    // Why Add is the safe case: the last position is the one no other Entry's
+    // findings depend on, so a stamp there leaves the rest of the list exactly
+    // as the pass will find it.
+    let fs = Fs::new().directory(r"C:\tools");
+    let before = diagnose(NONE, &[r"C:\tools"], &ENV, &fs);
+    let after = diagnose(NONE, &[r"C:\tools", r"C:\tools"], &ENV, &fs);
+    assert_eq!(
+        after.scope(Scope::User).issues(0),
+        before.scope(Scope::User).issues(0)
+    );
+    assert_eq!(after.scope(Scope::User).issues(1), &[Issue::Duplicate]);
+}
+
+// ---- What would be probed, asked before paying for it ----
+
+#[test]
+fn an_empty_entry_names_no_probe_target() {
+    assert_eq!(probe_target("", &ENV), None);
+    assert_eq!(probe_target("   ", &ENV), None);
+}
+
+#[test]
+fn a_relative_entry_names_no_probe_target() {
+    // It is flagged on its shape alone, so the caller owes the filesystem
+    // nothing for it — which is what lets a relative Entry be stamped on a
+    // thread that may not block.
+    assert_eq!(probe_target(r"tools\bin", &ENV), None);
+    assert_eq!(probe_target(r"C:tools", &ENV), None);
+}
+
+#[test]
+fn a_qualified_entry_names_the_text_the_probe_would_read() {
+    // Quotes stripped and `%VAR%` expanded, exactly as the existence check
+    // reads it — the caller must gate the path that will really be touched.
+    assert_eq!(
+        probe_target(r"%SystemRoot%\System32", &ENV).as_deref(),
+        Some(r"C:\Windows\System32")
+    );
+    assert_eq!(
+        probe_target(r#""C:\Java\bin""#, &ENV).as_deref(),
+        Some(r"C:\Java\bin")
+    );
+}
+
+#[test]
+fn an_undefined_leading_reference_still_names_a_target() {
+    // D10: the shape is unanswerable, so it goes to the existence check with
+    // its text literal — and the caller must gate that literal text.
+    assert_eq!(
+        probe_target(r"%NOPE%\bin", &ENV).as_deref(),
+        Some(r"%NOPE%\bin")
+    );
+}
+
+// ---- Stamping a Findings without a pass ----
+
+#[test]
+fn a_stamp_is_read_back_like_any_other_finding() {
+    let session = session(r"C:\gone");
+    let entry = &session.entries()[0];
+    let mut findings = Findings::default();
+    findings.stamp(entry.id(), entry.raw(), vec![Issue::Missing]);
+    assert_eq!(findings.issues(entry), &[Issue::Missing]);
+    assert_eq!(findings.issue_count(), 1);
+}
+
+#[test]
+fn a_stamp_stops_describing_an_entry_whose_text_changed_again() {
+    // The staleness rule is the pass's, and a stamp gets no exemption from it.
+    let session = session(r"C:\gone");
+    let entry = &session.entries()[0];
+    let mut findings = Findings::default();
+    findings.stamp(entry.id(), r"C:\something-else", vec![Issue::Missing]);
+    assert_eq!(findings.issues(entry), &[] as &[Issue]);
+}
+
+#[test]
+fn stamping_the_same_entry_twice_replaces_rather_than_repeats() {
+    // Edit stamps an Entry a pass may already have described; two findings for
+    // one Entry would double it in the StatusBar's count.
+    let session = session(r"C:\gone");
+    let entry = &session.entries()[0];
+    let mut findings = Findings::default();
+    findings.stamp(entry.id(), entry.raw(), vec![Issue::Missing]);
+    findings.stamp(entry.id(), entry.raw(), vec![Issue::Missing, Issue::Quoted]);
+    assert_eq!(findings.issues(entry), &[Issue::Missing, Issue::Quoted]);
+    assert_eq!(findings.issue_count(), 2);
 }

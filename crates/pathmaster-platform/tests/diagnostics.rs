@@ -34,7 +34,9 @@ use pathmaster_core::diagnostics::{Diagnosis, Existence, Filesystem, Issue, Root
 use pathmaster_core::fix::DriveTypes;
 use pathmaster_core::normalize::Environment;
 use pathmaster_core::session::Scope;
-use pathmaster_platform::diagnostics::{LocalFilesystem, ProcessEnvironment, Worker};
+use pathmaster_platform::diagnostics::{
+    diagnose_one, diagnose_one_over, LocalFilesystem, ProcessEnvironment, Worker,
+};
 
 // ---- The process environment, as expansion reads it ----
 
@@ -377,5 +379,168 @@ fn a_full_pass_over_two_hundred_entries_is_well_inside_the_budget() {
     assert!(
         elapsed < Duration::from_secs(1),
         "a 200-entry pass took {elapsed:?}, past spec §7's one-second budget"
+    );
+}
+
+// ---- One Entry on the calling thread, and what it refuses to touch ----
+
+/// A machine whose drives the test names. Everything neither remote nor fixed
+/// is the removable-or-optical case: the one the gate exists for, and the one
+/// no CI machine can produce for itself.
+#[derive(Default)]
+struct Machine {
+    remote: Vec<&'static str>,
+    fixed: Vec<&'static str>,
+    directories: Vec<&'static str>,
+    probed: Mutex<Vec<String>>,
+}
+
+impl Machine {
+    fn new() -> Machine {
+        Machine::default()
+    }
+
+    fn remote(mut self, prefix: &'static str) -> Machine {
+        self.remote.push(prefix);
+        self
+    }
+
+    fn fixed(mut self, prefix: &'static str) -> Machine {
+        self.fixed.push(prefix);
+        self
+    }
+
+    fn directory(mut self, path: &'static str) -> Machine {
+        self.directories.push(path);
+        self
+    }
+
+    fn probed(&self) -> Vec<String> {
+        self.probed.lock().unwrap().clone()
+    }
+
+    fn under(prefixes: &[&str], path: &str) -> bool {
+        prefixes
+            .iter()
+            .any(|prefix| path.to_lowercase().starts_with(&prefix.to_lowercase()))
+    }
+}
+
+impl Filesystem for Machine {
+    fn root_kind(&self, path: &str) -> RootKind {
+        if Machine::under(&self.remote, path) {
+            RootKind::Network
+        } else {
+            RootKind::Local
+        }
+    }
+
+    fn probe(&self, path: &str) -> Existence {
+        self.probed.lock().unwrap().push(path.to_string());
+        if self
+            .directories
+            .iter()
+            .any(|d| d.eq_ignore_ascii_case(path))
+        {
+            Existence::Directory
+        } else {
+            Existence::NotFound
+        }
+    }
+}
+
+impl DriveTypes for Machine {
+    fn is_fixed_root(&self, path: &str) -> bool {
+        Machine::under(&self.fixed, path)
+    }
+}
+
+const NONE: &[&str] = &[];
+
+#[test]
+fn an_entry_on_a_fixed_disk_is_answered_here() {
+    let machine = Machine::new().fixed("C:").directory(r"C:\tools");
+    let user = [r"C:\tools", r"C:\gone"];
+    assert_eq!(
+        diagnose_one_over(NONE, &user, Scope::User, 0, &Undefined, &machine),
+        Some(Vec::new())
+    );
+    assert_eq!(
+        diagnose_one_over(NONE, &user, Scope::User, 1, &Undefined, &machine),
+        Some(vec![Issue::Missing])
+    );
+    assert_eq!(machine.probed(), vec![r"C:\tools", r"C:\gone"]);
+}
+
+#[test]
+fn an_entry_on_a_removable_root_is_declined_untouched() {
+    // The whole reason the gate exists: on this thread the OS's "There is no
+    // disk in the drive" box would have a window to own. So the question is
+    // never asked, and nothing is stamped — a blank Status is what the row
+    // already reads, and it is honest.
+    let machine = Machine::new().fixed("C:");
+    let user = [r"A:\tools"];
+    assert_eq!(
+        diagnose_one_over(NONE, &user, Scope::User, 0, &Undefined, &machine),
+        None
+    );
+    assert_eq!(machine.probed(), Vec::<String>::new());
+}
+
+#[test]
+fn a_network_rooted_entry_is_answered_without_being_probed() {
+    // It is never probed by anyone, here or on the worker, so answering costs
+    // nothing at all.
+    let machine = Machine::new().remote(r"\\").fixed("C:");
+    let user = [r"\\server\share\bin"];
+    assert_eq!(
+        diagnose_one_over(NONE, &user, Scope::User, 0, &Undefined, &machine),
+        Some(Vec::new())
+    );
+    assert_eq!(machine.probed(), Vec::<String>::new());
+}
+
+#[test]
+fn an_entry_the_existence_check_never_reaches_is_answered_over_any_root() {
+    // Relative and Empty are decided on the text alone. Declining them would
+    // cost the two Issue types a typo most often produces, for a probe that
+    // was never going to happen.
+    let machine = Machine::new();
+    let user = [r"tools\bin", "   "];
+    assert_eq!(
+        diagnose_one_over(NONE, &user, Scope::User, 0, &Undefined, &machine),
+        Some(vec![Issue::Relative])
+    );
+    assert_eq!(
+        diagnose_one_over(NONE, &user, Scope::User, 1, &Undefined, &machine),
+        Some(vec![Issue::Empty])
+    );
+    assert_eq!(machine.probed(), Vec::<String>::new());
+}
+
+#[test]
+fn an_index_past_the_end_answers_nothing_rather_than_declining() {
+    // `None` means "could not answer"; an Entry that is not there is answered,
+    // and the answer is that it has no Issues.
+    let machine = Machine::new().fixed("C:");
+    assert_eq!(
+        diagnose_one_over(NONE, NONE, Scope::User, 3, &Undefined, &machine),
+        Some(Vec::new())
+    );
+}
+
+#[test]
+fn this_machine_answers_for_its_own_fixed_disk() {
+    // The one test over the real adapters: `%SystemRoot%` is a directory on
+    // every Windows run, and its sibling nonsense is not.
+    let user = [r"%SystemRoot%", r"%SystemRoot%\pathmaster-no-such-folder"];
+    assert_eq!(
+        diagnose_one(NONE, &user, Scope::User, 0),
+        Some(Vec::new()),
+        "the Windows directory is there and on a fixed disk"
+    );
+    assert_eq!(
+        diagnose_one(NONE, &user, Scope::User, 1),
+        Some(vec![Issue::Missing])
     );
 }

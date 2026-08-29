@@ -182,6 +182,23 @@ Launch checks: each starts the application afresh, from a shell, with the switch
 | 85 | `--help` | The dialog titled "PathMaster command line", the usage line in its body, and the application **exits** when it is answered — no main window at all | |
 | 86 | Read `data\pathmaster.log` after an override Run and after a default Run | The startup line carries `dataDir:` on the override Run, and does not on the default one | |
 
+### The entry just added or edited (ADR-0013)
+
+The same pass, continuing the same numbering. Gate zero still stands. Every step here is about
+**when** the Status is spoken, so each one is void if the row is not read on arrival: arrowing away
+and back proves nothing, because that is exactly what used to be needed.
+
+| # | Step | Expected speech | ✓ |
+|---|------|-----------------|---|
+| 87 | Add an entry naming a folder that is not there — `C:\pathmaster-no-such-folder` | The new last row, read on arrival **with** its Status: "{#}; Path: C:\pathmaster-no-such-folder; Status: Missing". Not after a pause, and not only on returning to the row. Then add a folder that **is** there: its row reads with no "Status:", and still has none a second later | |
+| 88 | Narrow the User Scope to **Missing** (View → Filter), then `F2` on one of those rows and change it to a *different* folder that is not there | The row **stays** in the narrowed list, keeps the focus, and is read with "Status: Missing" — it does not drop out and return a moment later. (Add cannot be checked this way: a narrowed Scope reads **Add Entry…** as unavailable, step B25) | |
+| 89 | `F2` on a healthy row, change it to a folder that is not there, OK | The row is read with "Status: Missing" on arrival. Then `Ctrl+Z`: "Undone: Edit entry", and that row is read **without** a Status until the next pass lands — undo is not one of the two commands that diagnose, and a pause there is the expected behaviour, not a failure | |
+
+One branch has no step because no ordinary machine can produce it: an entry on a **removable or optical**
+root — `A:\tools`, or a drive with no medium in it — is declined rather than diagnosed, so its row reads
+without a Status exactly as every row did before. Where such a drive exists, the check is that adding one
+raises **no** dialog of the operating system's own and does not freeze the window.
+
 ## B. Dialog steps (ticket 10)
 
 | # | Step | Expected speech | ✓ |

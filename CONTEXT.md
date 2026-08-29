@@ -127,9 +127,18 @@ _Avoid_: Tree browser (it is a dialog, not a browser), Folder tree, Tree dialog
 
 **Issue**:
 A single diagnostic finding about one Entry or about a Scope as a whole — a duplicate, a path that does not
-exist, and so on. Issues are derived from a Working Copy and recomputed whenever it changes; they are never
-part of it.
+exist, and so on. Issues are derived from a Working Copy and recomputed as it changes; they are never part
+of it, and an Entry the recomputation has not reached yet is Undiagnosed rather than healthy.
 _Avoid_: Error, Warning, Problem (those name severity, not the finding), Diagnostic
+
+**Undiagnosed**:
+The state of an Entry whose Issues have not been computed for the text it now holds — one just given new
+text, or any Entry of a Scope nothing has looked at yet. The list shows it exactly as it shows an Entry
+with no Issues at all, and the two are emphatically not the same thing: a Scope that is merely Undiagnosed
+may never be counted as one with no Issues. Adding an Entry and editing one both leave that Entry
+diagnosed; the other ways a Working Copy changes need not.
+_Avoid_: Pending, Unknown, Unchecked, Stale (that is a finding that no longer describes its Entry, which is
+a different state and already has a rule)
 
 **Fix Issues**:
 A modal, per-Scope repair surface: one row for each of the active Scope's Entries whose Issues it

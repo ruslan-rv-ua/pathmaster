@@ -15,6 +15,12 @@
 //! Results cross back over an `mpsc` channel that the caller drains from a wx
 //! Timer.
 //!
+//! **One Entry may be, and [`diagnose_one`] is the whole of the exception**
+//! ([ADR-0013](../../../docs/adr/0013-one-entry-is-diagnosed-on-the-ui-thread.md)):
+//! a single Entry, probed once, and only where this machine can answer without
+//! reaching for a root that may not be there. Anything wider than one Entry
+//! still goes to the [`Worker`].
+//!
 //! **The subject of a pass is the two Working Copies** — never the process's
 //! own `PATH`, never a fresh registry read. What the user is editing is what
 //! gets diagnosed, including the changes they have not applied.
@@ -22,9 +28,12 @@
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::thread;
 
-use pathmaster_core::diagnostics::{diagnose, Diagnosis, Existence, Filesystem, RootKind};
+use pathmaster_core::diagnostics::{
+    diagnose, probe_target, Diagnosis, Existence, Filesystem, Issue, RootKind,
+};
 use pathmaster_core::fix::DriveTypes;
 use pathmaster_core::normalize::Environment;
+use pathmaster_core::session::Scope;
 
 use windows_sys::Win32::Foundation::ERROR_ACCESS_DENIED;
 use windows_sys::Win32::Storage::FileSystem::{
@@ -140,6 +149,83 @@ impl Worker {
             }
         }
         current
+    }
+}
+
+/// The Issues of the Entry at `index` of `scope`'s Working Copy, answered on
+/// the calling thread — or `None` where this machine cannot answer without a
+/// cost the UI thread must not pay (ADR-0013).
+///
+/// Over this machine's own environment and filesystem. The seam the tests
+/// drive it through is [`diagnose_one_over`], for [`Worker::spawn_over`]'s
+/// reason: the interesting branch is the one that declines, and no CI machine
+/// has a floppy drive to decline over.
+pub fn diagnose_one(
+    system: &[impl AsRef<str>],
+    user: &[impl AsRef<str>],
+    scope: Scope,
+    index: usize,
+) -> Option<Vec<Issue>> {
+    diagnose_one_over(
+        system,
+        user,
+        scope,
+        index,
+        &ProcessEnvironment,
+        &LocalFilesystem,
+    )
+}
+
+/// [`diagnose_one`] over injected adapters.
+///
+/// The two questions come from one value because they are two questions about
+/// one machine, and a caller holding a filesystem that disagreed with its own
+/// drive table could gate a probe it then did not make.
+pub fn diagnose_one_over<F: Filesystem + DriveTypes>(
+    system: &[impl AsRef<str>],
+    user: &[impl AsRef<str>],
+    scope: Scope,
+    index: usize,
+    env: &dyn Environment,
+    fs: &F,
+) -> Option<Vec<Issue>> {
+    let raw = match scope {
+        Scope::System => system.get(index).map(AsRef::as_ref),
+        Scope::User => user.get(index).map(AsRef::as_ref),
+    };
+    // Past the end of that Working Copy there is no Entry to be wrong about,
+    // and it is the same nothing the rulebook answers for such an index.
+    let Some(raw) = raw else {
+        return Some(Vec::new());
+    };
+    if !may_probe_here(raw, env, fs) {
+        return None;
+    }
+    Some(pathmaster_core::diagnostics::diagnose_one(
+        system, user, scope, index, env, fs,
+    ))
+}
+
+/// Whether this thread may pay for `raw`'s diagnosis.
+///
+/// The rulebook says what would be probed; this says whether asking it is
+/// affordable *here*, which is a fact about the machine and never a rule
+/// (ADR-0013, and the note on [`DriveTypes`] about which trait grows which
+/// question).
+///
+/// Three answers, and only the last declines. An Entry the existence check
+/// never reaches costs nothing at all. A network root is never probed either,
+/// by the standing rule that a dead UNC blocks 20-60 uncancellable seconds. A
+/// fixed disk is the machine's own storage: it is always there, so
+/// `GetFileAttributesW` answers from the mount table's own device without
+/// spinning anything up. Everything left — removable media, an optical drive,
+/// a root this run cannot classify — is where a probe can raise the OS's
+/// "There is no disk in the drive" box or block on a spin-up, and on this
+/// thread that box would have a window to own.
+fn may_probe_here<F: Filesystem + DriveTypes>(raw: &str, env: &dyn Environment, fs: &F) -> bool {
+    match probe_target(raw, env) {
+        None => true,
+        Some(path) => fs.root_kind(&path) == RootKind::Network || fs.is_fixed_root(&path),
     }
 }
 
