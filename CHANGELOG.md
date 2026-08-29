@@ -12,6 +12,8 @@ release page publishes as its body.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-08-29
+
 ### Changed
 
 - The window now opens with the keyboard focus on the first row of the tab it opened on, rather
@@ -19,11 +21,20 @@ release page publishes as its body.
   relaunch both land. Decided once per run: switching tabs afterwards still leaves the focus on
   the tab strip. The first row is read before any diagnostic pass has completed, so it is spoken
   without its Status column.
-- Minor interface corrections, including keyboard shortcuts for **Add Entry** (`Ctrl+N`) and
-  **Fix Issues** (`Ctrl+Shift+I`).
+- **Add Entry** gains `Ctrl+N` and **Fix Issues** gains `Ctrl+Shift+I` — the two commands that no
+  gesture but opening a menu could reach. A second door to a command that already existed rather
+  than a new command: `Insert`, which a list editor would otherwise take, is unavailable here
+  because NVDA claims both Insert keys as its own modifier by default.
 
 ### Fixed
 
+- The Ukrainian menus no longer say their mnemonic letter twice. wx strips the `&` and nothing
+  else, so `Файл(&F)` reached the label as "Файл(F)" and NVDA read the letter once inside the
+  name and once as the access key. All twenty-eight Ukrainian menu labels lose the parenthesised
+  letter. **That takes `Alt`+letter menu access out of a Ukrainian run**, deliberately: the form
+  that would keep it, `&Файл`, binds `Alt+Ф`, which is unreachable from the Latin layout this
+  application's user sits in. `F10` and the arrow keys reach every menu unchanged, and English
+  keeps its mnemonics — nothing was ever doubled there.
 - Adding an entry, or editing one, now leaves that entry diagnosed, so the row the focus lands on is
   read **with** its Status column instead of without it. The diagnostic pass runs off the UI thread and
   the row was being spoken before the pass landed, which made a path that does not exist — or one that
@@ -85,6 +96,7 @@ release page publishes as its body.
 
 First release.
 
-[Unreleased]: https://github.com/ruslan-rv-ua/pathmaster/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/ruslan-rv-ua/pathmaster/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/ruslan-rv-ua/pathmaster/releases/tag/v0.2.1
 [0.2.0]: https://github.com/ruslan-rv-ua/pathmaster/releases/tag/v0.2.0
 [0.1.0]: https://github.com/ruslan-rv-ua/pathmaster/releases/tag/v0.1.0
