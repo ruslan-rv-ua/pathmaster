@@ -137,9 +137,9 @@ voided group can be repeated on its own without re-running the whole section.
 
 | # | Step | Expected speech | ✓ |
 |---|------|-----------------|---|
-| 60 | Edit → Fix Issues… on a Scope with no fixable row | Reads as unavailable | |
-| 61 | The same on the Backups tab, on the System tab **unelevated**, and in the step-17 unwritable-`data\` run | Unavailable in all three | |
-| 62 | Open it on a Scope that has fixable rows | A dialog titled "Fix issues — User PATH"; arrowing the rows reads each as "checked" / "not checked" with its `#`, Path, Issue and Action columns | |
+| 60 | Edit → Fix Issues… on a Scope with no fixable row | Reads as unavailable, and `Ctrl+Shift+I` does nothing | |
+| 61 | The same on the Backups tab, on the System tab **unelevated**, and in the step-17 unwritable-`data\` run | Unavailable in all three, and the keystroke does nothing in any of them | |
+| 62 | Open it with `Ctrl+Shift+I` on a Scope that has fixable rows | A dialog titled "Fix issues — User PATH"; arrowing the rows reads each as "checked" / "not checked" with its `#`, Path, Issue and Action columns | |
 | 63 | Arrow to a Missing row whose Entry carries `%VAR%` | It starts **not checked**: an unresolved variable is not proof the directory is absent | |
 | 64 | `Space` on a row, twice | The new state is announced **in place** each time | |
 | 65 | Check a known number of rows and press [Fix selected] | Focus lands first, then "Fixed {n} entries" **last** — and {n} is the number that was checked | |
@@ -212,6 +212,7 @@ Launch checks: each starts the application afresh, from a shell, with the switch
 | B22 | Set the delay to `3000`, OK, then type one character in a Search field **without restarting** | The rows narrow and the count speaks about three seconds later, not a quarter of one — the new delay is in force from the next keystroke. Back to `250` and the same gesture speaks at once | |
 | B23 | Clear "Speak filtered entry counts", OK, then narrow a Scope and clear it again | Narrowing says nothing at all — items 9, 10 and 11 are silent, on typing, on a tab switch and on an Expansion toggle — while the rows still narrow and the StatusBar still counts them. Clearing both narrowings still speaks Announcement 1: the switch silences the filtered counts and nothing else | |
 | B24 | Clear "Escape returns focus to the list", OK, then press ESC in a Search field | The field clears and focus **stays in it**; with the box checked, focus returns to the list. Either way ESC on an already-empty field says nothing | |
+| B25 | `Ctrl+N` on a Scope's list | The Add-entry dialog opens — the same one the **Add** button opens, its title and its field spoken. Then the same keystroke on the Backups tab, and again with a Search text or a Filter narrowing the list: **Edit → Add Entry…** reads as unavailable and the key does nothing, both times | |
 
 ## C. Elevated instance (ticket 12)
 

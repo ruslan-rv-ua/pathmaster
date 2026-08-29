@@ -404,8 +404,36 @@ impl Command {
     /// create it — the system closes a window on Alt+F4 whatever any menu
     /// says — it makes the item **read** as the shortcut it already is, which
     /// is the only way a screen-reader user learns of one (ADR-0004).
+    ///
+    /// **Which commands carry one at all** is two rules, and between them they
+    /// leave nothing over:
+    ///
+    /// - A command about a **Scope** carries a key. Cancel is the one
+    ///   exception, and deliberately: it discards every unapplied edit in the
+    ///   Session, so its reach is the menu item a user has to open and choose,
+    ///   and never a keystroke a slip can land on. The Filter states are not
+    ///   an exception but an impossibility — a radio item's key fires its own
+    ///   selection rather than the gesture it was meant to be, which is why
+    ///   Ctrl+I sits on a plain item beside them.
+    /// - A command about the **Run** carries a key only where the platform
+    ///   already owns one and the item does no more than name it: Alt+F4 and
+    ///   F1. Settings, Open Backups Folder, Restart as Administrator and About
+    ///   would each need one invented for them, and carry none.
+    ///
+    /// What this does not relax is the module's own rule: every shortcut needs
+    /// a menu home, because there is nowhere else to put one. Not every item
+    /// needs a shortcut.
     fn accelerator(self) -> Option<&'static str> {
         match self {
+            // Ctrl+N, which Microsoft's shortcut guidance both designates for
+            // "new" and reserves against being given to anything else.
+            //
+            // **Insert is what a list editor would otherwise reach for, and it
+            // is unavailable here**: NVDA takes both Insert keys as its own
+            // modifier by default, so the keystroke never arrives at all. The
+            // convention is sound and the reason it loses is particular to the
+            // user this application is built for.
+            Command::Add => Some("Ctrl+N"),
             Command::Edit => Some("F2"),
             Command::Delete => Some("Del"),
             // **Scoped by the platform, not by us** (v0.2.0 §8): wxMSW text
@@ -417,6 +445,15 @@ impl Command {
             Command::Copy => Some("Ctrl+C"),
             Command::MoveUp => Some("Alt+Up"),
             Command::MoveDown => Some("Alt+Down"),
+            // Ctrl+Shift+I: the Issues axis Ctrl+I already names, made to act
+            // on them rather than to narrow to them (v0.2.0 §7, §12). Ctrl
+            // because the dialog is about the whole Working Copy and not about
+            // the focused row — the object-scoped commands are the F2 class —
+            // and Shift because that is the modifier a key complementing
+            // another one takes. Outside a named application NVDA binds no
+            // Ctrl+Shift+letter of its own, so nothing of the screen reader's
+            // is shadowed.
+            Command::FixIssues => Some("Ctrl+Shift+I"),
             Command::Undo => Some("Ctrl+Z"),
             Command::Redo => Some("Ctrl+Y"),
             Command::Apply => Some("Ctrl+S"),
@@ -446,13 +483,16 @@ impl Command {
             // The five per-type states are menu-only, and so are the two
             // coarse ones: a radio item carrying a key would fire its own
             // selection rather than the toggle it was meant to be.
-            // Fix Issues carries none either (v0.2.0 §7, §12): an occasional
-            // bulk-review dialog is in the Settings/Restore class, not the F2
-            // class — every shortcut needs a menu home, not every item a
-            // shortcut.
+            //
+            // Cancel is the one Scope command that could carry a key and does
+            // not, and that is what it is for: it throws the Session's whole
+            // unapplied history away, and the menu item is the only reach a
+            // command like that should have.
+            //
+            // The last four are about the Run and not about a Scope, and none
+            // of them has a key the platform already owns — there is no
+            // Alt+F4 for "show me the settings".
             Command::Filter(_)
-            | Command::Add
-            | Command::FixIssues
             | Command::Cancel
             | Command::Settings
             | Command::OpenBackupsFolder

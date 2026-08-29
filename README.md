@@ -100,6 +100,7 @@ to PathMaster, and each one also names itself on its own menu item:
 | Keys | What it does |
 |---|---|
 | `F1` | Open the user guide in your browser |
+| `Ctrl+N` | Add a new entry, appended at the end of the list |
 | `F2` | Edit the entry the cursor is on (`Enter` and double-click do the same) |
 | `Del` | Delete it — no confirmation, because `Ctrl+Z` brings it back |
 | `Alt+↑` / `Alt+↓` | Move it one place earlier / later |
@@ -111,6 +112,7 @@ to PathMaster, and each one also names itself on its own menu item:
 | `↓` or `Tab` | From the search field into the list |
 | `Esc` | In the search field: clear it and return to the list |
 | `Ctrl+I` | Coarse filter switch: *All* → *With issues*, anything else → *All* |
+| `Ctrl+Shift+I` | Open Fix Issues over this PATH |
 | `Ctrl+E` | Switch between expanded and stored values |
 | `Ctrl+T` | Open the PATH Tree |
 | `Space` | In Fix Issues: tick or untick the row |

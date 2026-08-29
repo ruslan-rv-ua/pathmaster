@@ -63,7 +63,7 @@ Nothing you do in the window touches the registry. Edits change a working copy,
 the list shows that copy, and **Apply** (`Ctrl+S`) is the only thing that
 writes — after saving a copy of the PATH it is about to overwrite.
 
-- **Add** appends a new entry at the end of the list.
+- **Add** (`Ctrl+N`) appends a new entry at the end of the list.
 - **Edit** (`F2`, `Enter`, or double-click) changes the entry the cursor is on.
   The dialog carries a **Browse** button that opens Windows' own folder picker.
 - **Delete** (`Del`) removes it. There is no confirmation, because `Ctrl+Z`
@@ -158,11 +158,11 @@ rest of it, and each has its own key in the table below.
   the quickest way to see that four entries all live under one Java
   installation. `Enter` on an entry closes the tree and puts the cursor on that
   entry in the list.
-- **Fix Issues** (**Edit → Fix Issues…**) — one row per entry that can be
-  repaired, each with the repair it would get: delete the entry, or remove its
-  quotes. `Space` ticks and unticks a row; **Fix selected** applies the ticked
-  ones as a single undoable edit. Nothing reaches the registry — Apply still
-  does that.
+- **Fix Issues** (`Ctrl+Shift+I`, or **Edit → Fix Issues…**) — one row per
+  entry that can be repaired, each with the repair it would get: delete the
+  entry, or remove its quotes. `Space` ticks and unticks a row; **Fix
+  selected** applies the ticked ones as a single undoable edit. Nothing reaches
+  the registry — Apply still does that.
 - **Copy** (`Ctrl+C`) — puts the entry the cursor is on onto the clipboard,
   exactly as the list is showing it, which is how you get an expanded value out
   of PathMaster.
@@ -184,6 +184,7 @@ itself on its own menu item.
 | Keys | What it does |
 |---|---|
 | `F1` | Open this guide |
+| `Ctrl+N` | Add a new entry, appended at the end of the list |
 | `F2` | Edit the entry the cursor is on (`Enter` and double-click do the same) |
 | `Del` | Delete it — no confirmation, because `Ctrl+Z` brings it back |
 | `Alt+↑` / `Alt+↓` | Move it one place earlier / later |
@@ -195,6 +196,7 @@ itself on its own menu item.
 | `↓` or `Tab` | From the search field into the list |
 | `Esc` | In the search field: clear it and return to the list |
 | `Ctrl+I` | Coarse filter switch: *All* → *With issues*, anything else → *All* |
+| `Ctrl+Shift+I` | Open Fix Issues over this PATH |
 | `Ctrl+E` | Switch between expanded and stored values |
 | `Ctrl+T` | Open the PATH Tree |
 | `Space` | In Fix Issues: tick or untick the row |

@@ -19,7 +19,8 @@ release page publishes as its body.
   relaunch both land. Decided once per run: switching tabs afterwards still leaves the focus on
   the tab strip. The first row is read before any diagnostic pass has completed, so it is spoken
   without its Status column.
-- Minor interface corrections.
+- Minor interface corrections, including keyboard shortcuts for **Add Entry** (`Ctrl+N`) and
+  **Fix Issues** (`Ctrl+Shift+I`).
 
 ## [0.2.0] - 2026-08-28
 
